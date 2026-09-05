@@ -117,6 +117,12 @@ python cli.py 打ち合わせ.mp4         # CLI: 動作確認・自動化用
   破壊的操作の有無を確認した上でマージする
 - 役割分担・禁止事項・レビュー基準は
   [`doc/ai-workflow/SESSION_RULES.md`](doc/ai-workflow/SESSION_RULES.md) に明文化
+- **manager は worker の自己申告を鵜呑みにしない** — 全 PR で pytest・機密 grep を
+  manager 自身が再実行し、diff を直接確認した上でマージする
+- **セッション間で会話コンテキストは共有されない** — manager は worker の試行錯誤の
+  過程を見ず、最終的な diff と報告のみからレビューする
+- **権限境界は実際に機能した** — 追跡ファイルの削除など本人の直接確認が必要な操作では、
+  worker は manager 経由の伝達だけでは実行せず、本人への確認を待って保留した実例がある
 
 実会議データを扱うプロジェクトの性質上、push・PR前に追跡ファイルへの機密混入を
 grep で確認する手順を徹底している。
