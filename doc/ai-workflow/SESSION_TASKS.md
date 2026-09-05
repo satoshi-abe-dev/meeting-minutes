@@ -1,4 +1,4 @@
-# SESSION_NEXT_STEPS.md
+# SESSION_TASKS.md
 
 > このフォルダで作業するセッション・人は、着手前にこのファイルと
 > [`SESSION_RULES.md`](SESSION_RULES.md) の両方を確認してください。
