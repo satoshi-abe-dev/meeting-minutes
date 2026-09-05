@@ -40,6 +40,9 @@ minutes_partials.json               議事録のチャンク要約（長い文�
 minutes.md                          議事録（決定事項・宿題/担当・期限などの型で整理）
 ```
 
+本プロジェクトは、Claude Code の複数セッション（実装担当・レビュー担当）を
+役割分担・レビュー体制つきで協調運用して開発した（→ [開発体制](#開発体制ai協調開発)）。
+
 ## デモ
 
 <!-- TODO(フェーズ2): 非機密の動画を処理し、GUI スクリーンショットと examples/<name>/minutes.md を追加してここから参照する。処理中の実会議の情報は載せない。 -->
@@ -103,6 +106,20 @@ python cli.py 打ち合わせ.mp4         # CLI: 動作確認・自動化用
 
 判断の理由とトレードオフは [`doc/DESIGN.md`](doc/DESIGN.md)、
 想定質問と回答は [`doc/interview-qa.md`](doc/interview-qa.md)。
+
+## 開発体制（AI協調開発）
+
+本プロジェクトは Claude Code の複数セッションによる協調開発で実装した。
+
+- **worker** — 実装・テスト・git 操作を担当
+- **manager** — worker が発行した PR をレビューし、`main` へのマージを担当。
+  機密混入（実会議の固有名詞）・`.gitignore` の除外設定・差分が意図した範囲内か・
+  破壊的操作の有無を確認した上でマージする
+- 役割分担・禁止事項・レビュー基準は
+  [`doc/ai-workflow/SESSION_RULES.md`](doc/ai-workflow/SESSION_RULES.md) に明文化
+
+実会議データを扱うプロジェクトの性質上、push・PR前に追跡ファイルへの機密混入を
+grep で確認する手順を徹底している。
 
 ## テスト
 
