@@ -28,5 +28,5 @@ config.toml
 temp/
 
 # セッション間のやり取り履歴（ローカルの作業ログ。機密混入リスクを避けコミットしない）
-SESSION_LOG.md
+doc/ai-workflow/SESSION_LOG.md
 
