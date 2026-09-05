@@ -1,0 +1,10 @@
+# pytest の設定だけを置く最小構成。パッケージング（build-system 等）は行わない。
+# 兄弟プロジェクト tkinter-task-manager-mvp に合わせている。
+[tool.pytest.ini_options]
+# src レイアウトなので、テストから `import meeting_minutes...` できるよう src/ を通す。
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "needs_ffmpeg: 実物の ffmpeg を呼ぶ。ffmpeg が無ければ skip",
+    "needs_llm: 実物のローカル LLM サーバー（LM Studio 等）を呼ぶ。無ければ skip",
+]

@@ -1,0 +1,17 @@
+# 実行に必要な依存。すべてローカル動作用で、外部サービスへは接続しない。
+
+# 音声の文字起こし（ローカル・オフライン。初回のみモデルをダウンロード）
+# faster-whisper: どの OS でも動く。Mac では CPU のみ。
+faster-whisper>=1.0.0
+# mlx-whisper: Apple Silicon の GPU を使う実装。Mac では大幅に高速。
+# 環境マーカーにより Apple Silicon の Mac 以外では pip がスキップする。
+mlx-whisper>=0.4.0 ; sys_platform == "darwin" and platform_machine == "arm64"
+
+# ローカル LLM / VLM サーバー（LM Studio 等）への OpenAI 互換 HTTP 呼び出し
+httpx>=0.27.0
+
+# ---
+# ffmpeg は Python パッケージではなくシステム依存。
+#   brew install ffmpeg
+# tkinter は CPython に同梱（GUI で使用）。追加インストール不要。
+# TOML 読み込みは標準ライブラリ tomllib（Python 3.11+）を使うため依存なし。

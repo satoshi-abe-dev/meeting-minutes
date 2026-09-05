@@ -1,0 +1,58 @@
+# このファイルを config.toml にコピーして、環境に合わせて編集する。
+# config.toml は .gitignore 済み（個人設定なのでコミットしない）。
+#
+#   cp config.example.toml config.toml
+#
+# 各値は環境変数でも上書きできる（MM_LLM_BASE_URL など。config.py 参照）。
+
+[llm]
+# ローカル LLM / VLM サーバーの OpenAI 互換エンドポイント。
+# LM Studio: Developer タブでローカルサーバーを起動すると既定でこの URL。
+# Ollama を使う場合: "http://localhost:11434/v1"
+base_url = "http://localhost:1234/v1"
+# 認証は不要だが OpenAI 互換クライアントが要求するのでダミー値を入れる。
+api_key = "local-no-key"
+# 議事録生成に使うテキスト LLM のモデル名（LM Studio でロード済みのもの）。
+# ※ 推論（thinking）モデル（Qwen3 / DeepSeek-R1 等）は避けるか、reasoning をオフに
+#    して使うこと。そのままだと極端に遅く、本文が空で返ることがある（doc/models.md）。
+model = "qwen2.5-7b-instruct"
+# フレーム画像の解析に使う VLM のモデル名。
+vlm_model = "qwen2-vl-7b-instruct"
+# 1 リクエストのタイムアウト秒。大きめモデルは数分かかることがあり、特に
+# 議事録の最終統合（出力トークン数が多い）はタイムアウトしやすいので長めにする。
+timeout = 600
+# 議事録生成・チャンク要約の応答トークン上限。Qwen3 系などの推論モデルは
+# 見えない"思考"にもここから消費するため、通常のモデルより多めにしてある。
+# 本文が空で返ってくる場合はまずこの値を増やす。
+max_tokens = 8192
+
+[transcribe]
+# エンジン: "auto"（Apple Silicon なら mlx、他は faster-whisper）/ "mlx" / "faster-whisper"
+# mlx は Apple GPU を使うため Mac では大幅に速い。
+backend = "auto"
+# モデルのサイズ名。large-v3-turbo / large-v3 / medium / small など。
+# 既定の large-v3-turbo は large-v3 とほぼ同精度で速い。
+# バックエンドごとに実体へ変換する（faster-whisper はそのまま、mlx は
+# mlx-community/whisper-<size> に変換）。フル HF リポジトリ名を書けばそのまま使う。
+model = "large-v3-turbo"
+# 次の 2 つは faster-whisper のときだけ有効（mlx では無視される）。
+# compute_type: CPU なら "int8"。
+compute_type = "int8"
+# device: "cpu" / "auto"。
+device = "auto"
+# 会議の主言語。自動判定させるなら空文字 "" にする。
+language = "ja"
+
+[frames]
+# 一定間隔で 1 枚抜く秒数。
+interval_sec = 15
+# シーン変化検出の閾値（0.0〜1.0）。小さいほど敏感に切り替わりを拾う。
+scene_threshold = 0.3
+# VLM 呼び出し回数の歯止め。抽出枚数がこれを超えたら間引く。
+max_frames = 60
+# 近接フレームの最小間隔秒（シーン検出が連発したときの重複除去）。
+min_gap_sec = 4
+
+[output]
+# 生成物の出力先ルート。実際は output/<動画名>/ に書き出す。
+dir = "output"

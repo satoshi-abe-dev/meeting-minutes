@@ -1,0 +1,32 @@
+.DS_Store
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+*.pyo
+
+# pytest
+.pytest_cache/
+
+# venv / packaging
+.venv/
+venv/
+*.egg-info/
+
+# 生成物（動画名ごとの文字起こし・フレーム・議事録）。実行時データなのでコミットしない。
+# ディレクトリ自体は .gitkeep で残す（`output/` だと親ごと除外され .gitkeep を再包含できない）。
+output/*
+!output/.gitkeep
+
+# ローカルにダウンロードした Whisper / LLM モデルの置き場（使う場合）
+models/
+
+# 個人設定（config.example.toml をコピーして作る）
+config.toml
+
+# Claude Code に見せる画像・動画などの一時受け渡し場所
+temp/
+
+# セッション間のやり取り履歴（ローカルの作業ログ。機密混入リスクを避けコミットしない）
+SESSION_LOG.md
+

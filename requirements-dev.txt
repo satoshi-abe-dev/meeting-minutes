@@ -1,0 +1,4 @@
+# 開発・テスト用の追加依存。
+-r requirements.txt
+
+pytest>=8.0.0
