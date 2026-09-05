@@ -39,6 +39,9 @@
   - .gitignore が config.toml / output/ / temp/ 等を正しく除外しているか
   - 意図した差分のみ（対応する Issue／依頼の範囲を超える変更がないか）
   - 破壊的操作（force push・履歴書き換え等）が含まれていないか
+  - 別ベンダー（OpenAI Codex）による独立コードレビュー
+    （`codex exec review --commit <SHA>`）を実行し、指摘があればマージせず考慮する
+    （manager と worker が同一モデル（Claude）である弱点を補うため）
 - 上記いずれかに問題がある場合はマージせず、中断して本人に報告する
   （manager の独断で「問題なし」と決めつけて進めない）。
 
