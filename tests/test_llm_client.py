@@ -41,6 +41,24 @@ def test_400_no_models_loaded_adds_model_hint(monkeypatch):
     assert "Just-in-time model loading" in msg  # モデルヒントが付く
 
 
+def test_400_context_length_exceeded_adds_context_hint(monkeypatch):
+    c = _client()
+    body = (
+        '{"error":"The number of tokens to keep from the initial prompt is greater '
+        'than the context length. Try to load the model with a larger context '
+        'length, or provide a shorter input"}'
+    )
+    monkeypatch.setattr(c._client, "post", lambda *a, **k: _Resp(400, body))
+
+    with pytest.raises(LLMConnectionError) as ei:
+        c.chat("", "hi")
+    msg = str(ei.value)
+    assert "HTTP 400" in msg
+    assert "Context Length" in msg  # LM Studio の設定名で誘導
+    assert "chunk_trigger_chars" in msg  # 代替手段も案内
+    assert "Just-in-time model loading" not in msg  # モデル未ロードの誤ヒントは出さない
+
+
 def test_500_error_has_no_model_hint(monkeypatch):
     c = _client()
     monkeypatch.setattr(

@@ -25,7 +25,9 @@ ProgressFn = Callable[[int, int, str], None]
 # これを超えたら分割要約する（おおよその文字数。日本語なら 1 文字 ≒ 1〜1.5 トークン）。
 # 分割すると「要約の要約」から議事録を作ることになり具体性が大きく落ちるため、
 # コンテキスト長に収まる限りは一発生成（分割なし）を優先する。LLM 側は 32k 程度の
-# コンテキストで運用する前提（doc/models.md）。長い会議のみ分割にフォールバックする。
+# コンテキストで運用する前提（doc/models.md「コンテキスト長の設定」）。
+# 実値は config.toml の [llm] chunk_trigger_chars / chunk_size_chars で調整可能で、
+# 以下はそれが無い場合のフォールバック既定値。
 _CHUNK_TRIGGER_CHARS = 40000
 _CHUNK_SIZE_CHARS = 15000
 
@@ -205,7 +207,10 @@ def generate_minutes(
     full_transcript = transcript_to_text(segments)
     frames_text = notes_to_text(notes) or "（フレームなし）"
 
-    if len(full_transcript) <= _CHUNK_TRIGGER_CHARS:
+    trigger_chars = getattr(llm_config, "chunk_trigger_chars", None) or _CHUNK_TRIGGER_CHARS
+    size_chars = getattr(llm_config, "chunk_size_chars", None) or _CHUNK_SIZE_CHARS
+
+    if len(full_transcript) <= trigger_chars:
         if on_progress:
             on_progress(
                 0, 1,
@@ -226,7 +231,7 @@ def generate_minutes(
         return md.strip() + "\n"
 
     # --- 長い場合: チャンク要約 -> 統合 ---
-    chunks = _split_segments(segments, _CHUNK_SIZE_CHARS)
+    chunks = _split_segments(segments, size_chars)
     total_steps = len(chunks) + 1
     out_path = Path(out_dir) if out_dir is not None else None
 

@@ -35,14 +35,13 @@ def _segments(n: int, text: str = "発言") -> list[Segment]:
 
 
 @pytest.fixture
-def force_chunking(monkeypatch):
-    """分割要約（長い会議）の経路を、実際のトリガー定数に依存せずに検証するための小さいしきい値。
+def chunking_config() -> LLMConfig:
+    """分割要約（長い会議）の経路を必ず通すための、しきい値を下げた LLMConfig。
 
-    通常運用ではコンテキストに収まる限り一発生成を優先するためしきい値は大きい。
-    ここではテスト用に下げて、必ずチャンク要約 -> 統合 の経路を通す。
+    通常運用ではコンテキストに収まる限り一発生成を優先するため既定のしきい値は大きい。
+    テストでは chunk_trigger_chars / chunk_size_chars を小さくして分割経路を検証する。
     """
-    monkeypatch.setattr("meeting_minutes.minutes._CHUNK_TRIGGER_CHARS", 2000)
-    monkeypatch.setattr("meeting_minutes.minutes._CHUNK_SIZE_CHARS", 1000)
+    return LLMConfig(chunk_trigger_chars=2000, chunk_size_chars=1000)
 
 
 def test_split_segments_respects_size():
@@ -87,7 +86,23 @@ def test_generate_minutes_single_pass_for_moderately_long_transcript():
     assert client.calls[0]["user"].startswith("以下のテンプレートに沿って")
 
 
-def test_generate_minutes_long_path_maps_then_reduces(force_chunking):
+def test_generate_minutes_chunk_trigger_chars_from_config_controls_path():
+    """[llm] chunk_trigger_chars を下げると、短い文字起こしでも分割経路になる。"""
+    segs = _segments(20, text="短い発言")  # 数百文字。既定 40000 なら一発生成
+    single = FakeClient(reply="要約")
+    generate_minutes(segs, [], single, LLMConfig(), MinutesMeta(title="会議"))
+    assert len(single.calls) == 1
+
+    split = FakeClient(reply="要約")
+    generate_minutes(
+        segs, [], split,
+        LLMConfig(chunk_trigger_chars=50, chunk_size_chars=30),
+        MinutesMeta(title="会議"),
+    )
+    assert len(split.calls) >= 2  # チャンク要約(複数) + 統合
+
+
+def test_generate_minutes_long_path_maps_then_reduces(chunking_config):
     # チャンク要約が走るよう十分長い文字起こしを作る
     client = FakeClient(reply="部分要約 or 最終議事録")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
@@ -98,7 +113,7 @@ def test_generate_minutes_long_path_maps_then_reduces(force_chunking):
         long_segs,
         [],
         client,
-        LLMConfig(),
+        chunking_config,
         meta,
         on_progress=lambda c, t, m: progress.append((c, t, m)),
     )
@@ -109,7 +124,7 @@ def test_generate_minutes_long_path_maps_then_reduces(force_chunking):
     assert progress  # 進捗が通知されている
 
 
-def test_generate_minutes_cancel_stops_chunk_loop(force_chunking):
+def test_generate_minutes_cancel_stops_chunk_loop(chunking_config):
     client = FakeClient(reply="部分要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
     meta = MinutesMeta(title="長い会議")
@@ -124,7 +139,7 @@ def test_generate_minutes_cancel_stops_chunk_loop(force_chunking):
             long_segs,
             [],
             client,
-            LLMConfig(),
+            chunking_config,
             meta,
             on_progress=on_progress,
             cancel_event=cancel_event,
@@ -149,7 +164,7 @@ def test_generate_minutes_cancel_before_start_raises_immediately():
 
 # --- 部分要約の永続化と再開 -----------------------------------------
 
-def test_generate_minutes_persists_partials_on_cancel(tmp_path, force_chunking):
+def test_generate_minutes_persists_partials_on_cancel(tmp_path, chunking_config):
     client = FakeClient(reply="部分要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
     meta = MinutesMeta(title="長い会議")
@@ -161,7 +176,7 @@ def test_generate_minutes_persists_partials_on_cancel(tmp_path, force_chunking):
 
     with pytest.raises(PipelineCancelled):
         generate_minutes(
-            long_segs, [], client, LLMConfig(), meta,
+            long_segs, [], client, chunking_config, meta,
             on_progress=on_progress, cancel_event=cancel_event, out_dir=tmp_path,
         )
 
@@ -170,7 +185,7 @@ def test_generate_minutes_persists_partials_on_cancel(tmp_path, force_chunking):
     assert saved[0].startswith("### 部分 1")
 
 
-def test_generate_minutes_resumes_from_saved_partials(tmp_path, force_chunking):
+def test_generate_minutes_resumes_from_saved_partials(tmp_path, chunking_config):
     (tmp_path / "minutes_partials.json").write_text(
         json.dumps(["### 部分 1\n既存の要約"]), encoding="utf-8"
     )
@@ -179,7 +194,7 @@ def test_generate_minutes_resumes_from_saved_partials(tmp_path, force_chunking):
     meta = MinutesMeta(title="長い会議")
 
     md = generate_minutes(
-        long_segs, [], client, LLMConfig(), meta, out_dir=tmp_path, reuse=True
+        long_segs, [], client, chunking_config, meta, out_dir=tmp_path, reuse=True
     )
 
     assert md.strip() == "最終議事録"
@@ -192,7 +207,7 @@ def test_generate_minutes_resumes_from_saved_partials(tmp_path, force_chunking):
     assert "既存の要約" in client.calls[-1]["user"]
 
 
-def test_generate_minutes_fresh_ignores_saved_partials(tmp_path, force_chunking):
+def test_generate_minutes_fresh_ignores_saved_partials(tmp_path, chunking_config):
     (tmp_path / "minutes_partials.json").write_text(
         json.dumps(["### 部分 1\n既存の要約"]), encoding="utf-8"
     )
@@ -201,14 +216,14 @@ def test_generate_minutes_fresh_ignores_saved_partials(tmp_path, force_chunking)
     meta = MinutesMeta(title="長い会議")
 
     generate_minutes(
-        long_segs, [], client, LLMConfig(), meta, out_dir=tmp_path, reuse=False
+        long_segs, [], client, chunking_config, meta, out_dir=tmp_path, reuse=False
     )
 
     # reuse=False なので既存の部分要約は使われず、最初から要約し直す
     assert "既存の要約" not in client.calls[-1]["user"]
 
 
-def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, force_chunking):
+def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, chunking_config):
     """見出しだけで本文が空の部分要約（LLMが空応答を返した形跡）は無効として扱う。"""
     (tmp_path / "minutes_partials.json").write_text(
         json.dumps(["### 部分 1\n"]), encoding="utf-8"  # 本文なし
@@ -218,7 +233,7 @@ def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, force_chunking
     meta = MinutesMeta(title="長い会議")
 
     generate_minutes(
-        long_segs, [], client, LLMConfig(), meta, out_dir=tmp_path, reuse=True
+        long_segs, [], client, chunking_config, meta, out_dir=tmp_path, reuse=True
     )
 
     # 空だった部分1はやり直されている（チャンク呼び出しが発生している）
@@ -228,12 +243,12 @@ def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, force_chunking
     assert len(chunk_calls) >= 1
 
 
-def test_generate_minutes_chunk_uses_llm_config_max_tokens(tmp_path, force_chunking):
+def test_generate_minutes_chunk_uses_llm_config_max_tokens(tmp_path):
     """チャンク要約の max_tokens は固定値ではなく llm_config.max_tokens を使う。"""
     client = FakeClient(reply="要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
     meta = MinutesMeta(title="長い会議")
-    llm_config = LLMConfig(max_tokens=12345)
+    llm_config = LLMConfig(max_tokens=12345, chunk_trigger_chars=2000, chunk_size_chars=1000)
 
     generate_minutes(long_segs, [], client, llm_config, meta, out_dir=tmp_path)
 

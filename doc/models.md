@@ -65,6 +65,32 @@ faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "aut
 議事録は「決まった型を埋める」タスクなので、7〜8B でも実用になります。決定事項の
 取りこぼしや表記の乱れが気になる場合は 14B 以上を検討してください。
 
+### コンテキスト長の設定（重要）
+
+議事録生成は、文字起こし全体＋フレーム要点を **1 回のリクエスト**で LLM に渡す
+（`config.toml` の `[llm] chunk_trigger_chars`、既定 40000 文字までは分割しない）。
+LM Studio は **モデルをロードするときに Context Length を明示しないと小さい既定値**
+で読み込むため、そのままだと次のエラーで議事録生成が失敗します:
+
+```
+LLM サーバーがエラーを返しました (HTTP 400):
+{"error":"The number of tokens to keep from the initial prompt is greater than
+the context length. Try to load the model with a larger context length,
+or provide a shorter input"}
+```
+
+対処（どちらか）:
+
+1. **LM Studio でこの LLM をロードする際、Context Length を 32768 以上にする**。
+   モデル読み込みバー → 対象モデル → 設定の Context Length を 32768 以上にして
+   ロード。すでにロード済みなら一度 Eject してから設定し直す。
+   （Qwen2.5-7B/14B はいずれも 32k 以上に対応）
+2. メモリが厳しく Context Length を大きくできない場合は、`config.toml` の
+   `[llm] chunk_trigger_chars` と `chunk_size_chars` を小さくする
+   （例: `chunk_trigger_chars = 8000` / `chunk_size_chars = 6000`）。長い文字起こしは
+   チャンク要約 → 統合の分割モードになり、1 回あたりのプロンプトが短くなる。
+   ただし分割すると「要約の要約」から議事録を作るため、具体性はやや落ちる。
+
 ## フレーム解析（VLM）
 
 | 例 | 必要メモリ（目安） | 備考 |
