@@ -117,12 +117,23 @@ def _format_elapsed(seconds: float) -> str:
     return f"{hours}時間{minutes:02d}分"
 
 
+# minutes_partials.json のフォーマット版。チャンク境界のシグネチャを持つ。
+_PARTIALS_FORMAT = 2
+
+
 def _partials_path(out_dir: Path) -> Path:
     return out_dir / "minutes_partials.json"
 
 
-def _load_partials(out_dir: Path) -> list[str]:
+def _load_partials(
+    out_dir: Path, *, size_chars: int, num_segments: int
+) -> list[str]:
     """中断・タイムアウトで途中まで進んだチャンク要約を読み戻す（無ければ空）。
+
+    再利用の可否は、要約を作ったときのチャンク分割条件（`chunk_size_chars` と
+    分割入力のセグメント総数）が今回と一致するかで判定する。一致しなければ
+    チャンク境界がずれて内容の重複・欠落が起きるため採用しない（作り直す）。
+    メタ情報の無い旧形式（JSON 配列）も、境界を検証できないので採用しない。
 
     見出し行（"### 部分 N"）しか無く本文が空のエントリは、LLM が空応答を返した
     形跡（例: 推論モデルが思考だけで max_tokens を使い切った）とみなし無効にする。
@@ -135,11 +146,20 @@ def _load_partials(out_dir: Path) -> list[str]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return []
-    if not (isinstance(data, list) and all(isinstance(x, str) for x in data)):
+
+    # 旧形式（配列）・未知形式は作り直す
+    if not isinstance(data, dict) or data.get("format") != _PARTIALS_FORMAT:
+        return []
+    # 分割条件が変わっている（例: Context Length 対策で chunk_size_chars を下げた）
+    if data.get("chunk_size_chars") != size_chars or data.get("num_segments") != num_segments:
+        return []
+
+    entries = data.get("partials")
+    if not (isinstance(entries, list) and all(isinstance(x, str) for x in entries)):
         return []
 
     valid: list[str] = []
-    for entry in data:
+    for entry in entries:
         body = entry.split("\n", 1)[1] if "\n" in entry else ""
         if not body.strip():
             break
@@ -147,11 +167,29 @@ def _load_partials(out_dir: Path) -> list[str]:
     return valid
 
 
-def _save_partials(partials: list[str], out_dir: Path) -> None:
-    """チャンク要約を1つ終えるたびに呼び、その時点までを丸ごと書き直す。"""
+def _save_partials(
+    partials: list[str],
+    out_dir: Path,
+    *,
+    size_chars: int,
+    num_segments: int,
+    num_chunks: int,
+) -> None:
+    """チャンク要約を1つ終えるたびに呼び、その時点までを丸ごと書き直す。
+
+    再開時に整合を検証できるよう、チャンク分割条件（`chunk_size_chars` と
+    分割入力のセグメント総数）を一緒に保存する。
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "format": _PARTIALS_FORMAT,
+        "chunk_size_chars": size_chars,
+        "num_segments": num_segments,
+        "num_chunks": num_chunks,
+        "partials": partials,
+    }
     _partials_path(out_dir).write_text(
-        json.dumps(partials, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
 
@@ -237,7 +275,9 @@ def generate_minutes(
 
     partials: list[str] = []
     if reuse and out_path is not None:
-        existing = _load_partials(out_path)
+        existing = _load_partials(
+            out_path, size_chars=size_chars, num_segments=len(segments)
+        )
         if 0 < len(existing) <= len(chunks):
             partials = existing
             if on_progress:
@@ -245,6 +285,12 @@ def generate_minutes(
                     len(partials), total_steps,
                     f"既存の部分要約を再利用（{len(partials)}/{len(chunks)}）",
                 )
+        elif on_progress and _partials_path(out_path).is_file():
+            on_progress(
+                0, total_steps,
+                "保存済みの部分要約は分割設定が変わっている（または旧形式）ため使わず、"
+                "最初から要約し直します",
+            )
 
     for i in range(len(partials) + 1, len(chunks) + 1):
         check_cancel(cancel_event)
@@ -266,7 +312,12 @@ def generate_minutes(
         elapsed = _format_elapsed(time.monotonic() - t0)
         partials.append(f"### 部分 {i}\n{summary.strip()}")
         if out_path is not None:
-            _save_partials(partials, out_path)
+            _save_partials(
+                partials, out_path,
+                size_chars=size_chars,
+                num_segments=len(segments),
+                num_chunks=len(chunks),
+            )
         if on_progress:
             on_progress(
                 i, total_steps,

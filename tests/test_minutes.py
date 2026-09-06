@@ -11,6 +11,7 @@ from meeting_minutes.cancel import PipelineCancelled
 from meeting_minutes.config import LLMConfig
 from meeting_minutes.minutes import (
     MinutesMeta,
+    _save_partials,
     _split_segments,
     generate_minutes,
 )
@@ -164,6 +165,17 @@ def test_generate_minutes_cancel_before_start_raises_immediately():
 
 # --- 部分要約の永続化と再開 -----------------------------------------
 
+def _save_partials_matching(tmp_path, entries, chunking_config, long_segs):
+    """long_segs / chunking_config と整合するシグネチャで部分要約ファイルを書く。"""
+    _save_partials(
+        entries,
+        tmp_path,
+        size_chars=chunking_config.chunk_size_chars,
+        num_segments=len(long_segs),
+        num_chunks=len(_split_segments(long_segs, chunking_config.chunk_size_chars)),
+    )
+
+
 def test_generate_minutes_persists_partials_on_cancel(tmp_path, chunking_config):
     client = FakeClient(reply="部分要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
@@ -181,16 +193,17 @@ def test_generate_minutes_persists_partials_on_cancel(tmp_path, chunking_config)
         )
 
     saved = json.loads((tmp_path / "minutes_partials.json").read_text(encoding="utf-8"))
-    assert len(saved) == 1
-    assert saved[0].startswith("### 部分 1")
+    assert saved["format"] == 2
+    assert saved["chunk_size_chars"] == chunking_config.chunk_size_chars
+    assert saved["num_segments"] == len(long_segs)
+    assert len(saved["partials"]) == 1
+    assert saved["partials"][0].startswith("### 部分 1")
 
 
 def test_generate_minutes_resumes_from_saved_partials(tmp_path, chunking_config):
-    (tmp_path / "minutes_partials.json").write_text(
-        json.dumps(["### 部分 1\n既存の要約"]), encoding="utf-8"
-    )
-    client = FakeClient(reply="最終議事録")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    _save_partials_matching(tmp_path, ["### 部分 1\n既存の要約"], chunking_config, long_segs)
+    client = FakeClient(reply="最終議事録")
     meta = MinutesMeta(title="長い会議")
 
     md = generate_minutes(
@@ -208,11 +221,9 @@ def test_generate_minutes_resumes_from_saved_partials(tmp_path, chunking_config)
 
 
 def test_generate_minutes_fresh_ignores_saved_partials(tmp_path, chunking_config):
-    (tmp_path / "minutes_partials.json").write_text(
-        json.dumps(["### 部分 1\n既存の要約"]), encoding="utf-8"
-    )
-    client = FakeClient(reply="要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    _save_partials_matching(tmp_path, ["### 部分 1\n既存の要約"], chunking_config, long_segs)
+    client = FakeClient(reply="要約")
     meta = MinutesMeta(title="長い会議")
 
     generate_minutes(
@@ -225,11 +236,9 @@ def test_generate_minutes_fresh_ignores_saved_partials(tmp_path, chunking_config
 
 def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, chunking_config):
     """見出しだけで本文が空の部分要約（LLMが空応答を返した形跡）は無効として扱う。"""
-    (tmp_path / "minutes_partials.json").write_text(
-        json.dumps(["### 部分 1\n"]), encoding="utf-8"  # 本文なし
-    )
-    client = FakeClient(reply="要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    _save_partials_matching(tmp_path, ["### 部分 1\n"], chunking_config, long_segs)  # 本文なし
+    client = FakeClient(reply="要約")
     meta = MinutesMeta(title="長い会議")
 
     generate_minutes(
@@ -241,6 +250,45 @@ def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, chunking_confi
         c for c in client.calls if c["user"].startswith("次の会議の文字起こしの一部です")
     ]
     assert len(chunk_calls) >= 1
+
+
+def test_generate_minutes_discards_partials_when_chunk_size_changed(tmp_path):
+    """chunk_size_chars を変えて再開すると、旧チャンク境界の部分要約は使わない。
+
+    doc/models.md の「Context Length を上げられないなら chunk_size_chars を下げる」
+    手順（中断→config変更→再開）で、内容がサイレントに重複・欠落しないことを保証する。
+    """
+    long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    _save_partials(
+        ["### 部分 1\n古い境界の要約"], tmp_path,
+        size_chars=1000, num_segments=len(long_segs), num_chunks=5,
+    )
+    client = FakeClient(reply="新しい要約")
+    cfg = LLMConfig(chunk_trigger_chars=500, chunk_size_chars=400)  # size を変更
+
+    generate_minutes(
+        long_segs, [], client, cfg, MinutesMeta(title="会議"),
+        out_dir=tmp_path, reuse=True,
+    )
+
+    # 旧要約は捨てられ、最終統合にも現れない
+    assert "古い境界の要約" not in client.calls[-1]["user"]
+
+
+def test_generate_minutes_discards_legacy_list_format_partials(tmp_path, chunking_config):
+    """メタ情報の無い旧形式（JSON 配列）の部分要約は境界を検証できないので使わない。"""
+    (tmp_path / "minutes_partials.json").write_text(
+        json.dumps(["### 部分 1\n旧形式の要約"]), encoding="utf-8"
+    )
+    long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    client = FakeClient(reply="要約")
+
+    generate_minutes(
+        long_segs, [], client, chunking_config, MinutesMeta(title="会議"),
+        out_dir=tmp_path, reuse=True,
+    )
+
+    assert "旧形式の要約" not in client.calls[-1]["user"]
 
 
 def test_generate_minutes_chunk_uses_llm_config_max_tokens(tmp_path):

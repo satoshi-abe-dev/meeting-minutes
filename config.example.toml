@@ -30,7 +30,9 @@ max_tokens = 8192
 # 前提。LM Studio でモデルロード時に Context Length を 32768 以上にできない場合は、
 # ここを小さくして分割モードにする（例: 8000）。→ doc/models.md「コンテキスト長の設定」
 chunk_trigger_chars = 40000
-# 分割モードのときの 1 チャンクの文字数。
+# 分割モードのときの 1 チャンクの文字数。この値を変えて途中再開すると、保存済みの
+# 部分要約（minutes_partials.json）はチャンク境界が合わなくなるため破棄され、
+# 最初から要約し直される（内容の重複・欠落を避けるため）。
 chunk_size_chars = 15000
 
 [transcribe]
