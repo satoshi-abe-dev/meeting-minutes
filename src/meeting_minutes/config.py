@@ -41,6 +41,13 @@ class LLMConfig:
     # "思考" にもこの上限からトークンを消費する。小さすぎると思考だけで使い切り
     # 本文が空で返ってくることがあるため、通常のモデルより多めにしてある。
     max_tokens: int = 8192
+    # 議事録生成で「一発生成」する文字起こしの上限文字数。これを超えると
+    # チャンク要約 → 統合の分割モードに切り替える。既定 40000 は LLM を 32k 前後の
+    # コンテキストで動かす前提。LM Studio 側で Context Length を大きくできない場合は
+    # 小さくする（例: 8000）。→ doc/models.md「コンテキスト長の設定」
+    chunk_trigger_chars: int = 40000
+    # 分割モードのときの 1 チャンクの文字数。
+    chunk_size_chars: int = 15000
 
 
 @dataclass
@@ -95,6 +102,8 @@ _ENV_MAP: dict[str, tuple[str, str, type]] = {
     "MM_LLM_VLM_MODEL": ("llm", "vlm_model", str),
     "MM_LLM_TIMEOUT": ("llm", "timeout", float),
     "MM_LLM_MAX_TOKENS": ("llm", "max_tokens", int),
+    "MM_LLM_CHUNK_TRIGGER_CHARS": ("llm", "chunk_trigger_chars", int),
+    "MM_LLM_CHUNK_SIZE_CHARS": ("llm", "chunk_size_chars", int),
     "MM_TRANSCRIBE_BACKEND": ("transcribe", "backend", str),
     "MM_TRANSCRIBE_MODEL": ("transcribe", "model", str),
     "MM_TRANSCRIBE_COMPUTE_TYPE": ("transcribe", "compute_type", str),

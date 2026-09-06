@@ -42,6 +42,16 @@ _MODEL_HINT = (
     "モデルキー（`curl {base_url}/models` で確認可）と一致しているかも確認してください。"
 )
 
+_CONTEXT_HINT = (
+    "プロンプトがモデルのコンテキスト長を超えています。LM Studio でこの LLM を"
+    "ロードするときに Context Length を 32768 以上に設定して読み込み直してください"
+    "（一度ロード済みなら Eject してから設定し直す）。詳しくは doc/models.md の"
+    "「コンテキスト長の設定」を参照。"
+    "コンテキスト長を大きくできない場合は、config.toml の "
+    "[llm] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
+    "1 回あたりのプロンプトが短くなります。"
+)
+
 _REASONING_HINT = (
     "モデルが「思考」（reasoning）に max_tokens を使い切り、本文を1文字も"
     "出力できませんでした（reasoning は {reasoning_len} 文字生成、本文は空、"
@@ -89,6 +99,14 @@ class LLMClient:
                 resp.status_code == 400 and '"param": "model"' in low
             ):
                 msg += "\n" + _MODEL_HINT.format(base_url=self.config.base_url)
+            elif (
+                "context length" in low
+                or "context window" in low
+                or "tokens to keep from the initial prompt" in low
+                or "prompt is too long" in low
+                or "exceeds the context" in low
+            ):
+                msg += "\n" + _CONTEXT_HINT
             raise LLMConnectionError(msg)
         try:
             data = resp.json()
