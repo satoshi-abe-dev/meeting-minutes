@@ -202,8 +202,13 @@ class App:
         self._tpl_name_label.pack(side="left", padx=(8, 0))
         self._sync_fmt_widgets()
 
-        cfg = ttk.LabelFrame(self.root, text="設定（config.toml で変更）")
-        cfg.pack(fill="x", **pad)
+        # ttk.LabelFrame のタイトルは標準で小さいフォントになるため、通常サイズの
+        # ラベルを見出しに置き、中身は枠線付きの素の Frame で囲う。
+        ttk.Label(self.root, text="設定（config.toml で変更）").pack(
+            anchor="w", padx=10, pady=(6, 0)
+        )
+        cfg = ttk.Frame(self.root, relief="groove", borderwidth=1)
+        cfg.pack(fill="x", padx=10, pady=(2, 6))
         llm = self.config_obj.llm
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
