@@ -78,7 +78,8 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
 
     def save_frame_index(frames, out_dir):
         recorder.append("save_frame_index")
-        p = Path(out_dir) / "frames.json"
+        p = Path(out_dir) / "frames" / "frames.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("[]", encoding="utf-8")
         return p
 
@@ -93,7 +94,8 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
 
     def save_frame_notes(notes, out_dir):
         recorder.append("save_frame_notes")
-        p = Path(out_dir) / "frame_notes.json"
+        p = Path(out_dir) / "frames" / "frame_notes.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("[]", encoding="utf-8")
         return p
 
@@ -258,7 +260,7 @@ def test_pipeline_reuses_existing_transcript_and_frames(config, video):
     (out_dir / "frames").mkdir(parents=True, exist_ok=True)
     (out_dir / "transcript").mkdir(parents=True, exist_ok=True)
     (out_dir / "transcript" / "transcript.json").write_text("[]", encoding="utf-8")
-    (out_dir / "frames.json").write_text("[]", encoding="utf-8")
+    (out_dir / "frames" / "frames.json").write_text("[]", encoding="utf-8")
 
     recorder: list[str] = []
     client = FakeClient()
@@ -280,7 +282,7 @@ def test_pipeline_fresh_ignores_existing(config, video):
     (out_dir / "frames").mkdir(parents=True, exist_ok=True)
     (out_dir / "transcript").mkdir(parents=True, exist_ok=True)
     (out_dir / "transcript" / "transcript.json").write_text("[]", encoding="utf-8")
-    (out_dir / "frames.json").write_text("[]", encoding="utf-8")
+    (out_dir / "frames" / "frames.json").write_text("[]", encoding="utf-8")
 
     recorder: list[str] = []
     run(video, config, deps=_fake_deps(recorder, FakeClient()), reuse=False)

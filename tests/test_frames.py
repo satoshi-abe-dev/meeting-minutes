@@ -54,7 +54,8 @@ def test_save_then_load_frames_roundtrip(tmp_path):
 
 
 def test_load_frames_skips_missing_files(tmp_path):
-    (tmp_path / "frames.json").write_text(
+    (tmp_path / "frames").mkdir()
+    (tmp_path / "frames" / "frames.json").write_text(
         '[{"timestamp": 1.0, "path": "frames/gone.jpg"}]', encoding="utf-8"
     )
     assert load_frames(tmp_path) == []

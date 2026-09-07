@@ -1,7 +1,7 @@
 """vision.describe_frames のテスト（LLM は呼ばずフェイククライアント注入）。
 
 out_dir は必ず tmp_path（テストごとに独立した実ディレクトリ）を使う。
-describe_frames は frame_notes.json への実ファイル書き込み（再開用の永続化）を
+describe_frames は frames/frame_notes.json への実ファイル書き込み（再開用の永続化）を
 行うため、共有パスを使うとテスト間で状態が漏れる。
 """
 
@@ -90,12 +90,13 @@ def test_describe_frames_persists_incrementally(tmp_path):
             on_progress=on_progress, cancel_event=cancel_event,
         )
 
-    saved = json.loads((tmp_path / "frame_notes.json").read_text(encoding="utf-8"))
+    saved = json.loads((tmp_path / "frames" / "frame_notes.json").read_text(encoding="utf-8"))
     assert len(saved) == 1
 
 
 def test_describe_frames_resumes_from_saved_notes(tmp_path):
-    (tmp_path / "frame_notes.json").write_text(
+    (tmp_path / "frames").mkdir(exist_ok=True)
+    (tmp_path / "frames" / "frame_notes.json").write_text(
         json.dumps(
             [{"timestamp": 0.0, "path": "frame_0.jpg", "description": "既存の解析"}]
         ),
@@ -111,7 +112,8 @@ def test_describe_frames_resumes_from_saved_notes(tmp_path):
 
 
 def test_describe_frames_fresh_ignores_saved_notes(tmp_path):
-    (tmp_path / "frame_notes.json").write_text(
+    (tmp_path / "frames").mkdir(exist_ok=True)
+    (tmp_path / "frames" / "frame_notes.json").write_text(
         json.dumps(
             [{"timestamp": 0.0, "path": "frame_0.jpg", "description": "既存の解析"}]
         ),

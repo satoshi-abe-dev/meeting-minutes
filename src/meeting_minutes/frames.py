@@ -125,10 +125,13 @@ def extract_frames(
 
 
 def save_frame_index(frames: list[Frame], out_dir: str | Path) -> Path:
-    """フレーム一覧（時刻とパス）を JSON で保存する。"""
+    """フレーム一覧（時刻とパス）を JSON で保存する。
+
+    索引はフレーム画像と同じ `out_dir/frames/` に置く（パスは out_dir 基準の相対のまま）。
+    """
     out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    index_path = out_dir / "frames.json"
+    index_path = out_dir / "frames" / "frames.json"
+    index_path.parent.mkdir(parents=True, exist_ok=True)
     payload = [
         {"timestamp": f.timestamp, "path": str(f.path.relative_to(out_dir))}
         if f.path.is_relative_to(out_dir)
@@ -142,12 +145,12 @@ def save_frame_index(frames: list[Frame], out_dir: str | Path) -> Path:
 
 
 def load_frames(out_dir: str | Path) -> list[Frame]:
-    """save_frame_index が書いた frames.json を読み戻す（再開用）。
+    """save_frame_index が書いた frames/frames.json を読み戻す（再開用）。
 
     実ファイルが欠けているフレームは除外する。
     """
     out_dir = Path(out_dir)
-    data = json.loads((out_dir / "frames.json").read_text(encoding="utf-8"))
+    data = json.loads((out_dir / "frames" / "frames.json").read_text(encoding="utf-8"))
     frames: list[Frame] = []
     for d in data:
         p = Path(d["path"])

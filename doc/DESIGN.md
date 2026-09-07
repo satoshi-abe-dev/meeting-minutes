@@ -274,8 +274,8 @@ Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の�
 フラグで再利用し、**終わっている分だけスキップして残りだけ実行**する。
 
 - `transcript.json` があれば `load_transcript` で読み戻し、文字起こしをやり直さない。
-- `frames.json` があれば `load_frames` で読み戻し、フレーム抽出をやり直さない。
-- `frame_notes.json` があれば、そこまで解析済みのフレームは**1枚単位で**スキップする
+- `frames/frames.json` があれば `load_frames` で読み戻し、フレーム抽出をやり直さない。
+- `frames/frame_notes.json` があれば、そこまで解析済みのフレームは**1枚単位で**スキップする
   （`vision.describe_frames` が起動時に読み戻し、1枚終えるたびに書き直す）。
   当初は「VLM が落ちた直後は作り直したいことが多い」という判断で再利用しない設計に
   していたが、60枚全部を毎回やり直すコストの方が大きいと分かり、他の中間ファイルと
@@ -332,8 +332,8 @@ Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の�
 | ffmpeg サブプロセス実行中 | **反応しない**（`subprocess.run` で待つだけ。Popen 化すれば中断可能だが今回は見送り） |
 
 **中断時に残るもの:** `finally` で LLM クライアントは必ず閉じる。
-`transcript.json` / `frames.json` に加え、**フレーム解析の途中経過
-（`frame_notes.json`）も1枚ごとに保存済み**なので、次回実行時（9.5 の再開機構）は
+`transcript/transcript.json` / `frames/frames.json` に加え、**フレーム解析の途中経過
+（`frames/frame_notes.json`）も1枚ごとに保存済み**なので、次回実行時（9.5 の再開機構）は
 解析済みのフレームからやり直さない。同様に議事録のチャンク要約
 （`minutes_partials.json`）も終えた分から再開する。
 

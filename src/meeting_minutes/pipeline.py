@@ -112,8 +112,8 @@ def run(
 ) -> PipelineResult:
     """動画 1 本を処理して議事録を書き出す。
 
-    reuse: True なら `output/<動画名>/` に前回の transcript.json / frames.json が
-        あれば再利用し、文字起こし・フレーム抽出をやり直さない（VLM 段階などで
+    reuse: True なら `output/<動画名>/` に前回の transcript/transcript.json /
+        frames/frames.json があれば再利用し、文字起こし・フレーム抽出をやり直さない（VLM 段階などで
         失敗したあとの再実行を速くする）。False で常に最初から。
     cancel_event: セットされていれば PipelineCancelled を送出して中断する。
         各ステージの開始前・フレーム解析の1枚ごと・議事録のチャンクごとで反応する。
@@ -205,7 +205,7 @@ def run(
             )
 
         # 3) フレーム抽出（再利用可）--------------------------------
-        frames_index: Optional[Path] = out_dir / "frames.json"
+        frames_index: Optional[Path] = out_dir / "frames" / "frames.json"
         frames = None
         if reuse and frames_index.is_file():
             try:
@@ -216,7 +216,7 @@ def run(
                         f"既存のフレームを再利用（{len(frames)} 枚）",
                     )
             except Exception as exc:  # noqa: BLE001
-                warnings.append(f"frames.json の再利用に失敗、作り直します: {exc}")
+                warnings.append(f"frames/frames.json の再利用に失敗、作り直します: {exc}")
                 frames = None
         if frames is None:
             check_cancel(cancel_event)
