@@ -1,0 +1,41 @@
+# CI: pytest を Linux / Windows / macOS で回す（Issue #8）。
+#
+# meeting-minutes のテストは tkinter / 画面に依存しない（GUI ロジックのテストも
+# FakeMainView 経由で tkinter を import しないため）。Xvfb 等の追加設定は不要。
+#
+# 実物の ffmpeg を呼ぶテスト（tests/test_frames.py の needs_ffmpeg）は、ffmpeg が
+# 無い環境では skipif で自動 skip される。ローカル LLM を呼ぶテストは現状無い
+# （needs_llm マーカーは将来用に登録してあるだけ）。よって CI 側に ffmpeg / LLM を
+# 入れる必要はない。
+name: CI
+
+on:
+  push:
+    branches: [main] # main に入った後に流す
+  pull_request:
+    branches: [main] # main 向け PR を、マージ前にブランチの状態で流す
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false # 1 OS が落ちても他をキャンセルせず、全 OS の結果を見る
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5 # リポジトリをランナーへチェックアウトする
+
+      - uses: actions/setup-python@v6 # 指定バージョンの Python を入れて PATH を通す
+        with:
+          # docs/setup-mac.md は「3.11 以上（動作確認は 3.14 系）」。最低ラインの
+          # 検証も兼ねて 3.11 を軸にする。
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      # python3 ではなく python（Windows に python3 は無い。python は全 OS で有効）。
+      # -ra で skip 理由をサマリに出す（ffmpeg が無い環境で needs_ffmpeg テストが
+      # skip されるのが見える）。
+      - name: Run pytest
+        run: python -m pytest -ra
