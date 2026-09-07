@@ -11,7 +11,9 @@ from meeting_minutes.cancel import PipelineCancelled
 from meeting_minutes.config import LLMConfig
 from meeting_minutes.minutes import (
     MinutesMeta,
+    _DEFAULT_SYSTEM,
     _fill_minutes_template,
+    _leaked_instructions,
     _MINUTES_STRUCTURE,
     _MINUTES_RESPONSE_TOKENS,
     _save_partials,
@@ -926,3 +928,68 @@ def test_auto_structure_failure_removes_stale_structure_file(tmp_path):
 
     assert not stale.exists()  # 今回使っていない古い型は残さない
     assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # 内蔵で生成
+
+
+# --- テンプレート指示文のリーク対策（Issue #44）----------------------------
+
+def _has_instruction_leak_rule(text: str) -> bool:
+    return "丸括弧" in text and "書き写" in text and "指示" in text
+
+
+def test_default_system_forbids_writing_instruction_text():
+    """_DEFAULT_SYSTEM に「丸括弧の指示文を書き写すな」ルールがある。"""
+    assert _has_instruction_leak_rule(_DEFAULT_SYSTEM)
+
+
+def test_prompt_file_forbids_writing_instruction_text():
+    """prompts/minutes_ja.txt にも同じルールがある。"""
+    from meeting_minutes.config import REPO_ROOT
+
+    text = (REPO_ROOT / "prompts" / "minutes_ja.txt").read_text(encoding="utf-8")
+    assert _has_instruction_leak_rule(text)
+
+
+def test_leaked_instructions_detects_verbatim_instruction():
+    structure = (
+        "# 概要\n（目的・行き先・期間・対象者など、冒頭で述べられた概要。"
+        "無ければ「（記載なし）」）\n## 決定事項\n（「〜する」と明言されたものだけ）\n"
+    )
+    leaked_md = (
+        "# 概要\n（目的・行き先・期間・対象者など、冒頭で述べられた概要。"
+        "無ければ「（記載なし）」）\n## 決定事項\n- 出発は9時に決定\n"
+    )
+    leaks = _leaked_instructions(structure, leaked_md)
+    assert leaks == ["（目的・行き先・期間・対象者など、冒頭で述べられた概要。無ければ「（記載なし）」）"]
+
+
+def test_leaked_instructions_ignores_short_bracket_values_and_clean_output():
+    """（該当なし）（記載なし）等の短い定型語や、指示文が実内容に置換された出力は誤検知しない。"""
+    clean_md = (
+        "# 議事録: テスト\n## 目的・アジェンダ\n旅行の説明会。行き先は京都、2泊3日。\n"
+        "## 決定事項\n（該当なし）\n## 資料（スライド）の内容\n（読み取れる資料なし）\n"
+    )
+    assert _leaked_instructions(_MINUTES_STRUCTURE, clean_md) == []
+
+
+def test_generate_minutes_warns_when_template_instruction_leaks(tmp_path):
+    """モデルが指示文をそのまま書き写した場合、on_progress で警告する（保険）。"""
+    instr = "（目的・行き先・期間・対象者など、冒頭で述べられた概要。無ければ「（記載なし）」）"
+    tpl = tmp_path / "cust.txt"
+    tpl.write_text(f"# 概要\n{instr}\n## 決定事項\n（明言されたものだけ）\n", encoding="utf-8")
+    client = FakeClient(reply=f"# 概要\n{instr}\n## 決定事項\n- 出発は9時に決定\n")
+    msgs: list[str] = []
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        template_path=str(tpl), on_progress=lambda c, t, m: msgs.append(m),
+    )
+    assert any("指示文" in m and "残っている" in m for m in msgs)
+
+
+def test_generate_minutes_no_leak_warning_on_clean_output():
+    client = FakeClient(reply="# 議事録: 会議\n## 決定事項\n- 出発は9時\n## 宿題\n（該当なし）\n")
+    msgs: list[str] = []
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        on_progress=lambda c, t, m: msgs.append(m),
+    )
+    assert not any("指示文" in m and "残っている" in m for m in msgs)
