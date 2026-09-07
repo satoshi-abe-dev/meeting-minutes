@@ -125,9 +125,9 @@ GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、�
 - **manager** — worker が発行した PR をレビューし、`main` へのマージを担当。
   機密混入（実会議の固有名詞）・`.gitignore` の除外設定・差分が意図した範囲内か・
   破壊的操作の有無を確認した上でマージする
-- 役割分担・禁止事項・レビュー基準は、プロジェクト専用の Claude Code 設定
-  （CLAUDE.md）として明文化し、両セッションが自動で参照している
-  （実運用のセッションログを含むため非公開）
+- 役割分担・禁止事項・レビュー基準は
+  [`.claude/CLAUDE.md`](.claude/CLAUDE.md) に明文化（Claude Code がセッション開始時に
+  自動で読み込む。実運用のセッションログなど他の `.claude/` 配下は非公開）
 - **manager は worker の自己申告を鵜呑みにしない** — 全 PR で pytest・機密 grep を
   manager 自身が再実行し、diff を直接確認した上でマージする
 - **セッション間で会話コンテキストは共有されない** — manager は worker の試行錯誤の

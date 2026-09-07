@@ -24,10 +24,12 @@ models/
 # 個人設定（config.example.toml をコピーして作る）
 config.toml
 
-# Claude Code の作業用フォルダー（プロジェクト専用 CLAUDE.md・権限設定・skill・
-# セッション間の作業ログ ai-workflow/ 等）。議事録ツールの利用者には無関係で、
-# 実運用のセッションログを含むためコミットしない。
-.claude/
+# Claude Code の作業用フォルダー。原則コミットしない（権限設定・skill・実運用の
+# セッションログ ai-workflow/ 等は非公開のまま）。ただし運用ルール .claude/CLAUDE.md
+# だけは機密性が無く「AI協調開発」の一次資料として公開する（Issue #61）。
+# .claude/* は直下だけにマッチするので ai-workflow/ 等サブディレクトリの中身は除外が続く。
+.claude/*
+!.claude/CLAUDE.md
 
 # Claude Code に見せる画像・動画などの一時受け渡し場所
 temp/
