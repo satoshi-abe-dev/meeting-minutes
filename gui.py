@@ -94,6 +94,7 @@ class _Tooltip:
             self._tip,
             text=self._text,
             justify="left",
+            wraplength=340,  # 長文ツールチップを自動折り返し（全ツールチップ共通）
             background="#ffffe0",
             relief="solid",
             borderwidth=1,
