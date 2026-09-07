@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import textwrap
 
-from meeting_minutes.config import Config, load_config
+from meeting_minutes.model.config import Config, load_config
 
 
 def test_defaults_when_no_file(tmp_path, monkeypatch):
     # デフォルト探索を空ディレクトリに向けて「ファイルなし」状態にする
-    monkeypatch.setattr("meeting_minutes.config.REPO_ROOT", tmp_path)
+    monkeypatch.setattr("meeting_minutes.model.config.REPO_ROOT", tmp_path)
     monkeypatch.setattr(
-        "meeting_minutes.config.default_config_path", lambda: None
+        "meeting_minutes.model.config.default_config_path", lambda: None
     )
     cfg = load_config(None)
     assert isinstance(cfg, Config)
@@ -69,7 +69,7 @@ def test_env_overrides_toml(tmp_path, monkeypatch):
 
 
 def test_output_root_relative_to_repo(tmp_path, monkeypatch):
-    monkeypatch.setattr("meeting_minutes.config.REPO_ROOT", tmp_path)
+    monkeypatch.setattr("meeting_minutes.model.config.REPO_ROOT", tmp_path)
     p = tmp_path / "config.toml"
     p.write_text('[output]\ndir = "out"\n', encoding="utf-8")
     cfg = load_config(p)
@@ -78,7 +78,7 @@ def test_output_root_relative_to_repo(tmp_path, monkeypatch):
 
 def test_output_template_path_default_and_toml_and_env(tmp_path, monkeypatch):
     # 既定は空文字（内蔵テンプレート）
-    monkeypatch.setattr("meeting_minutes.config.default_config_path", lambda: None)
+    monkeypatch.setattr("meeting_minutes.model.config.default_config_path", lambda: None)
     assert load_config(None).output.template_path == ""
 
     p = tmp_path / "config.toml"

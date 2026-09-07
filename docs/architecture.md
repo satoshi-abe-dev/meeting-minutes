@@ -41,25 +41,31 @@ LLM/VLM を呼ぶ工程の開始メッセージには使用モデル名と「応
 
 ## モジュールの責務
 
+実処理（Model）は `src/meeting_minutes/model/` にまとまっている。GUI は
+`src/meeting_minutes/view/` + `src/meeting_minutes/presenter/`、実行の入口は
+`src/meeting_minutes/` 直下の `gui.py` / `cli.py` / `prefetch.py`。下表の
+`prefetch.py` 以外の 10 モジュールが `model/` 配下（例: `model/pipeline.py` ⇔
+`meeting_minutes.model.pipeline`）。
+
 | モジュール | 役割 | 外部依存 |
 | --- | --- | --- |
-| `config.py` | TOML＋環境変数から `Config` を作る。プロンプト読み込み。 | なし（標準 `tomllib`） |
-| `cancel.py` | 協調的キャンセルの共通部品（`PipelineCancelled` / `check_cancel`） | なし |
-| `ffmpeg_utils.py` | ffmpeg / ffprobe の存在確認・実行・動画長取得 | ffmpeg（システム） |
-| `audio.py` | 動画 → wav | ffmpeg |
-| `transcribe.py` | wav → `Segment` 配列、保存、テキスト整形。`backend` で mlx / faster-whisper を切替 | mlx-whisper / faster-whisper |
-| `frames.py` | 動画 → `Frame` 配列（時刻付き画像） | ffmpeg |
-| `llm_client.py` | OpenAI 互換サーバーへの `chat` / `describe_image` | httpx、ローカル LLM サーバー |
-| `vision.py` | `Frame` → `FrameNote`（要点テキスト） | `llm_client` |
-| `minutes.py` | `Segment`＋`FrameNote` → 議事録 Markdown。長文はチャンク要約→統合 | `llm_client` |
-| `pipeline.py` | 全工程のオーケストレーション、進捗、`Deps` による差し替え | 上記すべて |
+| `model/config.py` | TOML＋環境変数から `Config` を作る。プロンプト読み込み。 | なし（標準 `tomllib`） |
+| `model/cancel.py` | 協調的キャンセルの共通部品（`PipelineCancelled` / `check_cancel`） | なし |
+| `model/ffmpeg_utils.py` | ffmpeg / ffprobe の存在確認・実行・動画長取得 | ffmpeg（システム） |
+| `model/audio.py` | 動画 → wav | ffmpeg |
+| `model/transcribe.py` | wav → `Segment` 配列、保存、テキスト整形。`backend` で mlx / faster-whisper を切替 | mlx-whisper / faster-whisper |
+| `model/frames.py` | 動画 → `Frame` 配列（時刻付き画像） | ffmpeg |
+| `model/llm_client.py` | OpenAI 互換サーバーへの `chat` / `describe_image` | httpx、ローカル LLM サーバー |
+| `model/vision.py` | `Frame` → `FrameNote`（要点テキスト） | `llm_client` |
+| `model/minutes.py` | `Segment`＋`FrameNote` → 議事録 Markdown。長文はチャンク要約→統合 | `llm_client` |
+| `model/pipeline.py` | 全工程のオーケストレーション、進捗、`Deps` による差し替え | 上記すべて |
 | `prefetch.py` | 解決後バックエンドの Whisper モデルを事前DL（`scripts/setup.sh` から） | huggingface_hub / faster-whisper |
 
 ## エントリポイント
 
 `src/meeting_minutes/` 配下の `gui.py` / `cli.py` / `prefetch.py` が実行の入口。
 GUI は `view/` + `presenter/` を組み立てて起動する薄いラッパー（→ `DESIGN.md` 8.5 節）、
-CLI / prefetch は argparse + `meeting_minutes.*` の呼び出し。いずれも冒頭に
+CLI / prefetch は argparse + `meeting_minutes.model.*`（prefetch は自身が model 外）の呼び出し。いずれも冒頭に
 `__package__` ブートストラップがあり、`python src/meeting_minutes/gui.py` のような
 ファイル指定でも `python -m meeting_minutes.gui`（`cd src` か `PYTHONPATH=src` が要る）
 でも動く（→ `DESIGN.md` 8.6 節）。

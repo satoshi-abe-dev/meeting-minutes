@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 
-from meeting_minutes.cancel import PipelineCancelled
-from meeting_minutes.config import Config
-from meeting_minutes.frames import Frame
-from meeting_minutes.pipeline import STAGES, Deps, run
-from meeting_minutes.transcribe import Segment
-from meeting_minutes.vision import FrameNote
+from meeting_minutes.model.cancel import PipelineCancelled
+from meeting_minutes.model.config import Config
+from meeting_minutes.model.frames import Frame
+from meeting_minutes.model.pipeline import STAGES, Deps, run
+from meeting_minutes.model.transcribe import Segment
+from meeting_minutes.model.vision import FrameNote
 
 
 class FakeClient:
@@ -304,7 +304,7 @@ def test_pipeline_cancel_during_vision_stops_and_closes_client(config, video):
     ):
         recorder.append("describe_frames")
         # VLM ステージに入った直後にユーザーが中断ボタンを押した状況を再現
-        from meeting_minutes.cancel import check_cancel
+        from meeting_minutes.model.cancel import check_cancel
 
         cancel_event.set()
         check_cancel(cancel_event)

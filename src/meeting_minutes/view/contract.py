@@ -1,7 +1,7 @@
 """View（抽象層）— メイン画面
 
 Presenter が依存する「契約」だけを定義する。Tkinter 実装は tk_main_window.py。
-Presenter はこの契約と Model（``meeting_minutes.*``）にだけ依存し、tkinter を
+Presenter はこの契約と Model（``meeting_minutes.model.*``）にだけ依存し、tkinter を
 一切知らない。
 """
 

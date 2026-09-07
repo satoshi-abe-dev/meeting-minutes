@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from meeting_minutes.cancel import PipelineCancelled
-from meeting_minutes.frames import Frame
-from meeting_minutes.vision import describe_frames
+from meeting_minutes.model.cancel import PipelineCancelled
+from meeting_minutes.model.frames import Frame
+from meeting_minutes.model.vision import describe_frames
 
 
 class FakeVisionClient:

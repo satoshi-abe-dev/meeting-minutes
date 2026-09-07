@@ -17,10 +17,10 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from meeting_minutes.cancel import PipelineCancelled
-from meeting_minutes.config import Config
-from meeting_minutes.pipeline import run as _default_run
-from meeting_minutes.transcribe import resolve_backend
+from meeting_minutes.model.cancel import PipelineCancelled
+from meeting_minutes.model.config import Config
+from meeting_minutes.model.pipeline import run as _default_run
+from meeting_minutes.model.transcribe import resolve_backend
 from meeting_minutes.view import MainView
 
 _STAGE_LABEL = {

@@ -312,7 +312,8 @@ src/meeting_minutes/
                        ウィジェット構築・イベントバインド・ダイアログ・ウィンドウ配置のみ）
   presenter/
     main.py        MainPresenter（旧 App の画面ロジック一式。View 契約と
-                   config / pipeline.run にだけ依存し tkinter を import しない）
+                   model.config / model.pipeline.run にだけ依存し tkinter を import しない）
+  model/           実処理（pipeline / transcribe / frames / vision / minutes / … 8.7 節）
 ```
 
 - **`view/__init__.py` は抽象 `MainView` だけ再エクスポート**する。Tk 実装
@@ -353,8 +354,29 @@ if __package__ in (None, ""):
 指定形式を採る（8 節の設計判断の延長）。`-m` 形式は開発者向けの補足として併記する。
 
 `prefetch.py` は元々 `from .config import ...` という相対 import だったので、ファイル
-指定起動でも通るよう絶対 import（`from meeting_minutes.config import ...`）に変えた
+指定起動でも通るよう絶対 import（`from meeting_minutes.model.config import ...`）に変えた
 （`gui.py` / `cli.py` は元から絶対 import）。ロジックは変えていない。
+
+---
+
+## 8.7 Model 層を model/ にまとめる（2026-09、Issue #53）
+
+**判断:** 実処理の 10 モジュール（`audio` / `cancel` / `config` / `ffmpeg_utils` /
+`frames` / `llm_client` / `minutes` / `pipeline` / `transcribe` / `vision`）を
+`src/meeting_minutes/model/` へ移し、`view/` + `presenter/` + `model/` の対称な
+構成にした（参考プロジェクト `tkinter-task-manager-mvp` と同じ）。`gui.py` /
+`cli.py` / `prefetch.py`（エントリポイント）は直下のまま。
+
+- **10 モジュールは互いに相対 import**（`from . import audio` 等）なので、まとめて
+  `model/` 直下に移すだけで内部参照は変更不要。外部（`gui` / `cli` / `prefetch` /
+  `presenter/main`）の絶対 import を `meeting_minutes.xxx` → `meeting_minutes.model.xxx`
+  に変えるだけ。
+- `config.py` の `REPO_ROOT = Path(__file__).resolve().parents[N]` は、ファイルが
+  1 階層深くなったぶん `parents[2]` → `parents[3]` に直した（挙動を保つための機械的な
+  修正。ロジックは不変）。
+- テストの文字列パッチ（`monkeypatch.setattr("meeting_minutes.config.REPO_ROOT", ...)`
+  等）は import 文の置換では拾えないので、`git grep '"meeting_minutes\.'` で洗い出して
+  `"meeting_minutes.model.config..."` に更新した。
 
 ---
 
