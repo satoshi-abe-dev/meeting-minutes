@@ -239,7 +239,8 @@ class TkMainWindow(MainView):
         self.log.configure(yscrollcommand=sb.set)
 
         self.done_bar = ttk.Frame(self.root)
-        self.done_bar.pack(fill="x", **pad)
+        # fill="x" を付けない → run_bar と同じくフレームが中身に合わせて縮み、中央に配置される
+        self.done_bar.pack(**pad)
         self.open_minutes_btn = ttk.Button(
             self.done_bar,
             text=self._t("button.open_minutes"),
