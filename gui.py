@@ -227,11 +227,13 @@ class App:
 
         # ttk.LabelFrame のタイトルは標準で小さいフォントになるため、通常サイズの
         # ラベルを見出しに置き、中身は枠線付きの素の Frame で囲う。
+        # relief は groove/ridge だと macOS(aqua) で二色ベベルの明るい側が背景に
+        # 溶けて上端が見えなくなるため、四辺が同じ太さ・同色になる solid を使う。
         ttk.Label(self.root, text="設定（config.toml で変更）").pack(
-            anchor="w", padx=10, pady=(6, 0)
+            anchor="w", padx=10, pady=(8, 2)
         )
-        cfg = ttk.Frame(self.root, relief="groove", borderwidth=1)
-        cfg.pack(fill="x", padx=10, pady=(2, 6))
+        cfg = ttk.Frame(self.root, relief="solid", borderwidth=1)
+        cfg.pack(fill="x", padx=10, pady=(4, 8))
         llm = self.config_obj.llm
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
