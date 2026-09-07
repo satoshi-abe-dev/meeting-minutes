@@ -45,7 +45,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     "check.reuse": {"ja": "作成済みデータを利用する", "en": "Reuse existing data"},
     "button.run": {"ja": "議事録を作成", "en": "Create minutes"},
     "button.stop": {"ja": "中断", "en": "Stop"},
-    "label.waiting": {"ja": "待機中", "en": "Idle"},
+    # 進捗ラベルの起動直後の表示（実行が始まると工程名＋進捗に差し替わる）。
+    "label.waiting": {"ja": "ログ", "en": "Log"},
     "button.open_minutes": {"ja": "議事録を開く", "en": "Open minutes"},
     "button.open_folder": {"ja": "出力フォルダーを開く", "en": "Open output folder"},
     "info.privacy": {

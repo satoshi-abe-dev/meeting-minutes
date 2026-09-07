@@ -30,7 +30,7 @@ class FakeMainView(MainView):
         self.template_name: str | None = None
         self.config_summary: str | None = None
         self.progress = 0
-        self.stage_text = "待機中"
+        self.stage_text = "ログ"
         self.log: list[str] = []
         self.errors: list[tuple[str, str]] = []
         self.opened: list[Path] = []
