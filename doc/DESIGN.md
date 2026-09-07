@@ -168,10 +168,13 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 ごとの規定様式に対応するため、`_MINUTES_TEMPLATE` を「構造（`_MINUTES_STRUCTURE`）」と
 「入力セクション（`_INPUT_TRANSCRIPT` / `_INPUT_FRAMES`）」に分割。`config.toml` の
 `[output] template_path` で構造を差し替える（`generate_minutes(template_path=...)` へは
-`pipeline` が config から渡す）。当初は GUI ボタン / CLI `--template` で実行時に一時
-上書きする経路も付けたが、複数様式を頻繁に切り替える運用が無く不要と判断して削除し、
-指定方法は config 一本に整理した（GUI は「今どのテンプレートか」を読み取り専用で表示）。
-要点:
+`pipeline` が config から渡す）。実行時の一時上書き経路は、当初 GUI ボタン
+＋ CLI `--template` で付け → 一度削除し → 最終的に GUI の「議事録フォーマット」
+ドロップダウン（`ttk.Combobox`）として復活させた。先頭固定項目が `config.toml` の設定
+（`内蔵（既定）` またはファイル名）、「ファイルを選択...」でその回だけ差し替え、先頭項目を
+選び直せば戻る。CLI 側の一時上書きは復活させていない（`config.toml` で足りる）。
+ユーザー向け用語は「内蔵（既定のフォーマット）」で統一し、ツールチップで「会議内容で
+動的に変わらない固定の構成」であることを補足する。要点:
 
 - **システムプロンプト（`prompts/minutes_ja.txt` の捏造禁止等）はテンプレートに関わらず
   常に適用**。テンプレートは構造だけ。品質ルールを客先様式に巻き込ませない。
