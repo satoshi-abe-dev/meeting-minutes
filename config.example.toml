@@ -14,7 +14,7 @@ base_url = "http://localhost:1234/v1"
 api_key = "local-no-key"
 # 議事録生成に使うテキスト LLM のモデル名（LM Studio でロード済みのもの）。
 # ※ 推論（thinking）モデル（Qwen3 / DeepSeek-R1 等）は避けるか、reasoning をオフに
-#    して使うこと。そのままだと極端に遅く、本文が空で返ることがある（doc/models.md）。
+#    して使うこと。そのままだと極端に遅く、本文が空で返ることがある（docs/models.md）。
 model = "qwen2.5-7b-instruct"
 # フレーム画像の解析に使う VLM のモデル名。
 vlm_model = "qwen2-vl-7b-instruct"
@@ -29,7 +29,7 @@ max_tokens = 8192
 # 一発生成 / 分割生成を判断する。以下の chunk_* は、自動取得できない基盤向けの
 # フォールバック（文字数しきい値）。chunk_trigger_chars を超えるとチャンク要約 →
 # 統合の分割モードに切り替える。既定 20000 / 12000。Context Length を 32768 以上に
-# できない環境ではさらに小さくする（例: 8000 / 6000）。→ doc/models.md「コンテキスト長の設定」
+# できない環境ではさらに小さくする（例: 8000 / 6000）。→ docs/models.md「コンテキスト長の設定」
 chunk_trigger_chars = 20000
 # 分割モードのときの 1 チャンクの文字数。この値を変えて途中再開すると、保存済みの
 # 部分要約（minutes_partials.json）はチャンク境界が合わなくなるため破棄され、

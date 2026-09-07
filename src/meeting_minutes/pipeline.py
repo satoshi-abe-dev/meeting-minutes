@@ -117,7 +117,7 @@ def run(
         失敗したあとの再実行を速くする）。False で常に最初から。
     cancel_event: セットされていれば PipelineCancelled を送出して中断する。
         各ステージの開始前・フレーム解析の1枚ごと・議事録のチャンクごとで反応する。
-        mlx-whisper の呼び出し中と ffmpeg 実行中は反応できない（doc/DESIGN.md 参照）。
+        mlx-whisper の呼び出し中と ffmpeg 実行中は反応できない（docs/DESIGN.md 参照）。
     """
     video_path = Path(video_path).expanduser().resolve()
     if not video_path.is_file():

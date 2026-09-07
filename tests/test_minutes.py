@@ -324,7 +324,7 @@ def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, chunking_confi
 def test_generate_minutes_discards_partials_when_chunk_size_changed(tmp_path):
     """chunk_size_chars を変えて再開すると、旧チャンク境界の部分要約は使わない。
 
-    doc/models.md の「Context Length を上げられないなら chunk_size_chars を下げる」
+    docs/models.md の「Context Length を上げられないなら chunk_size_chars を下げる」
     手順（中断→config変更→再開）で、内容がサイレントに重複・欠落しないことを保証する。
     """
     long_segs = _segments(300, text="議題について長い発言をする" * 5)

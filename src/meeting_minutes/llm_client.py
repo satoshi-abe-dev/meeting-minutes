@@ -45,7 +45,7 @@ _MODEL_HINT = (
 _CONTEXT_HINT = (
     "プロンプトがモデルのコンテキスト長を超えています。LM Studio でこの LLM を"
     "ロードするときに Context Length を 32768 以上に設定して読み込み直してください"
-    "（一度ロード済みなら Eject してから設定し直す）。詳しくは doc/models.md の"
+    "（一度ロード済みなら Eject してから設定し直す）。詳しくは docs/models.md の"
     "「コンテキスト長の設定」を参照。"
     "コンテキスト長を大きくできない場合は、config.toml の "
     "[llm] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
