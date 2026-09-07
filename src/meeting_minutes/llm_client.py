@@ -201,10 +201,14 @@ class LLMClient:
             return []
 
     def loaded_context_length(self, model: str | None = None) -> int | None:
-        """ロード中 LLM の実コンテキスト長（トークン）を返す。取れなければ None。
+        """対象モデルの「実際にロードされている」コンテキスト長（トークン）を返す。
 
         LM Studio 拡張の GET /api/v0/models が返す `loaded_context_length` を読む。
-        LM Studio 以外／旧版など、この情報が無い基盤では None（best-effort）。
+        この値は「安全チェックを無効化してよい確かな上限」として使われるため、
+        **対象モデルが実際にロードされている場合の loaded_context_length のみ**を
+        返す。ID だけ一致（未ロード時の広告値 max_context_length）や、別モデルの
+        ロード値へのフォールバックは行わない（誤値は HTTP 400 を再発させるため）。
+        確認できなければ None（呼び出し側は文字数しきい値にフォールバックする）。
         """
         try:
             from urllib.parse import urlsplit
@@ -219,21 +223,14 @@ class LLMClient:
             return None
 
         want = model or self.config.model
-        llm_entries = [e for e in entries if e.get("type") in (None, "llm")]
-
-        def _ctx(e: dict) -> int | None:
-            v = e.get("loaded_context_length") or e.get("max_context_length")
-            return int(v) if isinstance(v, (int, float)) and v > 0 else None
-
-        # 指定モデル優先 -> ロード済み -> どれか
-        for pred in (
-            lambda e: e.get("id") == want and e.get("state") == "loaded",
-            lambda e: e.get("id") == want,
-            lambda e: e.get("state") == "loaded",
-        ):
-            for e in llm_entries:
-                if pred(e) and _ctx(e) is not None:
-                    return _ctx(e)
+        for e in entries:
+            if e.get("type") not in (None, "llm"):
+                continue
+            if e.get("id") != want or e.get("state") != "loaded":
+                continue
+            v = e.get("loaded_context_length")
+            if isinstance(v, (int, float)) and v > 0:
+                return int(v)
         return None
 
     def preflight(self, models: list[str]) -> None:

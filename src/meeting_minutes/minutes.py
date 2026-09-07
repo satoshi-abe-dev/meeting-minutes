@@ -282,17 +282,26 @@ def generate_minutes(
     trigger_chars = getattr(llm_config, "chunk_trigger_chars", None) or _CHUNK_TRIGGER_CHARS
     size_chars = getattr(llm_config, "chunk_size_chars", None) or _CHUNK_SIZE_CHARS
 
-    ctx = int(context_tokens or getattr(llm_config, "context_tokens", 0) or 0)
+    # 手動設定（config.toml の [llm] context_tokens）が 0 でなければそれを優先し、
+    # 0 のときだけ自動検出値（pipeline が渡す context_tokens 引数）を使う。
+    ctx = int(getattr(llm_config, "context_tokens", 0) or 0) or int(context_tokens or 0)
+    # 議事録本文・チャンク要約の応答トークン上限。予算計算と実リクエストで同じ値を使う。
     minutes_max_tokens = min(
         int(getattr(llm_config, "max_tokens", _MINUTES_RESPONSE_TOKENS)),
         _MINUTES_RESPONSE_TOKENS,
     )
+    skeleton_tokens = _approx_tokens(system) + _approx_tokens(_MINUTES_TEMPLATE)
 
-    # frames_text がプロンプトを食い尽くさないよう上限を設ける。
-    frames_budget = _FRAMES_TOKEN_BUDGET if ctx <= 0 else max(_FRAMES_TOKEN_BUDGET, ctx // 3)
+    # frames_text がプロンプトを食い尽くさないよう上限を設ける。ctx が分かるときは
+    # 「1/3」を狙いつつ、応答予約・マージン・雛形を引いた残りを超えないようにする
+    # （小さい ctx で下限 6000 を無理に確保して溢れるのを防ぐ）。
+    if ctx <= 0:
+        frames_budget = _FRAMES_TOKEN_BUDGET
+    else:
+        room_after_reserve = ctx - minutes_max_tokens - _PROMPT_MARGIN_TOKENS - skeleton_tokens
+        frames_budget = max(0, min(ctx // 3, room_after_reserve))
     frames_text = _truncate_to_token_budget(frames_text, frames_budget)
 
-    skeleton_tokens = _approx_tokens(system) + _approx_tokens(_MINUTES_TEMPLATE)
     if ctx > 0:
         est_prompt = (
             skeleton_tokens
@@ -306,6 +315,15 @@ def generate_minutes(
         )
         if safe_chunk_tokens > 500:
             size_chars = min(size_chars, int(safe_chunk_tokens / _TOKENS_PER_CHAR))
+        elif on_progress:
+            # frames を切り詰めてもチャンクを小さくできる余地がほぼ無い。
+            # そのまま進めるが（実 chat は 400 + 原因ヒントを返す）、先に警告する。
+            on_progress(
+                0, 1,
+                f"警告: コンテキスト長（約 {ctx} トークン）が小さすぎます。"
+                "LM Studio の Context Length を増やすか、config.toml の "
+                "[llm] context_tokens / chunk_size_chars を見直してください",
+            )
     else:
         one_pass = len(full_transcript) <= trigger_chars
 
@@ -372,9 +390,11 @@ def generate_minutes(
         summary = client.chat(
             system="あなたは会議の記録を整理するアシスタントです。Markdown の箇条書きのみ出力します。",
             user=_CHUNK_PROMPT.format(chunk=chunk_text),
-            # 固定の小さい上限（旧: 1500）だと、推論モデルが思考だけで使い切って
-            # 本文が空になることがあった。議事録本体と同じ max_tokens を与える。
-            max_tokens=llm_config.max_tokens,
+            # 予算計算（safe_chunk_tokens）と実リクエストで同じ上限を使う。
+            # 旧: 固定 1500（推論モデルが思考で使い切り本文が空になった）→ 一度
+            # llm_config.max_tokens にしたが、それだと予算計算とズレる。
+            # _MINUTES_RESPONSE_TOKENS(5000) 頭打ちなら要約には十分で、予算とも一致。
+            max_tokens=minutes_max_tokens,
         )
         elapsed = _format_elapsed(time.monotonic() - t0)
         partials.append(f"### 部分 {i}\n{summary.strip()}")

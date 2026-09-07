@@ -145,7 +145,7 @@ def test_loaded_context_length_reads_lmstudio_v0(monkeypatch):
                     "type": "llm",
                     "state": "loaded",
                     "loaded_context_length": 32768,
-                    "max_context_length": 32768,
+                    "max_context_length": 262144,
                 },
                 {"id": "some-vlm", "type": "vlm", "state": "not-loaded",
                  "max_context_length": 262144},
@@ -153,8 +153,27 @@ def test_loaded_context_length_reads_lmstudio_v0(monkeypatch):
         }
     )
     monkeypatch.setattr(c._client, "get", lambda *a, **k: _Resp(200, body))
-    assert c.loaded_context_length() == 32768  # 既定 model に一致するエントリ
+    # ロード済みの loaded_context_length のみ返す（広告値 max_context_length ではない）
+    assert c.loaded_context_length() == 32768
     assert c.loaded_context_length("qwen2.5-7b-instruct") == 32768
+
+
+def test_loaded_context_length_none_when_target_not_loaded(monkeypatch):
+    """対象モデルが未ロードなら、広告値(max_context_length)には絶対フォールバックしない。"""
+    c = _client()
+    body = json.dumps(
+        {
+            "data": [
+                {"id": "qwen2.5-7b-instruct", "type": "llm", "state": "not-loaded",
+                 "max_context_length": 262144},
+                {"id": "other-llm", "type": "llm", "state": "loaded",
+                 "loaded_context_length": 4096},
+            ]
+        }
+    )
+    monkeypatch.setattr(c._client, "get", lambda *a, **k: _Resp(200, body))
+    # ID 一致だが未ロード -> None（other-llm のロード値 4096 にも漏らさない）
+    assert c.loaded_context_length() is None
 
 
 def test_loaded_context_length_none_when_unavailable(monkeypatch):
