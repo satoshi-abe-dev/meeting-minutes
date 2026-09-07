@@ -17,21 +17,14 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
+from meeting_minutes.i18n import DEFAULT_LANGUAGE, normalize_language, t
 from meeting_minutes.model.cancel import PipelineCancelled
 from meeting_minutes.model.config import Config
 from meeting_minutes.model.pipeline import run as _default_run
 from meeting_minutes.model.transcribe import resolve_backend
 from meeting_minutes.view import MainView
 
-_STAGE_LABEL = {
-    "preflight": "サーバー確認",
-    "audio": "音声抽出",
-    "transcribe": "文字起こし",
-    "frames": "フレーム抽出",
-    "vision": "フレーム解析",
-    "minutes": "議事録生成",
-    "done": "完了",
-}
+# 工程ラベルは i18n カタログの "stage.<name>" キーへ移した（旧 _STAGE_LABEL）。
 # 工程ごとの全体に対する重み（進捗バーをそれっぽく動かすための目安）
 _STAGE_WEIGHT = {
     "preflight": 0.03,
@@ -51,10 +44,12 @@ class MainPresenter:
         config: Config,
         *,
         run_pipeline: Callable = _default_run,
+        language: str = DEFAULT_LANGUAGE,
     ) -> None:
         self.view = view
         self.config_obj = config
         self._run_pipeline = run_pipeline
+        self.language = normalize_language(language)
 
         self.video_path: Path | None = None
         self.result_dir = None
@@ -85,11 +80,16 @@ class MainPresenter:
             init_fmt = "builtin"
         self.view.set_format_mode(init_fmt)
         self.view.set_template_name(
-            Path(self._template_path).name if self._template_path else "未選択"
+            Path(self._template_path).name
+            if self._template_path
+            else self._t("label.unselected")
         )
         self.view.set_config_summary(self._config_summary())
 
         self._poll_events()
+
+    def _t(self, key: str, *, default: str | None = None, **kwargs: object) -> str:
+        return t(key, self.language, default=default, **kwargs)
 
     # --- 設定表示 -------------------------------------------------
     def _config_summary(self) -> str:
@@ -100,11 +100,13 @@ class MainPresenter:
             f" → {backend}" if tr.backend != backend else ""
         )
         # 実際に使う順番（文字起こし → VLM → LLM）で縦に並べる。
-        return (
-            f"文字起こし: {tr.model}（{backend_note}）\n"
-            f"VLM: {llm.vlm_model}\n"
-            f"LLM: {llm.model}\n"
-            f"LLM・VLM 接続先: {llm.base_url}"
+        return "\n".join(
+            (
+                self._t("cfg.transcribe", model=tr.model, note=backend_note),
+                self._t("cfg.vlm", model=llm.vlm_model),
+                self._t("cfg.llm", model=llm.model),
+                self._t("cfg.endpoint", url=llm.base_url),
+            )
         )
 
     # --- 操作 -------------------------------------------------------
@@ -138,10 +140,8 @@ class MainPresenter:
         # ここで止めて気づかせる。
         if self.view.get_format_mode() == "file" and not self._template_path:
             self.view.show_error(
-                "議事録フォーマット",
-                "「ファイルを選択」が選ばれていますが、テンプレートファイルが"
-                "選択されていません。\n「選択...」からファイルを選ぶか、"
-                "「内蔵（既定）」を選んでください。",
+                self._t("dialog.format_error.title"),
+                self._t("dialog.format_error.message"),
             )
             return
         self.view.set_start_enabled(False)
@@ -159,16 +159,16 @@ class MainPresenter:
         self.config_obj.output.auto_structure = fmt_mode == "auto"
         self.config_obj.output.template_path = tpl
         if fmt_mode == "auto":
-            fmt_desc = "おまかせ（動画に合わせて自動生成）"
+            fmt_desc = self._t("log.format_desc.auto")
         elif tpl:
             fmt_desc = tpl
         else:
-            fmt_desc = "内蔵（既定）"
+            fmt_desc = self._t("log.format_desc.builtin")
+        suffix = "" if self._reuse else self._t("log.start_suffix_fresh")
         self.view.append_log(
-            f"開始: {self.video_path.name}"
-            + ("" if self._reuse else "（最初からやり直す）")
+            self._t("log.start", name=self.video_path.name, suffix=suffix)
         )
-        self.view.append_log("議事録フォーマット: " + fmt_desc)
+        self.view.append_log(self._t("log.format", desc=fmt_desc))
 
         self._worker = threading.Thread(target=self._work, daemon=True)
         self._worker.start()
@@ -179,10 +179,7 @@ class MainPresenter:
             return
         self._cancel_event.set()
         self.view.set_stop_enabled(False)  # 二重クリック防止
-        self.view.append_log(
-            "中断を要求しました…現在の工程の区切りまで少し待ちます"
-            "（mlx-whisper の文字起こし中や ffmpeg 実行中は即座には止まりません）"
-        )
+        self.view.append_log(self._t("log.stop_requested"))
 
     def _work(self) -> None:
         def on_progress(stage: str, current: int, total: int, message: str) -> None:
@@ -227,10 +224,10 @@ class MainPresenter:
     def _update_progress(
         self, stage: str, current: int, total: int, message: str
     ) -> None:
-        label = _STAGE_LABEL.get(stage, stage)
+        label = self._t(f"stage.{stage}", default=stage)
         if stage == "done":
             self.view.set_progress(1000)
-            self.view.set_stage_text("完了")
+            self.view.set_stage_text(self._t("stage_text.done"))
             return
         # 直前工程までの重み合計 + 現工程内の進捗割合
         if stage in _STAGE_ORDER:
@@ -241,7 +238,11 @@ class MainPresenter:
         frac = (current / total) if total else 0.0
         weight = _STAGE_WEIGHT.get(stage, 0.0)
         self.view.set_progress(int((base + weight * frac) * 1000))
-        counter = f"（{current}/{total}）" if total else ""
+        counter = (
+            self._t("stage_text.counter", current=current, total=total)
+            if total
+            else ""
+        )
         self.view.set_stage_text(f"{label} {counter}")
         if message:
             self.view.append_log(f"[{label}] {message}")
@@ -251,14 +252,16 @@ class MainPresenter:
         self.result_dir = result.out_dir
         self.minutes_path = result.minutes_path
         self.view.set_progress(1000)
-        self.view.set_stage_text("完了")
+        self.view.set_stage_text(self._t("stage_text.done"))
         self.view.append_log("")
-        self.view.append_log(f"議事録: {result.minutes_path}")
+        self.view.append_log(self._t("log.minutes_path", path=result.minutes_path))
         self.view.append_log(
-            f"文字起こし {result.n_segments} 区間 / フレーム {result.n_frames} 枚"
+            self._t(
+                "log.counts", segments=result.n_segments, frames=result.n_frames
+            )
         )
         for w in result.warnings:
-            self.view.append_log(f"警告: {w}")
+            self.view.append_log(self._t("log.warning", msg=w))
         self.view.set_open_minutes_enabled(True)
         self.view.set_open_folder_enabled(True)
         self.view.set_start_enabled(True)
@@ -267,24 +270,20 @@ class MainPresenter:
 
     def _on_error(self, exc: Exception, tb: str) -> None:
         self._worker = None
-        self.view.set_stage_text("エラー")
+        self.view.set_stage_text(self._t("stage_text.error"))
         self.view.append_log("")
-        self.view.append_log(f"失敗: {exc}")
+        self.view.append_log(self._t("log.failure", exc=exc))
         self.view.set_start_enabled(True)
         self.view.set_stop_enabled(False)
         self._cancel_event = None
-        self.view.show_error("エラー", str(exc))
+        self.view.show_error(self._t("dialog.error.title"), str(exc))
         # 詳細はログにだけ残す
         self.view.append_log(tb)
 
     def _on_cancelled(self) -> None:
         self._worker = None
-        self.view.set_stage_text("中断しました")
-        self.view.append_log(
-            "中断しました。ここまでの文字起こし・フレームは output に残っており、"
-            "次回の実行（「作成済みデータを利用する」にチェックした状態）"
-            "で再利用されます。"
-        )
+        self.view.set_stage_text(self._t("stage_text.cancelled"))
+        self.view.append_log(self._t("log.cancelled"))
         self.view.set_start_enabled(True)
         self.view.set_stop_enabled(False)
         self._cancel_event = None

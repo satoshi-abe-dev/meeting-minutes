@@ -84,8 +84,13 @@ Local Model API で「Local API server」を ON、「Just-in-time model loading�
 
 ```bash
 python src/meeting_minutes/gui.py                 # GUI: 動画を選んで「議事録を作成」。進捗バーとログ表示
+python src/meeting_minutes/gui.py --lang en       # GUI の画面文言を英語で（既定は日本語）
 python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・自動化用
 ```
+
+GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、既定 `"ja"`）でも
+指定できる。`--lang` はその回だけの上書き。切り替わるのは **GUI の画面文言だけ**で、
+文字起こし言語・生成される議事録の内容は別（`[transcribe] language` / LLM 側）。
 
 （開発者向けに `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` も動く。
 その場合は `cd src` するか `PYTHONPATH=src` を設定する。）

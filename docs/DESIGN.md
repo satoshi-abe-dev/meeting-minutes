@@ -380,6 +380,35 @@ if __package__ in (None, ""):
 
 ---
 
+## 8.8 GUI の表示言語 ja/en（2026-09、Issue #55）
+
+**判断:** GUI の画面文言だけを日本語／英語で切り替えられるようにした。対象は
+**GUI の画面テキストのみ** — 文字起こしの言語（`[transcribe] language`）、LLM への
+プロンプト、生成される議事録の中身、CLI の出力は対象外。
+
+- **起動時に 1 回だけ選ぶ方式**（動作中のライブ切替はしない）。実行中に文言が
+  差し替わる UI を作らずに済み、`presenter` / `view` は言語を 1 個の文字列として
+  受け取って保持するだけで済む。
+- **カタログは `src/meeting_minutes/i18n.py` に集約**。`_STRINGS: dict[str, dict[str, str]]`
+  が `{"window.title": {"ja": "...", "en": "..."}, ...}` の形。`t(key, language, **kwargs)`
+  が 1 本の取り出し口で、`language` の訳 → 既定言語（ja）の訳 → `key` そのもの、の順に
+  フォールバックし、`kwargs` があれば `str.format` する。未知キーは `default` か `key`。
+- **ja 側は i18n 化前のリテラルをそのまま写した**。これにより `language="ja"`（既定）の
+  ときの表示は今までとバイト単位で同じ、という保証になる。`test_i18n.py` の
+  `test_ja_side_matches_pre_i18n_literals` と `test_gui_presenter.py` の既存テストが
+  この不変を守る。
+- **文言の出どころは 2 か所**: `view/tk_main_window.py`（静的なラベル・ボタン・
+  ツールチップ・ファイルダイアログ）と `presenter/main.py`（工程ラベル・ログ行・
+  エラーダイアログ）。どちらも `language` 引数（既定 `"ja"`）を受け取り、内部の
+  `self._t(key, **kwargs)` から `i18n.t` を呼ぶ。旧 `_STAGE_LABEL` 辞書は
+  カタログの `stage.<name>` キーへ移した。
+- **言語の決め方**: 優先順位は `gui.py --lang {ja,en}` > `config.toml` `[gui] language`
+  （= 環境変数 `MM_GUI_LANGUAGE`）> 既定 `ja`。`ja` / `en` 以外の値は
+  `normalize_language()` が `ja` に丸める（`config.py` のロード時と、`view` /
+  `presenter` の受け取り口の両方で）。
+
+---
+
 ## 9. テスト戦略
 
 - **純粋ロジックは普通の単体テスト** — フレーム間引き（`_thin_by_gap` / `_cap_count`）、
