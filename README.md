@@ -162,5 +162,29 @@ CI・lint/型チェック・中間結果の再利用・LLM 落ち時のリトラ
 - `[transcribe] backend` — `auto` / `mlx`（Apple GPU）/ `faster-whisper`
 - `[transcribe] model` — 既定 `large-v3-turbo`（速い・高精度）/ `large-v3` / `medium` / `small`
 - `[frames] interval_sec` / `scene_threshold` / `max_frames` — フレーム抽出の粒度と上限
+- `[output] template_path` — 議事録の様式（見出し構成）を差し替えるカスタムテンプレート（下記）
 
 各値は環境変数（`MM_LLM_MODEL` など）でも上書き可能。
+
+### 議事録テンプレートを差し替える
+
+お客様ごとの規定様式に合わせたいときは、議事録の**構造**（見出し・項目）を外部ファイルで
+指定できる。**「捏造しない」等の品質ルールはテンプレートに関わらず常に適用される**
+（テンプレートはあくまで構造）。一発生成・分割生成のどちらでも同じテンプレートが使われる。
+
+- **いつもの様式**: `config.toml` の `[output] template_path` にパスを書く（毎回自動で使用）
+- **この回だけ別様式**: GUI の「テンプレートを選択…」ボタン / CLI の `--template path` で上書き
+- ファイルが見つからない・読めない・空の場合は、**内蔵テンプレートにフォールバックし警告**する
+
+テンプレートで使えるプレースホルダー:
+
+| プレースホルダー | 差し込まれる内容 |
+| --- | --- |
+| `{title}` | 動画ファイル名（拡張子なし） |
+| `{datetime_hint}` | 日時のヒント（不明なら「（記載なし）」） |
+| `{duration_hint}` | 記録時間のヒント（「約 N 分」等） |
+| `{transcript}` | 文字起こし全文（**省略可**。書かなければ末尾に入力セクションが自動追加される） |
+| `{frames}` | フレーム解析結果（時刻付き。省略時は上記と同様に自動追加） |
+
+雛形は [`prompts/minutes_template_example.txt`](prompts/minutes_template_example.txt)（内蔵と同一）。
+これをコピーして見出しを書き換えるのが早い。

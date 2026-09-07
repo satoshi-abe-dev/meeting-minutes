@@ -74,9 +74,12 @@ _DEFAULT_SYSTEM = """あなたは会議の議事録作成の専門家です。
   アクションアイテム」は該当がなければ「（該当なし）」とし、「共有された情報」を厚く書く。
 - 出力は Markdown のみ。前置き・後書き・謝辞・自己言及は書かない。"""
 
-_MINUTES_TEMPLATE = """以下のテンプレートに沿って議事録を作成してください。
+_MINUTES_PREAMBLE = "以下のテンプレートに沿って議事録を作成してください。\n\n"
 
-# 議事録: {title}
+# 議事録の「構造」だけ。config.toml の [output] template_path で丸ごと差し替え可能。
+# 使えるプレースホルダー: {title} {datetime_hint} {duration_hint}
+# （{transcript} / {frames} を書かなければ、末尾に入力セクションが自動で足される）
+_MINUTES_STRUCTURE = """# 議事録: {title}
 
 - 日時: {datetime_hint}
 - 記録時間: {duration_hint}
@@ -108,7 +111,10 @@ _MINUTES_TEMPLATE = """以下のテンプレートに沿って議事録を作成
 （各スクリーンショットから読み取れた文字・箇条書き・数値・表を、時刻順にそのまま
 列挙する。「スライドが表示された」「資料が共有された」等のメタ説明は書かない。
 読み取れる情報が無ければ「（読み取れる資料なし）」）
+"""
 
+# 入力セクション。カスタムテンプレートが {transcript} を持たない場合に末尾へ足す。
+_MINUTES_INPUT = """
 ---
 
 ## 入力: 文字起こし
@@ -117,6 +123,55 @@ _MINUTES_TEMPLATE = """以下のテンプレートに沿って議事録を作成
 ## 入力: 画面キャプチャの説明（時刻付き）
 {frames}
 """
+
+
+def load_minutes_structure(
+    template_path: str | Path | None,
+    *,
+    on_warning: Callable[[str], None] | None = None,
+) -> str:
+    """カスタム議事録テンプレート（構造のみ）を読む。
+
+    template_path が空／None なら内蔵テンプレート。指定があっても、存在しない・
+    読めない・空の場合はエラーで止めず内蔵にフォールバックし、on_warning で通知する。
+    """
+    if not template_path:
+        return _MINUTES_STRUCTURE
+    p = Path(template_path).expanduser()
+    try:
+        text = p.read_text(encoding="utf-8").strip()
+    except (OSError, ValueError) as exc:  # ValueError: UnicodeDecodeError
+        if on_warning:
+            on_warning(
+                f"テンプレート {p} を読めませんでした。内蔵テンプレートを使います: {exc}"
+            )
+        return _MINUTES_STRUCTURE
+    if not text:
+        if on_warning:
+            on_warning(f"テンプレート {p} が空です。内蔵テンプレートを使います")
+        return _MINUTES_STRUCTURE
+    return text
+
+
+def _fill_minutes_template(
+    structure: str, meta: "MinutesMeta", transcript: str, frames: str
+) -> str:
+    """テンプレート（構造）にメタ情報・入力を差し込んで完成プロンプトを返す。
+
+    .format ではなく置換で埋める（カスタムテンプレートに素の { } があっても壊さない）。
+    構造が {transcript} を含まなければ入力セクションを末尾へ足す。
+    """
+    body = _MINUTES_PREAMBLE + structure
+    if "{transcript}" not in structure:
+        body += _MINUTES_INPUT
+    return (
+        body.replace("{title}", meta.title)
+        .replace("{datetime_hint}", meta.datetime_hint)
+        .replace("{duration_hint}", meta.duration_hint)
+        .replace("{transcript}", transcript)
+        .replace("{frames}", frames)
+    )
+
 
 _CHUNK_PROMPT = """次の会議の文字起こしの一部です。後で議事録にまとめるための素材として、
 話題・発言の要点・数値・決定事項の候補・宿題の候補を、時刻を保ったまま日本語で箇条書きにしてください。
@@ -260,6 +315,7 @@ def generate_minutes(
     out_dir: str | Path | None = None,
     reuse: bool = True,
     context_tokens: int | None = None,
+    template_path: str | Path | None = None,
 ) -> str:
     """議事録の Markdown 文字列を返す。
 
@@ -273,11 +329,20 @@ def generate_minutes(
     context_tokens: 分かっていれば、ロード中モデルの実コンテキスト長（トークン）。
         一発生成のプロンプトがこれに収まらないと推定される場合は、文字数しきい値に
         関わらず分割生成にフォールバックする。None なら chunk_trigger_chars（文字）で判断。
+    template_path: 議事録の「構造」を差し替えるカスタムテンプレートのパス。空／None は
+        内蔵テンプレート。存在しない・読めない・空の場合は内蔵にフォールバックし警告する。
+        システムプロンプト（捏造しない等のルール）はテンプレートに関わらず常に適用する。
+        一発生成・分割生成の統合ステップの両方で同じテンプレートを使う。
     """
     check_cancel(cancel_event)
     system = _system_prompt()
     full_transcript = transcript_to_text(segments)
     frames_text = notes_to_text(notes) or "（フレームなし）"
+
+    structure = load_minutes_structure(
+        template_path,
+        on_warning=(lambda m: on_progress(0, 1, f"警告: {m}")) if on_progress else None,
+    )
 
     trigger_chars = getattr(llm_config, "chunk_trigger_chars", None) or _CHUNK_TRIGGER_CHARS
     size_chars = getattr(llm_config, "chunk_size_chars", None) or _CHUNK_SIZE_CHARS
@@ -290,7 +355,9 @@ def generate_minutes(
         int(getattr(llm_config, "max_tokens", _MINUTES_RESPONSE_TOKENS)),
         _MINUTES_RESPONSE_TOKENS,
     )
-    skeleton_tokens = _approx_tokens(system) + _approx_tokens(_MINUTES_TEMPLATE)
+    skeleton_tokens = (
+        _approx_tokens(system) + _approx_tokens(structure) + _approx_tokens(_MINUTES_INPUT)
+    )
 
     # frames_text がプロンプトを食い尽くさないよう上限を設ける。ctx が分かるときは
     # 「1/3」を狙いつつ、応答予約・マージン・雛形を引いた残りを超えないようにする
@@ -333,13 +400,7 @@ def generate_minutes(
                 0, 1,
                 f"議事録を生成中…応答を待っています（モデル: {llm_config.model}）",
             )
-        user = _MINUTES_TEMPLATE.format(
-            title=meta.title,
-            datetime_hint=meta.datetime_hint,
-            duration_hint=meta.duration_hint,
-            transcript=full_transcript,
-            frames=frames_text,
-        )
+        user = _fill_minutes_template(structure, meta, full_transcript, frames_text)
         t0 = time.monotonic()
         md = client.chat(system, user, max_tokens=minutes_max_tokens)
         elapsed = _format_elapsed(time.monotonic() - t0)
@@ -417,13 +478,7 @@ def generate_minutes(
             f"議事録に統合中…応答を待っています（モデル: {llm_config.model}）",
         )
     merged_transcript = "\n\n".join(partials)
-    user = _MINUTES_TEMPLATE.format(
-        title=meta.title,
-        datetime_hint=meta.datetime_hint,
-        duration_hint=meta.duration_hint,
-        transcript=merged_transcript,
-        frames=frames_text,
-    )
+    user = _fill_minutes_template(structure, meta, merged_transcript, frames_text)
     t0 = time.monotonic()
     md = client.chat(system, user, max_tokens=minutes_max_tokens)
     elapsed = _format_elapsed(time.monotonic() - t0)

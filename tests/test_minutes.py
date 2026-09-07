@@ -11,9 +11,12 @@ from meeting_minutes.cancel import PipelineCancelled
 from meeting_minutes.config import LLMConfig
 from meeting_minutes.minutes import (
     MinutesMeta,
+    _fill_minutes_template,
+    _MINUTES_STRUCTURE,
     _save_partials,
     _split_segments,
     generate_minutes,
+    load_minutes_structure,
 )
 from meeting_minutes.transcribe import Segment
 from meeting_minutes.vision import FrameNote
@@ -409,3 +412,119 @@ def test_generate_minutes_small_context_does_not_force_oversized_frames_budget()
     for c in client.calls:
         # どの実リクエストのプロンプトも、frames だけで ctx を食い尽くしていない
         assert _approx_tokens(c["user"]) < 4096 * 3  # ざっくり: 暴走していない
+
+
+# --- カスタム議事録テンプレート（Issue #21）--------------------------
+
+def test_load_minutes_structure_builtin_when_empty():
+    assert load_minutes_structure("") is _MINUTES_STRUCTURE
+    assert load_minutes_structure(None) is _MINUTES_STRUCTURE
+
+
+def test_load_minutes_structure_reads_custom_file(tmp_path):
+    p = tmp_path / "tpl.txt"
+    p.write_text("# 顧客様式\n\n## 決定\n## 宿題\n", encoding="utf-8")
+    assert load_minutes_structure(str(p)) == "# 顧客様式\n\n## 決定\n## 宿題"
+
+
+def test_load_minutes_structure_missing_file_falls_back_with_warning(tmp_path):
+    warnings: list[str] = []
+    got = load_minutes_structure(str(tmp_path / "nope.txt"), on_warning=warnings.append)
+    assert got is _MINUTES_STRUCTURE
+    assert warnings and "内蔵テンプレート" in warnings[0]
+
+
+def test_load_minutes_structure_empty_file_falls_back_with_warning(tmp_path):
+    p = tmp_path / "empty.txt"
+    p.write_text("   \n", encoding="utf-8")
+    warnings: list[str] = []
+    assert load_minutes_structure(str(p), on_warning=warnings.append) is _MINUTES_STRUCTURE
+    assert warnings and "空です" in warnings[0]
+
+
+def test_fill_minutes_template_appends_input_section_when_missing():
+    out = _fill_minutes_template(
+        "# 様式\n## 決定事項", MinutesMeta(title="会議X"), "文字起こし本文", "フレーム本文"
+    )
+    assert "# 様式" in out
+    assert "会議X" not in out or "{title}" not in out  # {title} は様式に無いだけ
+    assert "文字起こし本文" in out and "フレーム本文" in out
+    assert "## 入力: 文字起こし" in out  # 自動で足された
+
+
+def test_fill_minutes_template_respects_own_placeholders_and_stray_braces():
+    tpl = "# {title} 議事録\nJSON例: {\"a\": 1}\n## 本文\n{transcript}\n資料:{frames}"
+    out = _fill_minutes_template(tpl, MinutesMeta(title="定例"), "T!", "F!")
+    assert out.count("## 入力: 文字起こし") == 0  # {transcript} を持つので入力節は足さない
+    assert "# 定例 議事録" in out
+    assert 'JSON例: {"a": 1}' in out  # 素の { } は壊れない
+    assert "T!" in out and "F!" in out
+
+
+def test_generate_minutes_uses_custom_template_single_pass(tmp_path):
+    tpl = tmp_path / "cust.txt"
+    tpl.write_text("# お客様フォーマット\n## 合意事項\n## 次アクション\n", encoding="utf-8")
+    client = FakeClient(reply="# 議事録\n本文\n")
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        template_path=str(tpl),
+    )
+    assert len(client.calls) == 1
+    assert "お客様フォーマット" in client.calls[0]["user"]
+    assert "## 合意事項" in client.calls[0]["user"]
+    # 内蔵テンプレの見出しは出ない
+    assert "## 宿題・アクションアイテム" not in client.calls[0]["user"]
+
+
+def test_generate_minutes_uses_custom_template_in_merge_step(chunking_config):
+    tpl_text = "# 客先様式\n## 決めたこと\n{transcript}\n{frames}\n"
+    import tempfile, os
+    fd, path = tempfile.mkstemp(suffix=".txt")
+    os.write(fd, tpl_text.encode("utf-8"))
+    os.close(fd)
+    try:
+        client = FakeClient(reply="部分/最終")
+        long_segs = _segments(300, text="議題について長い発言をする" * 5)
+        generate_minutes(
+            long_segs, [], client, chunking_config, MinutesMeta(title="長い会議"),
+            template_path=path,
+        )
+        # 統合（最終 chat）に客先様式が使われている
+        assert "客先様式" in client.calls[-1]["user"]
+    finally:
+        os.unlink(path)
+
+
+def test_generate_minutes_custom_template_missing_still_produces_minutes(tmp_path):
+    """テンプレートが見つからなくてもエラーで止めず内蔵で生成し、警告を出す。"""
+    msgs: list[str] = []
+    client = FakeClient(reply="# 議事録\n本文\n")
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        template_path=str(tmp_path / "missing.txt"),
+        on_progress=lambda c, t, m: msgs.append(m),
+    )
+    assert len(client.calls) == 1
+    assert "## 宿題・アクションアイテム" in client.calls[0]["user"]  # 内蔵テンプレ
+    assert any("テンプレート" in m and "内蔵" in m for m in msgs)
+
+
+def test_generate_minutes_system_prompt_unchanged_by_custom_template(tmp_path):
+    """テンプレートを変えても system プロンプト（幻覚防止ルール）は同じ。"""
+    tpl = tmp_path / "t.txt"
+    tpl.write_text("# 様式\n## 本文\n", encoding="utf-8")
+    a = FakeClient(reply="x")
+    b = FakeClient(reply="x")
+    generate_minutes(_segments(3), [], a, LLMConfig(), MinutesMeta(title="会議"))
+    generate_minutes(_segments(3), [], b, LLMConfig(), MinutesMeta(title="会議"),
+                     template_path=str(tpl))
+    assert a.calls[0]["system"] == b.calls[0]["system"]
+
+
+def test_example_template_file_matches_builtin_structure():
+    """prompts/minutes_template_example.txt は内蔵テンプレートと同一（雛形なので）。"""
+    from pathlib import Path
+    from meeting_minutes.config import REPO_ROOT
+
+    p = REPO_ROOT / "prompts" / "minutes_template_example.txt"
+    assert load_minutes_structure(str(p)) == _MINUTES_STRUCTURE.strip()

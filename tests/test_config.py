@@ -74,3 +74,16 @@ def test_output_root_relative_to_repo(tmp_path, monkeypatch):
     p.write_text('[output]\ndir = "out"\n', encoding="utf-8")
     cfg = load_config(p)
     assert cfg.output_root == tmp_path / "out"
+
+
+def test_output_template_path_default_and_toml_and_env(tmp_path, monkeypatch):
+    # 既定は空文字（内蔵テンプレート）
+    monkeypatch.setattr("meeting_minutes.config.default_config_path", lambda: None)
+    assert load_config(None).output.template_path == ""
+
+    p = tmp_path / "config.toml"
+    p.write_text('[output]\ntemplate_path = "tpl/顧客A.txt"\n', encoding="utf-8")
+    assert load_config(p).output.template_path == "tpl/顧客A.txt"
+
+    monkeypatch.setenv("MM_OUTPUT_TEMPLATE_PATH", "tpl/env.txt")
+    assert load_config(p).output.template_path == "tpl/env.txt"

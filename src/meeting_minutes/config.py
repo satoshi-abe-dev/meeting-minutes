@@ -82,6 +82,10 @@ class FramesConfig:
 @dataclass
 class OutputConfig:
     dir: str = "output"
+    # 議事録の「構造」を差し替えるカスタムテンプレートのパス。空なら内蔵テンプレート。
+    # ここに設定しておくと毎回自動で使われる（GUI/CLI からその回だけ上書きも可能）。
+    # 存在しない・読めない・空の場合は内蔵にフォールバックし警告する。
+    template_path: str = ""
 
 
 @dataclass
@@ -119,6 +123,7 @@ _ENV_MAP: dict[str, tuple[str, str, type]] = {
     "MM_FRAMES_MAX_FRAMES": ("frames", "max_frames", int),
     "MM_FRAMES_MIN_GAP_SEC": ("frames", "min_gap_sec", float),
     "MM_OUTPUT_DIR": ("output", "dir", str),
+    "MM_OUTPUT_TEMPLATE_PATH": ("output", "template_path", str),
 }
 
 _SECTION_TYPES = {

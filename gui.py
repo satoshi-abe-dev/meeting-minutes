@@ -131,6 +131,9 @@ class App:
         self.video_path: Path | None = None
         self.result_dir: Path | None = None
         self.minutes_path: Path | None = None
+        # config.toml の template_path（既定のテンプレート）。GUI 側の一時上書きと区別する。
+        self._config_template_path: str = self.config_obj.output.template_path
+        self._template_override: str | None = None  # 「テンプレートを選択…」でこの回だけ上書き
 
         self._events: "queue.Queue[tuple]" = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -152,6 +155,26 @@ class App:
         )
         self.file_label = ttk.Label(top, text="未選択", foreground="#666")
         self.file_label.pack(side="left", padx=10)
+
+        tpl = ttk.Frame(self.root)
+        tpl.pack(fill="x", padx=10)
+        ttk.Button(
+            tpl, text="テンプレートを選択…", command=self._choose_template
+        ).pack(side="left")
+        self.template_label = ttk.Label(
+            tpl, text=self._template_label_text(), foreground="#666"
+        )
+        self.template_label.pack(side="left", padx=10)
+        self.template_reset_btn = ttk.Button(
+            tpl, text="既定に戻す", command=self._reset_template,
+            state="disabled",
+        )
+        self.template_reset_btn.pack(side="left")
+        _Tooltip(
+            tpl,
+            "議事録の見出し構成を差し替えるテンプレート。通常は config.toml の設定が"
+            "そのまま使われます。お客様ごとの様式に変えたいときだけ、その回だけ選び直します。",
+        )
 
         info = ttk.Label(
             self.root,
@@ -272,6 +295,29 @@ class App:
         self.file_label.configure(text=self.video_path.name, foreground="#000")
         self.run_btn.configure(state="normal")
 
+    def _template_label_text(self) -> str:
+        if self._template_override:
+            return f"（この回だけ）{Path(self._template_override).name}"
+        if self._config_template_path:
+            return f"{Path(self._config_template_path).name}（config.toml）"
+        return "内蔵テンプレート（config.toml）"
+
+    def _choose_template(self) -> None:
+        path = filedialog.askopenfilename(
+            title="議事録テンプレートを選択",
+            filetypes=[("テキスト", "*.txt *.md"), ("すべてのファイル", "*.*")],
+        )
+        if not path:
+            return
+        self._template_override = path
+        self.template_label.configure(text=self._template_label_text(), foreground="#000")
+        self.template_reset_btn.configure(state="normal")
+
+    def _reset_template(self) -> None:
+        self._template_override = None
+        self.template_label.configure(text=self._template_label_text(), foreground="#666")
+        self.template_reset_btn.configure(state="disabled")
+
     def _start(self) -> None:
         if self.video_path is None or self._worker is not None:
             return
@@ -282,10 +328,18 @@ class App:
         self.progress.configure(value=0)
         self._reuse = self.reuse_var.get()  # UI スレッドで読んでおく
         self._cancel_event = threading.Event()
+        # この回で使うテンプレート（一時上書き優先、無ければ config.toml の設定）。
+        self.config_obj.output.template_path = (
+            self._template_override
+            if self._template_override is not None
+            else self._config_template_path
+        )
         self._append_log(
             f"開始: {self.video_path.name}"
             + ("" if self._reuse else "（最初からやり直す）")
         )
+        if self._template_override:
+            self._append_log(f"テンプレート（この回だけ）: {self._template_override}")
 
         self._worker = threading.Thread(target=self._work, daemon=True)
         self._worker.start()
