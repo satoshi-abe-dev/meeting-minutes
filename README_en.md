@@ -15,12 +15,9 @@ English | [日本語](README_ja.md)
 >   from a different vendor (Codex)
 > - **Proposing "Auto" mode** — having the LLM suggest a heading structure per video,
 >   which can be pinned as a template once you like it
-> - **Sending work back after an in-person check** — a GUI border-rendering bug that
->   headless checks alone had missed was caught on a real screen and sent back for a fix
-> - **Naming the "loop engineering" frame** — recasting the development process itself
->   as a verification loop that repeats until convergence, rather than a one-shot review
-> - **The public/private information design** — decisions on the README structure,
->   the ja/en split, and which materials to keep private
+> - **The overall GUI design** (the radio-button layout for choosing the minutes
+>   format, the visible border on the settings panel, centering the button pairs,
+>   standardizing on `grid` for layout, and tightening widget spacing)
 >
 > Implementation was carried out by multiple Claude Code sessions. The roles and
 > review criteria are documented in
