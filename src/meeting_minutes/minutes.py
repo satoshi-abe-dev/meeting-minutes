@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -113,16 +114,19 @@ _MINUTES_STRUCTURE = """# 議事録: {title}
 読み取れる情報が無ければ「（読み取れる資料なし）」）
 """
 
-# 入力セクション。カスタムテンプレートが {transcript} を持たない場合に末尾へ足す。
-_MINUTES_INPUT = """
----
+# 入力セクション。カスタムテンプレートが該当プレースホルダーを書いていない場合、
+# 「足りない方だけ」を末尾に補う（{transcript} だけ書いて {frames} を忘れても、
+# フレーム情報が丸ごと消えないように個別に扱う）。
+_INPUT_SEP = "\n---\n\n"
+_INPUT_TRANSCRIPT = "## 入力: 文字起こし\n{transcript}\n"
+_INPUT_FRAMES = "## 入力: 画面キャプチャの説明（時刻付き）\n{frames}\n"
+# トークン見積もり（skeleton_tokens）用: 両方補った最大ケース。
+_MINUTES_INPUT = _INPUT_SEP + _INPUT_TRANSCRIPT + "\n" + _INPUT_FRAMES
 
-## 入力: 文字起こし
-{transcript}
-
-## 入力: 画面キャプチャの説明（時刻付き）
-{frames}
-"""
+# テンプレート内のプレースホルダー。ここに載っている名前だけ置換し、素の { } は触らない。
+_PLACEHOLDER_RE = re.compile(
+    r"\{(title|datetime_hint|duration_hint|transcript|frames)\}"
+)
 
 
 def load_minutes_structure(
@@ -158,19 +162,29 @@ def _fill_minutes_template(
 ) -> str:
     """テンプレート（構造）にメタ情報・入力を差し込んで完成プロンプトを返す。
 
-    .format ではなく置換で埋める（カスタムテンプレートに素の { } があっても壊さない）。
-    構造が {transcript} を含まなければ入力セクションを末尾へ足す。
+    - 逐次 .replace ではなく、テンプレート文字列を1回だけ走査する一括置換
+      （re.sub + コールバック）。置換後の値（transcript 等）は再走査しないので、
+      文字起こし中に偶然 "{frames}" のような文字列があっても巻き込まれない。
+      素の { }（JSON 例など）は _PLACEHOLDER_RE に載っていないので触らない。
+    - 構造が {transcript} / {frames} を書いていない場合、「足りない方だけ」を末尾に補う。
     """
     body = _MINUTES_PREAMBLE + structure
+    tail: list[str] = []
     if "{transcript}" not in structure:
-        body += _MINUTES_INPUT
-    return (
-        body.replace("{title}", meta.title)
-        .replace("{datetime_hint}", meta.datetime_hint)
-        .replace("{duration_hint}", meta.duration_hint)
-        .replace("{transcript}", transcript)
-        .replace("{frames}", frames)
-    )
+        tail.append(_INPUT_TRANSCRIPT)
+    if "{frames}" not in structure:
+        tail.append(_INPUT_FRAMES)
+    if tail:
+        body += _INPUT_SEP + "\n".join(tail)
+
+    values = {
+        "title": meta.title,
+        "datetime_hint": meta.datetime_hint,
+        "duration_hint": meta.duration_hint,
+        "transcript": transcript,
+        "frames": frames,
+    }
+    return _PLACEHOLDER_RE.sub(lambda m: values[m.group(1)], body)
 
 
 _CHUNK_PROMPT = """次の会議の文字起こしの一部です。後で議事録にまとめるための素材として、

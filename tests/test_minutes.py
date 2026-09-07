@@ -528,3 +528,33 @@ def test_example_template_file_matches_builtin_structure():
 
     p = REPO_ROOT / "prompts" / "minutes_template_example.txt"
     assert load_minutes_structure(str(p)) == _MINUTES_STRUCTURE.strip()
+
+
+def test_fill_minutes_template_appends_only_missing_frames_section():
+    """{transcript} は書いたが {frames} を忘れた場合でも、フレーム情報は消えない（Codex 指摘1）。"""
+    tpl = "# 様式\n## 本文\n{transcript}\n"  # {frames} なし
+    out = _fill_minutes_template(tpl, MinutesMeta(title="会議"), "文字起こし本文", "フレーム解析本文")
+    assert "文字起こし本文" in out
+    assert "フレーム解析本文" in out  # 個別に補われる
+    assert "## 入力: 画面キャプチャの説明" in out
+    assert out.count("## 入力: 文字起こし") == 0  # transcript は構造側にあるので二重にしない
+
+
+def test_fill_minutes_template_no_contamination_from_replaced_values():
+    """置換後の値の中に別プレースホルダー文字列があっても巻き込まれない（Codex 指摘2）。"""
+    tpl = "# {title}\n## 本文\n{transcript}\n## 資料\n{frames}\n"
+    tricky_transcript = "田中: このスライドの {frames} という表記について質問です"
+    out = _fill_minutes_template(
+        tpl, MinutesMeta(title="定例"), tricky_transcript, "実際のフレーム解析結果"
+    )
+    # 文字起こし中の "{frames}" はそのまま残る（フレーム解析結果で上書きされない）
+    assert "{frames} という表記について" in out
+    # 本来の {frames} プレースホルダーだけがフレーム解析結果になる
+    assert "実際のフレーム解析結果" in out
+    assert out.count("実際のフレーム解析結果") == 1
+
+
+def test_fill_minutes_template_leaves_unknown_braces_untouched():
+    tpl = "# {title}\n設定例: {timeout: 600}\n{transcript}\n{frames}"
+    out = _fill_minutes_template(tpl, MinutesMeta(title="X"), "T", "F")
+    assert "設定例: {timeout: 600}" in out  # 既知プレースホルダー名でない { } は不変
