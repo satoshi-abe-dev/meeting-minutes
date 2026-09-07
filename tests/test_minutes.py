@@ -522,11 +522,10 @@ def test_generate_minutes_system_prompt_unchanged_by_custom_template(tmp_path):
 
 
 def test_example_template_file_matches_builtin_structure():
-    """prompts/minutes_template_example.txt は内蔵テンプレートと同一（雛形なので）。"""
-    from pathlib import Path
+    """templates/minutes_template_example.txt は内蔵テンプレートと同一（雛形なので）。"""
     from meeting_minutes.config import REPO_ROOT
 
-    p = REPO_ROOT / "prompts" / "minutes_template_example.txt"
+    p = REPO_ROOT / "templates" / "minutes_template_example.txt"
     assert load_minutes_structure(str(p)) == _MINUTES_STRUCTURE.strip()
 
 
