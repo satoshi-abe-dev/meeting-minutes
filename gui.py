@@ -52,9 +52,8 @@ _STAGE_WEIGHT = {
 }
 _STAGE_ORDER = ["preflight", "audio", "transcribe", "frames", "vision", "minutes"]
 
-# 議事録フォーマット選択ドロップダウンの固定ラベル。
+# 議事録フォーマット選択ドロップダウンの「ファイルを選択」項目のラベル。
 _TEMPLATE_PICK_LABEL = "ファイルを選択..."
-_TEMPLATE_ONCE_PREFIX = "今回だけ: "
 
 
 class _Tooltip:
@@ -160,6 +159,23 @@ class App:
         self.file_label = ttk.Label(top, text="未選択", foreground="#666")
         self.file_label.pack(side="left", padx=10)
 
+        # 議事録フォーマット（見出し・構成）の選択。動画選択ボタンの直下に置く。
+        fmt_row = ttk.Frame(self.root)
+        fmt_row.pack(fill="x", padx=10, pady=(0, 6))
+        ttk.Label(fmt_row, text="議事録フォーマット:").pack(side="left")
+        self.template_combo = ttk.Combobox(fmt_row, state="readonly", width=44)
+        self.template_combo["values"] = [self._config_choice_label(), _TEMPLATE_PICK_LABEL]
+        self.template_combo.set(self._config_choice_label())
+        self.template_combo.pack(side="left", padx=8)
+        self.template_combo.bind("<<ComboboxSelected>>", self._on_template_selected)
+        _Tooltip(
+            self.template_combo,
+            "「内蔵」は、会議の内容に関わらず常に同じ見出し・構成（決定事項・宿題・"
+            "議事の要点など）を使う既定のフォーマットです。内容に応じて動的に変わる"
+            "ことはありません。お客様ごとの様式に合わせたい場合は、テンプレートファイルを"
+            "用意してこのメニューから選んでください。",
+        )
+
         info = ttk.Label(
             self.root,
             text=(
@@ -192,24 +208,6 @@ class App:
             ),
             justify="left",
         ).pack(anchor="w", padx=8, pady=6)
-
-        # 議事録フォーマット（見出し・構成）の選択。
-        fmt_row = ttk.Frame(cfg)
-        fmt_row.pack(anchor="w", fill="x", padx=8, pady=(0, 6))
-        fmt_label = ttk.Label(fmt_row, text="議事録フォーマット:")
-        fmt_label.pack(side="left")
-        self.template_combo = ttk.Combobox(fmt_row, state="readonly", width=44)
-        self.template_combo["values"] = [self._config_choice_label(), _TEMPLATE_PICK_LABEL]
-        self.template_combo.set(self._config_choice_label())
-        self.template_combo.pack(side="left", padx=8)
-        self.template_combo.bind("<<ComboboxSelected>>", self._on_template_selected)
-        _Tooltip(
-            self.template_combo,
-            "「内蔵」は、会議の内容に関わらず常に同じ見出し・構成（決定事項・宿題・"
-            "議事の要点など）を使う既定のフォーマットです。内容に応じて動的に変わる"
-            "ことはありません。お客様ごとの様式に合わせたい場合は、テンプレートファイルを"
-            "用意してこのメニューから選んでください。",
-        )
 
         self.reuse_var = tk.BooleanVar(value=True)
         reuse_check = ttk.Checkbutton(
@@ -307,7 +305,7 @@ class App:
     def _committed_template_label(self) -> str:
         """いま確定している選択のラベル（ダイアログをキャンセルしたときの戻り先）。"""
         if self._template_override is not None:
-            return _TEMPLATE_ONCE_PREFIX + Path(self._template_override).name
+            return Path(self._template_override).name
         return self._config_choice_label()
 
     def _on_template_selected(self, _event: object = None) -> None:
@@ -321,19 +319,18 @@ class App:
                 self.template_combo.set(self._committed_template_label())  # キャンセル
                 return
             self._template_override = path
-            once = _TEMPLATE_ONCE_PREFIX + Path(path).name
+            name = Path(path).name  # ファイル名だけを表示（先頭項目は「…（既定）」で区別）
             self.template_combo["values"] = [
-                self._config_choice_label(), once, _TEMPLATE_PICK_LABEL
+                self._config_choice_label(), name, _TEMPLATE_PICK_LABEL
             ]
-            self.template_combo.set(once)
-        elif choice.startswith(_TEMPLATE_ONCE_PREFIX):
-            pass  # 既に _template_override に入っている
-        else:  # config.toml の設定 = 既定に戻す
+            self.template_combo.set(name)
+        elif choice == self._config_choice_label():  # config.toml の設定 = 既定に戻す
             self._template_override = None
             self.template_combo["values"] = [
                 self._config_choice_label(), _TEMPLATE_PICK_LABEL
             ]
             self.template_combo.set(self._config_choice_label())
+        # それ以外はその回だけ上書き中のファイル名項目（_template_override は設定済み）
 
     def _start(self) -> None:
         if self.video_path is None or self._worker is not None:
