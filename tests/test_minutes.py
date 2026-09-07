@@ -753,29 +753,73 @@ def test_auto_structure_failure_falls_back_to_builtin_not_file_template(tmp_path
 
 
 def test_auto_structure_recomputes_budget_after_generation(tmp_path):
-    """Codex 指摘1: 生成された構造が大きい場合、予算を計算し直して分割へ切り替える。
+    """Codex 指摘1: 生成構造が（棄却されない範囲で）大きい場合、予算を計算し直して分割へ。
 
-    内蔵構造なら一発生成に収まる ctx でも、巨大な自動生成構造だと最終リクエストが
-    溢れるため、生成後に one_pass を評価し直してチャンク要約経路に落とす。
+    system＋構造＋応答予約＋マージンは ctx に収まる（棄却されない）が、そこに
+    文字起こしを足すと収まらない大きさの構造。生成後に one_pass を評価し直して
+    チャンク要約経路に落とす。
     """
-    huge_structure = (
+    biggish_structure = (
         "# 議事録: {title}\n- {datetime_hint} / {duration_hint}\n"
-        + "## 追加の見出し\n（この見出しに書く内容の説明をそれなりの長さで書く）\n" * 300
+        + "## 追加の見出し\n（この見出しに書く内容の説明）\n" * 170
     )
     client = RoutingFakeClient(
-        structure=huge_structure, chunk="- 部分要点", minutes="# 議事録\n本文\n"
+        structure=biggish_structure, chunk="- 部分要点", minutes="# 議事録\n本文\n"
     )
-    segs = _segments(70, text="そこそこの長さの発言をする" * 4)
+    segs = _segments(90, text="そこそこの長さの発言をする" * 4)
 
     generate_minutes(
         segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True, context_tokens=13000,
     )
 
-    # 型生成は1回、そのうえで一発生成を諦めて分割（チャンク要約→統合）に切り替わる
+    # 型生成は1回、棄却はされず（保存あり）、一発生成を諦めて分割へ切り替わる
     assert len(client.struct_calls()) == 1
-    assert len(client.chunk_calls()) >= 1
     assert (tmp_path / "structure_used.txt").is_file()
+    assert len(client.chunk_calls()) >= 1
+
+
+def test_auto_structure_rejects_structure_too_large_for_merge(tmp_path):
+    """Codex 指摘: 生成構造自体が大きすぎて統合しても収まらないなら内蔵へ。
+
+    分割生成に切り替えても、統合の最終リクエストは system＋巨大な構造＋partials＋
+    frames なので partials がどれだけ小さくても収まらない。プレースホルダー欠落と
+    同様に不正な構造として内蔵にフォールバックする。
+    """
+    ctx = 10000
+    huge = (
+        "# 議事録: {title}\n- {datetime_hint} / {duration_hint}\n"
+        + "## 見出し\n（この見出しに書くことの説明を長めに書く）\n" * 400
+    )
+    msgs: list[str] = []
+    client = RoutingFakeClient(structure=huge, chunk="- 要点")
+    long_segs = _segments(200, text="議題の発言" * 3)
+
+    generate_minutes(
+        long_segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        out_dir=tmp_path, auto_structure=True, context_tokens=ctx,
+        on_progress=lambda c, t, m: msgs.append(m),
+    )
+
+    assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # 内蔵テンプレート
+    assert not (tmp_path / "structure_used.txt").exists()  # 棄却したので保存しない
+    assert any("大きすぎ" in m for m in msgs)
+
+
+def test_auto_structure_no_size_reject_when_ctx_unknown(tmp_path):
+    """ctx 不明時は構造サイズ判定をしない（文字数しきい値の経路に任せる）。"""
+    big = (
+        "# 議事録: {title}\n- {datetime_hint} / {duration_hint}\n"
+        + "## 見出し\n（説明）\n" * 400
+    )
+    client = RoutingFakeClient(structure=big)
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        out_dir=tmp_path, auto_structure=True,  # context_tokens 指定なし
+    )
+    # サイズ理由での棄却はされず、生成された型が使われて保存される
+    assert (tmp_path / "structure_used.txt").is_file()
+    assert "## 見出し" in client.calls[-1]["user"]
 
 
 def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):

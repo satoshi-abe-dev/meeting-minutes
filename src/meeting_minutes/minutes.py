@@ -328,20 +328,45 @@ def _fit_structure_material(material: str, ctx: int, response_tokens: int) -> st
     return material[:keep].rstrip() + "\n…（以降はコンテキスト長の都合で省略）"
 
 
+def _structure_fits_minutes_skeleton(
+    minutes_system: str, structure: str, ctx: int, minutes_max_tokens: int
+) -> bool:
+    """生成された構造だけで統合ステップの最低限の予算を食い潰さないか。
+
+    transcript も frames もゼロと仮定して、system＋構造＋入力節の雛形＋応答予約＋
+    マージンが ctx に収まるか。収まらなければ「分割生成に切り替えても救えない」＝
+    構造自体が大きすぎる（プレースホルダー欠落と同様、不正な構造として扱う）。
+    ctx 不明（<=0）のときは判定しない（True。既存の文字数しきい値の経路に任せる）。
+    """
+    if ctx <= 0:
+        return True
+    minimum = (
+        _approx_tokens(minutes_system)
+        + _approx_tokens(structure)
+        + _approx_tokens(_MINUTES_INPUT)
+        + minutes_max_tokens
+        + _PROMPT_MARGIN_TOKENS
+    )
+    return minimum <= ctx
+
+
 def _generate_structure(
     client: LLMClient,
     material: str,
     *,
     model: str,
     max_tokens: int,
+    minutes_system: str,
+    ctx: int,
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
 ) -> str | None:
     """会議内容（全文または要約）から議事録の型を 1 回の chat で作る。
 
     max_tokens は議事録本文と同じ minutes_max_tokens を渡すこと（推論モデル耐性を
-    メイン生成と揃える）。失敗（例外・空応答・必須プレースホルダー欠落）なら None を
-    返す。呼び出し側は None のとき内蔵テンプレートにフォールバックする。
+    メイン生成と揃える）。失敗（例外・空応答・必須プレースホルダー欠落・構造自体が
+    大きすぎて統合ステップに収まらない）なら None を返す。呼び出し側は None のとき
+    内蔵テンプレートにフォールバックする。
     """
     check_cancel(cancel_event)
     if on_progress:
@@ -371,6 +396,14 @@ def _generate_structure(
                 f"警告: 自動生成された議事録の型が不正（{reason}）でした。内蔵テンプレートを使います",
             )
         return None
+    if not _structure_fits_minutes_skeleton(minutes_system, out, ctx, max_tokens):
+        if on_progress:
+            on_progress(
+                0, 1,
+                "警告: 自動生成された議事録の型が大きすぎます（文字起こしを抜いても"
+                "コンテキスト長に収まりません）。内蔵テンプレートを使います",
+            )
+        return None
     return out
 
 
@@ -382,12 +415,15 @@ def _resolve_auto_structure(
     *,
     model: str,
     max_tokens: int,
+    minutes_system: str,
+    ctx: int,
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
 ) -> str:
     """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。"""
     generated = _generate_structure(
         client, material, model=model, max_tokens=max_tokens,
+        minutes_system=minutes_system, ctx=ctx,
         on_progress=on_progress, cancel_event=cancel_event,
     )
     if generated is None:
@@ -728,9 +764,12 @@ def generate_minutes(
             pre_summarized = True
         # フォールバック先は必ず「内蔵」（仕様・警告文と一致させる。ファイル指定時も内蔵）。
         # 応答予約は議事録本文と同じ minutes_max_tokens（推論モデル耐性を揃える）。
+        # 生成構造が大きすぎて統合ステップに収まらない場合も内蔵にフォールバックする
+        # （分割生成への切り替えでは救えないため）。
         structure = _resolve_auto_structure(
             client, material, _MINUTES_STRUCTURE, out_dir,
             model=llm_config.model, max_tokens=minutes_max_tokens,
+            minutes_system=system, ctx=ctx,
             on_progress=on_progress, cancel_event=cancel_event,
         )
         # 構造生成（重い LLM 呼び出し）の後、次の議事録生成に進む前に中断を拾う。
