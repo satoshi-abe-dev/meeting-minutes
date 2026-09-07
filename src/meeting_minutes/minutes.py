@@ -42,10 +42,6 @@ _MINUTES_RESPONSE_TOKENS = 5000
 # 実コンテキスト長が分かるときは ctx/3 まで許容する。
 _FRAMES_TOKEN_BUDGET = 6000
 
-# 「おまかせ」モードで議事録の型（見出し構成）を自動生成するときの応答トークン上限。
-# 型だけで実内容は書かせないので、議事録本文より小さくてよい。予算判定にも使う。
-_STRUCTURE_RESPONSE_TOKENS = 1500
-
 # 実コンテキスト長が取得できない基盤向けのフォールバック（文字数しきい値）。
 # 32k コンテキスト前提で frames 上限・応答予約・マージンを引いた残りに収まる
 # おおよその文字数。config.toml の [llm] chunk_trigger_chars / chunk_size_chars で
@@ -291,18 +287,20 @@ def _structure_system_prompt() -> str:
         return _DEFAULT_STRUCTURE_SYSTEM
 
 
-def _structure_material_budget(ctx: int) -> int:
+def _structure_material_budget(ctx: int, response_tokens: int) -> int:
     """構造生成リクエストで「材料」（全文 or チャンク要約連結）に使えるトークン予算。
 
     ctx > 0 前提。system プロンプト＋ユーザープロンプト雛形＋応答予約＋マージンを
-    引いた残り。負や 0 になり得る（極端に小さい ctx）。
+    引いた残り。負や 0 になり得る（極端に小さい ctx）。応答予約 response_tokens は
+    議事録本文と同じ minutes_max_tokens を使う（推論モデルが"思考"で使い切って空応答に
+    なるのを防ぐ。PR #19 で受け入れた上限をここでも共有する）。
     """
     skeleton = _approx_tokens(_structure_system_prompt()) + _approx_tokens(_STRUCTURE_PROMPT)
-    return ctx - skeleton - _STRUCTURE_RESPONSE_TOKENS - _PROMPT_MARGIN_TOKENS
+    return ctx - skeleton - response_tokens - _PROMPT_MARGIN_TOKENS
 
 
 def _struct_fits_one_pass(
-    text: str, ctx: int, trigger_chars: int
+    text: str, ctx: int, trigger_chars: int, response_tokens: int
 ) -> bool:
     """会議全文をそのまま「型」生成の入力に使えるか（軽い予算に収まるか）。
 
@@ -311,10 +309,10 @@ def _struct_fits_one_pass(
     """
     if ctx <= 0:
         return len(text) <= trigger_chars
-    return _approx_tokens(text) <= _structure_material_budget(ctx)
+    return _approx_tokens(text) <= _structure_material_budget(ctx, response_tokens)
 
 
-def _fit_structure_material(material: str, ctx: int) -> str:
+def _fit_structure_material(material: str, ctx: int, response_tokens: int) -> str:
     """構造生成の材料が予算を超えるなら末尾を切り詰める（ctx 不明なら素通し）。
 
     チャンク要約を全部連結した material は、非常に長い会議だとそれでも大きすぎて
@@ -323,7 +321,7 @@ def _fit_structure_material(material: str, ctx: int) -> str:
     """
     if ctx <= 0:
         return material
-    budget = _structure_material_budget(ctx)
+    budget = _structure_material_budget(ctx, response_tokens)
     if budget <= 0 or _approx_tokens(material) <= budget:
         return material
     keep = max(0, int(budget / _TOKENS_PER_CHAR) - 40)
@@ -335,13 +333,15 @@ def _generate_structure(
     material: str,
     *,
     model: str,
+    max_tokens: int,
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
 ) -> str | None:
     """会議内容（全文または要約）から議事録の型を 1 回の chat で作る。
 
-    失敗（例外・空応答・必須プレースホルダー欠落）なら None を返す。呼び出し側は
-    None のとき内蔵テンプレートにフォールバックする。
+    max_tokens は議事録本文と同じ minutes_max_tokens を渡すこと（推論モデル耐性を
+    メイン生成と揃える）。失敗（例外・空応答・必須プレースホルダー欠落）なら None を
+    返す。呼び出し側は None のとき内蔵テンプレートにフォールバックする。
     """
     check_cancel(cancel_event)
     if on_progress:
@@ -353,7 +353,7 @@ def _generate_structure(
         out = client.chat(
             system=_structure_system_prompt(),
             user=_STRUCTURE_PROMPT.replace("{material}", material),
-            max_tokens=_STRUCTURE_RESPONSE_TOKENS,
+            max_tokens=max_tokens,
         ).strip()
     except Exception as exc:  # noqa: BLE001 - 失敗しても内蔵で続行するため全捕捉
         if on_progress:
@@ -381,12 +381,14 @@ def _resolve_auto_structure(
     out_dir: "str | Path | None",
     *,
     model: str,
+    max_tokens: int,
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
 ) -> str:
     """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。"""
     generated = _generate_structure(
-        client, material, model=model, on_progress=on_progress, cancel_event=cancel_event
+        client, material, model=model, max_tokens=max_tokens,
+        on_progress=on_progress, cancel_event=cancel_event,
     )
     if generated is None:
         return fallback_structure
@@ -715,17 +717,21 @@ def generate_minutes(
         # 全文が型生成の軽い予算に収まればそのまま、収まらなければ既存のチャンク要約を
         # 材料にする（生の全文を再度読ませるパスは増やさない）。どちらの材料も
         # 構造生成リクエストの予算に収まるよう、超える分は末尾を落とす。
-        if _struct_fits_one_pass(full_transcript, ctx, trigger_chars):
+        if _struct_fits_one_pass(full_transcript, ctx, trigger_chars, minutes_max_tokens):
             material = full_transcript
             pre_summarized = False
         else:
             ensure_long_state()
-            material = _fit_structure_material("\n\n".join(summarize()), ctx)
+            material = _fit_structure_material(
+                "\n\n".join(summarize()), ctx, minutes_max_tokens
+            )
             pre_summarized = True
         # フォールバック先は必ず「内蔵」（仕様・警告文と一致させる。ファイル指定時も内蔵）。
+        # 応答予約は議事録本文と同じ minutes_max_tokens（推論モデル耐性を揃える）。
         structure = _resolve_auto_structure(
             client, material, _MINUTES_STRUCTURE, out_dir,
-            model=llm_config.model, on_progress=on_progress, cancel_event=cancel_event,
+            model=llm_config.model, max_tokens=minutes_max_tokens,
+            on_progress=on_progress, cancel_event=cancel_event,
         )
         # 構造生成（重い LLM 呼び出し）の後、次の議事録生成に進む前に中断を拾う。
         check_cancel(cancel_event)

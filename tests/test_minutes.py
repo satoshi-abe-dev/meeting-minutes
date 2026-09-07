@@ -13,9 +13,9 @@ from meeting_minutes.minutes import (
     MinutesMeta,
     _fill_minutes_template,
     _MINUTES_STRUCTURE,
+    _MINUTES_RESPONSE_TOKENS,
     _save_partials,
     _split_segments,
-    _STRUCTURE_RESPONSE_TOKENS,
     generate_minutes,
     load_minutes_structure,
 )
@@ -623,7 +623,11 @@ def test_auto_structure_single_pass_uses_full_transcript_and_saves(tmp_path):
     assert len(client.calls) == 2
     struct_call = client.calls[0]
     assert "旅行の説明0" in struct_call["user"]  # 全文をそのまま材料にしている
-    assert struct_call["kwargs"]["max_tokens"] == _STRUCTURE_RESPONSE_TOKENS  # 軽い予算
+    # 応答予約は議事録本文と同じ minutes_max_tokens（推論モデル耐性を揃える）
+    assert struct_call["kwargs"]["max_tokens"] == client.calls[1]["kwargs"]["max_tokens"]
+    assert struct_call["kwargs"]["max_tokens"] == min(
+        LLMConfig().max_tokens, _MINUTES_RESPONSE_TOKENS
+    )
 
     # 生成された型が最終議事録プロンプトに使われ、内蔵は使われていない
     minutes_user = client.calls[1]["user"]
@@ -776,10 +780,10 @@ def test_auto_structure_recomputes_budget_after_generation(tmp_path):
 
 def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):
     """Codex 指摘: チャンク要約を連結した material も構造生成予算でチェック・切り詰める。"""
-    from meeting_minutes.minutes import _approx_tokens, _STRUCTURE_RESPONSE_TOKENS as _SRT
+    from meeting_minutes.minutes import _approx_tokens
 
-    ctx = 8000
-    big_summary = "・とても長い部分要約の行。" * 60  # 連結すると予算超過
+    ctx = 16000
+    big_summary = "・とても長い部分要約の行。" * 400  # 連結すると構造生成予算を超える
     client = RoutingFakeClient(structure=_GEN_STRUCTURE, chunk=big_summary)
     long_segs = _segments(400, text="議題について長い発言をする" * 5)
 
@@ -789,13 +793,13 @@ def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):
     )
 
     assert len(client.struct_calls()) == 1
-    struct_user = client.struct_calls()[0]["user"]
-    assert "コンテキスト長の都合で省略" in struct_user  # 末尾が切り詰められた
-    # 構造生成リクエスト（system + user + 応答予約）が ctx に収まる
+    struct = client.struct_calls()[0]
+    assert "コンテキスト長の都合で省略" in struct["user"]  # 末尾が切り詰められた
+    # 構造生成リクエスト（system + user + 実際の応答予約）が ctx に収まる
     total = (
-        _approx_tokens(client.struct_calls()[0]["system"])
-        + _approx_tokens(struct_user)
-        + _SRT
+        _approx_tokens(struct["system"])
+        + _approx_tokens(struct["user"])
+        + struct["kwargs"]["max_tokens"]
     )
     assert total <= ctx
 
@@ -818,3 +822,22 @@ def test_auto_structure_cancel_after_generation_stops_before_minutes(tmp_path):
 
     assert len(client.struct_calls()) == 1
     assert client.calls == client.struct_calls()  # 議事録本文の呼び出しは無い
+
+
+def test_auto_structure_response_reserve_follows_llm_max_tokens():
+    """Codex 指摘: 構造生成の応答予約は固定値でなく minutes_max_tokens に追随する。
+
+    推論（thinking）モデルで max_tokens を小さくしている場合でも、メインの議事録生成と
+    同じ基準（min(llm_config.max_tokens, _MINUTES_RESPONSE_TOKENS)）で予約する。
+    """
+    cfg = LLMConfig(max_tokens=900)  # 推論モデル想定で小さめ
+    client = RoutingFakeClient(structure=_GEN_STRUCTURE)
+
+    generate_minutes(
+        _segments(5), [], client, cfg, MinutesMeta(title="会議"),
+        auto_structure=True,
+    )
+
+    struct_mt = client.struct_calls()[0]["kwargs"]["max_tokens"]
+    minutes_mt = client.calls[-1]["kwargs"]["max_tokens"]
+    assert struct_mt == minutes_mt == min(900, _MINUTES_RESPONSE_TOKENS)
