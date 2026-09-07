@@ -73,9 +73,17 @@ _DEFAULT_SYSTEM = """あなたは会議の議事録作成の専門家です。
   （読み取れた文字・箇条書き・数値）をそのまま書く。
 - 会議ではなく説明会・ブリーフィング（主に1人が話す）の場合、「決定事項」「宿題・
   アクションアイテム」は該当がなければ「（該当なし）」とし、「共有された情報」を厚く書く。
+- テンプレートの見出しの下にある丸括弧（（…））の文は「そこに何を書くか」の指示です。
+  その指示文そのものを議事録に書き写してはいけません。指示に従って実際の内容に置き換え、
+  書くことが無ければ指示どおり「（記載なし）」「（該当なし）」等に置き換えます。
+  丸括弧の指示文が最終的な議事録に残ってはいけません。
 - 出力は Markdown のみ。前置き・後書き・謝辞・自己言及は書かない。"""
 
-_MINUTES_PREAMBLE = "以下のテンプレートに沿って議事録を作成してください。\n\n"
+_MINUTES_PREAMBLE = (
+    "以下のテンプレートに沿って議事録を作成してください。丸括弧（（…））の中は"
+    "「そこに何を書くか」の指示です。その文言自体は書き写さず、実際の内容に置き換えて"
+    "ください（書くことが無ければ指示どおり「（記載なし）」等に）。\n\n"
+)
 
 # 議事録の「構造」だけ。config.toml の [output] template_path で丸ごと差し替え可能。
 # 使えるプレースホルダー: {title} {datetime_hint} {duration_hint}
@@ -127,6 +135,45 @@ _MINUTES_INPUT = _INPUT_SEP + _INPUT_TRANSCRIPT + "\n" + _INPUT_FRAMES
 _PLACEHOLDER_RE = re.compile(
     r"\{(title|datetime_hint|duration_hint|transcript|frames)\}"
 )
+
+# テンプレートの丸括弧内「指示文」。全角 （ ）で囲まれ、内側に 1 段だけ入れ子
+# （例: 「…無ければ「（記載なし）」」）を許す。生成後の議事録にこの文言がそのまま
+# 残っていないかの検出に使う（プロンプトでモデルに禁止しているが、小さいモデル向けの保険）。
+_INSTRUCTION_RE = re.compile(r"（(?:[^（）]|（[^（）]*）)+）")
+# 「（記載なし）」「（該当なし）」など、実際の議事録に現れてよい短い丸括弧語は除外する。
+_INSTRUCTION_MIN_CHARS = 12
+
+
+def _leaked_instructions(structure: str, minutes_md: str) -> list[str]:
+    """structure（使用テンプレート）の丸括弧指示文のうち、生成議事録にそのまま
+    残っているものを返す。短い定型語（（記載なし）等）は対象外。"""
+    seen: set[str] = set()
+    leaks: list[str] = []
+    for m in _INSTRUCTION_RE.finditer(structure):
+        frag = m.group(0)
+        if len(frag.strip("（）").strip()) < _INSTRUCTION_MIN_CHARS:
+            continue
+        if frag in minutes_md and frag not in seen:
+            seen.add(frag)
+            leaks.append(frag)
+    return leaks
+
+
+def _warn_leaked_instructions(
+    structure: str, minutes_md: str, on_progress: ProgressFn | None
+) -> None:
+    if not on_progress:
+        return
+    leaks = _leaked_instructions(structure, minutes_md)
+    if not leaks:
+        return
+    head = leaks[0][:40] + ("…" if len(leaks[0]) > 40 else "")
+    on_progress(
+        0, 1,
+        f"警告: テンプレートの指示文（丸括弧の説明）が議事録にそのまま残っている"
+        f"可能性があります（{len(leaks)} 箇所。例: {head}）。"
+        "より大きいモデルを使う・テンプレートの丸括弧を減らすと改善することがあります",
+    )
 
 
 def _minutes_budget(
@@ -844,7 +891,9 @@ def generate_minutes(
         elapsed = _format_elapsed(time.monotonic() - t0)
         if on_progress:
             on_progress(1, 1, f"議事録を生成しました（所要 {elapsed}）")
-        return md.strip() + "\n"
+        md = md.strip() + "\n"
+        _warn_leaked_instructions(structure, md, on_progress)
+        return md
 
     # --- 長い場合: チャンク要約 -> 統合 ---
     if on_progress and ctx > 0 and not _long_ready:
@@ -877,7 +926,9 @@ def generate_minutes(
     elapsed = _format_elapsed(time.monotonic() - t0)
     if on_progress:
         on_progress(total_steps, total_steps, f"議事録を生成しました（所要 {elapsed}）")
-    return md.strip() + "\n"
+    md = md.strip() + "\n"
+    _warn_leaked_instructions(structure, md, on_progress)
+    return md
 
 
 def save_minutes(markdown: str, out_dir: str | Path) -> Path:
