@@ -95,7 +95,7 @@ python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / auto
 
 ## Configuration
 
-Adjust via `config.toml` (or `config.example.toml` if it does not exist). Main keys:
+Adjust via `config.toml` (if you don't have one yet, copy `config.example.toml` to create it). Main keys:
 
 - `[llm] base_url` — the local server endpoint (for Ollama, `http://localhost:11434/v1`)
 - `[llm] model` / `[llm] vlm_model` — the loaded model names
