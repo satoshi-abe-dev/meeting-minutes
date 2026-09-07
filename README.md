@@ -188,5 +188,5 @@ CI・lint/型チェック・中間結果の再利用・LLM 落ち時のリトラ
 | `{transcript}` | 文字起こし全文（**省略可**。テンプレートに書かなければ、その分だけ末尾に自動追加される） |
 | `{frames}` | フレーム解析結果（時刻付き。**省略可**。`{transcript}` とは独立に、書かなかった方だけ補われる） |
 
-雛形は [`prompts/minutes_template_example.txt`](prompts/minutes_template_example.txt)（内蔵と同一）。
+雛形は [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt)（内蔵と同一）。
 これをコピーして見出しを書き換えるのが早い。

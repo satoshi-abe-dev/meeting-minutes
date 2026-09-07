@@ -75,5 +75,5 @@ dir = "output"
 # 使えるプレースホルダー: {title} {datetime_hint} {duration_hint}
 #   （{transcript} / {frames} は、書かなかった方だけ末尾に自動で足される）
 # システムプロンプト（捏造しない等のルール）はテンプレートに関わらず常に適用される。
-# 雛形: prompts/minutes_template_example.txt
+# 雛形: templates/minutes_template_example.txt
 template_path = ""
