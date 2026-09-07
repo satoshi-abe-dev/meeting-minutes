@@ -174,8 +174,8 @@ class App:
         self.file_label.pack(side="left", padx=(8, 0))
 
         # 行1〜3: 議事録フォーマット（見出し・構成）の選択。ラジオ 3 択。
-        # ラベルは「内蔵（既定）」と同じ行（row=1）に置く。row=2（ファイルを選択）と
-        # row=3（おまかせ）の列0 は空欄のまま。
+        # ラベルは「内蔵（既定）」と同じ行（row=1）に置く。row=2（おまかせ）と
+        # row=3（ファイルを選択）の列0 は空欄のまま。
         ttk.Label(head, text="議事録フォーマット:").grid(
             row=1, column=0, sticky="w", pady=(6, 0)
         )
@@ -193,7 +193,7 @@ class App:
         )
 
         file_row = ttk.Frame(head)
-        file_row.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=(2, 0))
+        file_row.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=(2, 0))
         ttk.Radiobutton(
             file_row, text="ファイルを選択", value="file",
             variable=self._fmt_mode, command=self._sync_fmt_widgets,
@@ -213,7 +213,7 @@ class App:
             head, text="おまかせ（動画に合わせて自動生成）", value="auto",
             variable=self._fmt_mode, command=self._sync_fmt_widgets,
         )
-        auto_radio.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=(2, 0))
+        auto_radio.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=(2, 0))
         _Tooltip(
             auto_radio,
             "「おまかせ」は、動画の内容に合わせて議事録の見出し構成を毎回 AI に"
