@@ -6,6 +6,26 @@ English | [日本語](README_ja.md)
 
 <!-- badges: CI badges planned for phase 2 -->
 
+> 🧭 **The requirements and process design decisions here are the author's.** The main ones:
+>
+> - **The all-local-processing constraint** — designed around the requirement that
+>   confidential meeting content never leaves the machine
+> - **The worker/manager two-session governance model** — separated implementation
+>   from independent review/merge authority, and required an independent review
+>   from a different vendor (Codex)
+> - **Proposing "Auto" mode** — having the LLM suggest a heading structure per video,
+>   which can be pinned as a template once you like it
+> - **Sending work back after an in-person check** — a GUI border-rendering bug that
+>   headless checks alone had missed was caught on a real screen and sent back for a fix
+> - **Naming the "loop engineering" frame** — recasting the development process itself
+>   as a verification loop that repeats until convergence, rather than a one-shot review
+> - **The public/private information design** — decisions on the README structure,
+>   the ja/en split, and which materials to keep private
+>
+> Implementation was carried out by multiple Claude Code sessions. The roles and
+> review criteria are documented in
+> [Development process](#development-process-ai-assisted-collaboration).
+
 ---
 
 ## The problem
@@ -206,3 +226,7 @@ This project was implemented through collaborative development by multiple Claud
 - **when a class of finding recurs, the operational rules themselves are updated** — not just the individual PRs; the loop is structured to improve itself (example: the old-path guard in `.gitignore` was dropped three times in a row across PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule)
 
 Because this project handles real meeting data, the practice of grepping tracked files for leaked confidential data before every push / PR is strictly followed.
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for the full text.
