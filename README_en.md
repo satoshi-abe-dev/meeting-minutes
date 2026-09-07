@@ -49,15 +49,6 @@ This project was developed by running multiple Claude Code sessions (an implemen
 
 _Coming soon. Minutes and screenshots generated from a non-confidential sample video will be added shortly._
 
-## How it works
-
-```
-video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame analysis(VLM) ─▶ minutes generation(LLM) ─▶ minutes.md
-        (ffmpeg)        (faster-whisper)  (ffmpeg)         (localhost)             (localhost)
-```
-
-`pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all just call `run()`**. Each stage's implementation is swappable via `pipeline.Deps`. See [`docs/architecture.md`](docs/architecture.md) for details.
-
 ## Setup (macOS / Apple Silicon)
 
 ```bash
@@ -81,60 +72,6 @@ python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / auto
 The GUI display language can also be set via `[gui] language` in `config.toml` (`"ja"` / `"en"`, default `"ja"`). `--lang` overrides it just for that run. Only the **GUI screen text** changes; the transcription language and the content of the generated minutes are separate (`[transcribe] language` / the LLM side).
 
 (For developers, `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` also work. In that case, either `cd src` or set `PYTHONPATH=src`.)
-
-## Design highlights
-
-- **A single seam (`pipeline.run` + `Deps`)** — separates the UI from the real processing. You can test "stage ordering / progress / output paths" without calling ffmpeg or an LLM.
-- **LLM/VLM abstracted behind an OpenAI-compatible API** — swappable between LM Studio / Ollama / others just by changing `base_url`. No dependency on the `openai` package; calls `httpx` directly.
-- **Map-reduce for long transcripts** — a one-hour meeting does not fit in the context window, so it switches to a two-stage chunk-summarize → merge. Summaries are written incrementally to `minutes_partials.json`, so a re-run does not redo the finished parts.
-- **Per-stage elapsed time shown in the log** — the completion message for audio extraction, transcription, frame extraction, frame analysis, chunk summaries, and the minutes merge each append "elapsed X".
-- **Frame analysis is also checkpointed per frame** — `frames/frame_notes.json` is rewritten after each frame finishes, so a mid-way failure does not redo already-analyzed frames.
-- **"Waiting for a response" shown during LLM calls** — for stages where the wait is noticeable other than transcription (frame analysis, minutes generation), it is shown together with the model name.
-- **Swappable transcription backend** — with `backend=auto`, Apple Silicon uses GPU-backed mlx-whisper and everything else uses faster-whisper. You can also pin it in `config.toml`.
-- **Layered configuration** — defaults < `config.toml` < environment variables. TOML is parsed with the standard-library `tomllib`, so there is zero dependency.
-
-For the reasoning behind decisions and their trade-offs, see [`docs/DESIGN.md`](docs/DESIGN.md).
-
-## Development process (AI-assisted collaboration)
-
-This project was implemented through collaborative development by multiple Claude Code sessions.
-
-- **worker** — handles implementation, tests, and git operations
-- **manager** — reviews the PRs the worker opens and handles merging to `main`. Merges only after checking for leaked confidential data (proper nouns from real meetings), the `.gitignore` exclusions, that the diff stays within the intended scope, and the absence of destructive operations
-- The division of roles, the prohibitions, and the review criteria are written out in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) (Claude Code loads it automatically at session start; the rest of `.claude/`, such as the operational session log, is private)
-- **the manager does not take the worker's self-report at face value** — for every PR the manager re-runs pytest and the confidential-data grep itself and reviews the diff directly before merging
-- **conversation context is not shared between sessions** — the manager does not see the worker's trial and error, and reviews only from the final diff and report
-- **the permission boundary actually held** — for operations that need the owner's direct confirmation, such as deleting tracked files, the worker did not act on a relay through the manager alone and has, in practice, held work pending the owner's confirmation
-- **an independent review by a model from a different vendor is also built in** — in addition to Claude's (the manager's) judgment, an independent code review by OpenAI Codex (`codex exec review`) was added to the pre-merge checks for every PR and is actually in use
-- **loop engineering was put into practice** — rather than a one-shot review, the design repeats implement → independent verification (pytest, confidential-data grep, diff review, Codex review) → send-back → fix → re-verify until every check is clear
-- send-backs are specific — each is returned with the exact location, reproduction conditions, and a fix approach
-- Example: in Auto mode (Issue #34, PRs #19 / #35), more than six token-budget bugs were fixed over these round trips
-- Example: the problem where the settings frame was invisible on a real screen was solved over the four-stage round trip of PRs #33 → #40 → #41 → #42
-- **when a class of finding recurs, the operational rules themselves are updated** — not just the individual PRs; the loop is structured to improve itself (example: the old-path guard in `.gitignore` was dropped three times in a row across PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule)
-
-Because this project handles real meeting data, the practice of grepping tracked files for leaked confidential data before every push / PR is strictly followed.
-
-## Tests
-
-```bash
-pip install -r requirements-dev.txt
-pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipped where ffmpeg / an LLM is unavailable)
-```
-
-## Known limitations and next steps
-
-| Limitation | Note |
-| --- | --- |
-| When transcription is slow | With `backend=auto`, Apple Silicon uses GPU-backed mlx-whisper. Pinning `backend=faster-whisper` runs CPU-only on a Mac, where `large-v3` takes tens of minutes for a one-hour meeting. `medium` / `large-v3-turbo` cut that further |
-| Progress does not move under mlx | mlx-whisper returns its result in one go, so the progress bar stays at 0 during transcription and then jumps at the end (faster-whisper updates incrementally) |
-| Misrecognition of song / BGM sections | Endless repetition of the same phrase is handled with `condition_on_previous_text=False`. One-off mishearings are a general Whisper-family trait and can remain, so for meetings with a lot of singing or applause, eyeballing the transcript is recommended |
-| No speaker diarization | There is no "who spoke" label (everything is written as `参加者` / "participant") |
-| Reasoning models are ill-suited to minutes generation | Reasoning models such as Qwen3 / DeepSeek-R1 spend a lot of time and tokens on invisible "thinking" and are extremely slow / return empty bodies. **Use a non-reasoning Instruct model** (an empty response is surfaced as an error saying "used up max_tokens on thinking") |
-| Resume from mid-way | Transcription, frame extraction, **frame analysis (per frame)**, and **chunk summaries (per chunk)** reuse intermediate files and only re-run what was redone (disable with `--fresh` / the GUI checkbox). Before processing starts, connectivity to the LLM server is checked so it fails early |
-| Interruption is not fully immediate | The GUI "Stop" reacts at stage / frame / chunk boundaries. However, **during an mlx-whisper transcription call** and **during ffmpeg execution** it waits for that stage to finish |
-| Settings cannot be changed from the GUI | Edit `config.toml` directly |
-
-CI, lint / type checking, reuse of intermediate results, and retries when the LLM goes down are planned for the next phase.
 
 ## Configuration
 
@@ -198,3 +135,66 @@ cp output/<video name>/structure_used.txt templates/<client name>.txt
 ```
 
 Then set `[output] template_path = "templates/<client name>.txt"` in `config.toml` (or "Choose a file" in the GUI) to pin that structure from then on.
+
+## Known limitations and next steps
+
+| Limitation | Note |
+| --- | --- |
+| When transcription is slow | With `backend=auto`, Apple Silicon uses GPU-backed mlx-whisper. Pinning `backend=faster-whisper` runs CPU-only on a Mac, where `large-v3` takes tens of minutes for a one-hour meeting. `medium` / `large-v3-turbo` cut that further |
+| Progress does not move under mlx | mlx-whisper returns its result in one go, so the progress bar stays at 0 during transcription and then jumps at the end (faster-whisper updates incrementally) |
+| Misrecognition of song / BGM sections | Endless repetition of the same phrase is handled with `condition_on_previous_text=False`. One-off mishearings are a general Whisper-family trait and can remain, so for meetings with a lot of singing or applause, eyeballing the transcript is recommended |
+| No speaker diarization | There is no "who spoke" label (everything is written as `参加者` / "participant") |
+| Reasoning models are ill-suited to minutes generation | Reasoning models such as Qwen3 / DeepSeek-R1 spend a lot of time and tokens on invisible "thinking" and are extremely slow / return empty bodies. **Use a non-reasoning Instruct model** (an empty response is surfaced as an error saying "used up max_tokens on thinking") |
+| Resume from mid-way | Transcription, frame extraction, **frame analysis (per frame)**, and **chunk summaries (per chunk)** reuse intermediate files and only re-run what was redone (disable with `--fresh` / the GUI checkbox). Before processing starts, connectivity to the LLM server is checked so it fails early |
+| Interruption is not fully immediate | The GUI "Stop" reacts at stage / frame / chunk boundaries. However, **during an mlx-whisper transcription call** and **during ffmpeg execution** it waits for that stage to finish |
+| Settings cannot be changed from the GUI | Edit `config.toml` directly |
+
+CI, lint / type checking, reuse of intermediate results, and retries when the LLM goes down are planned for the next phase.
+
+## How it works
+
+```
+video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame analysis(VLM) ─▶ minutes generation(LLM) ─▶ minutes.md
+        (ffmpeg)        (faster-whisper)  (ffmpeg)         (localhost)             (localhost)
+```
+
+`pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all just call `run()`**. Each stage's implementation is swappable via `pipeline.Deps`. See [`docs/architecture.md`](docs/architecture.md) for details.
+
+## Design highlights
+
+- **A single seam (`pipeline.run` + `Deps`)** — separates the UI from the real processing. You can test "stage ordering / progress / output paths" without calling ffmpeg or an LLM.
+- **LLM/VLM abstracted behind an OpenAI-compatible API** — swappable between LM Studio / Ollama / others just by changing `base_url`. No dependency on the `openai` package; calls `httpx` directly.
+- **Map-reduce for long transcripts** — a one-hour meeting does not fit in the context window, so it switches to a two-stage chunk-summarize → merge. Summaries are written incrementally to `minutes_partials.json`, so a re-run does not redo the finished parts.
+- **Per-stage elapsed time shown in the log** — the completion message for audio extraction, transcription, frame extraction, frame analysis, chunk summaries, and the minutes merge each append "elapsed X".
+- **Frame analysis is also checkpointed per frame** — `frames/frame_notes.json` is rewritten after each frame finishes, so a mid-way failure does not redo already-analyzed frames.
+- **"Waiting for a response" shown during LLM calls** — for stages where the wait is noticeable other than transcription (frame analysis, minutes generation), it is shown together with the model name.
+- **Swappable transcription backend** — with `backend=auto`, Apple Silicon uses GPU-backed mlx-whisper and everything else uses faster-whisper. You can also pin it in `config.toml`.
+- **Layered configuration** — defaults < `config.toml` < environment variables. TOML is parsed with the standard-library `tomllib`, so there is zero dependency.
+
+For the reasoning behind decisions and their trade-offs, see [`docs/DESIGN.md`](docs/DESIGN.md).
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipped where ffmpeg / an LLM is unavailable)
+```
+
+## Development process (AI-assisted collaboration)
+
+This project was implemented through collaborative development by multiple Claude Code sessions.
+
+- **worker** — handles implementation, tests, and git operations
+- **manager** — reviews the PRs the worker opens and handles merging to `main`. Merges only after checking for leaked confidential data (proper nouns from real meetings), the `.gitignore` exclusions, that the diff stays within the intended scope, and the absence of destructive operations
+- The division of roles, the prohibitions, and the review criteria are written out in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) (Claude Code loads it automatically at session start; the rest of `.claude/`, such as the operational session log, is private)
+- **the manager does not take the worker's self-report at face value** — for every PR the manager re-runs pytest and the confidential-data grep itself and reviews the diff directly before merging
+- **conversation context is not shared between sessions** — the manager does not see the worker's trial and error, and reviews only from the final diff and report
+- **the permission boundary actually held** — for operations that need the owner's direct confirmation, such as deleting tracked files, the worker did not act on a relay through the manager alone and has, in practice, held work pending the owner's confirmation
+- **an independent review by a model from a different vendor is also built in** — in addition to Claude's (the manager's) judgment, an independent code review by OpenAI Codex (`codex exec review`) was added to the pre-merge checks for every PR and is actually in use
+- **loop engineering was put into practice** — rather than a one-shot review, the design repeats implement → independent verification (pytest, confidential-data grep, diff review, Codex review) → send-back → fix → re-verify until every check is clear
+- send-backs are specific — each is returned with the exact location, reproduction conditions, and a fix approach
+- Example: in Auto mode (Issue #34, PRs #19 / #35), more than six token-budget bugs were fixed over these round trips
+- Example: the problem where the settings frame was invisible on a real screen was solved over the four-stage round trip of PRs #33 → #40 → #41 → #42
+- **when a class of finding recurs, the operational rules themselves are updated** — not just the individual PRs; the loop is structured to improve itself (example: the old-path guard in `.gitignore` was dropped three times in a row across PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule)
+
+Because this project handles real meeting data, the practice of grepping tracked files for leaked confidential data before every push / PR is strictly followed.
