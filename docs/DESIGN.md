@@ -296,6 +296,40 @@ Whisper 全般の既知の癖で、"大量に同じ行が続くループ" は防
 
 ---
 
+## 8.5 GUI の構成（Model-View-Presenter、2026-09、Issue #49）
+
+**判断:** `gui.py` の 1 クラス（`App`）に混在していた「ウィジェット構築」「画面ロジック
+（進捗率計算・フォーマット 3 択の解決・成功/失敗/中断の状態遷移）」「実処理の起動」を、
+参考プロジェクト `tkinter-task-manager-mvp` と同じ Model-View-Presenter に分けた。
+本プロジェクトはタブが無い単一画面なので、参考実装よりフラットな構成にしている。
+
+```
+gui.py                              Model・View・Presenter を組み立てて起動するだけの薄いラッパー
+src/meeting_minutes/
+  view/
+    contract.py    MainView（抽象クラス）— Presenter が依存する契約。tkinter を知らない
+    tk_main_window.py  TkMainWindow（Tkinter 実装。旧 gui.py の _build_ui 相当。
+                       ウィジェット構築・イベントバインド・ダイアログ・ウィンドウ配置のみ）
+  presenter/
+    main.py        MainPresenter（旧 App の画面ロジック一式。View 契約と
+                   config / pipeline.run にだけ依存し tkinter を import しない）
+```
+
+- **`view/__init__.py` は抽象 `MainView` だけ再エクスポート**する。Tk 実装
+  （`tk_main_window`）をここで import すると、Presenter のテストが
+  `meeting_minutes.view` を読むだけで tkinter を巻き込んでしまうため。
+- **スレッド／`queue` の仕組みは維持**。ワーカースレッドは `on_progress` で
+  `queue.Queue` にイベントを積み、UI スレッドは `MainView.schedule(100ms, ...)`
+  （＝ `root.after` の薄いラッパー）で定期的に取り出す。`root.after` を直接叩かず
+  必ず View 経由にすることで、Presenter が tkinter に触れない状態を保つ。
+- **`pipeline.run` は Presenter に注入**（`MainPresenter(view, config, run_pipeline=...)`）。
+  既定は本物、テストではフェイク。
+- **リファクタのみ**。見た目・文言・進捗計算・`python gui.py` の起動方法は変えていない
+  （旧 `App` と新 `TkMainWindow`+`MainPresenter` でウィジェットツリーがバイト一致する
+  ことを確認済み）。
+
+---
+
 ## 9. テスト戦略
 
 - **純粋ロジックは普通の単体テスト** — フレーム間引き（`_thin_by_gap` / `_cap_count`）、
@@ -304,6 +338,9 @@ Whisper 全般の既知の癖で、"大量に同じ行が続くループ" は防
   マーカー＋`skipif` で、ffmpeg が無い環境では飛ばす。
 - **LLM はスタブ注入** — `minutes` / `pipeline` のテストはフェイクのクライアントや
   `Deps` を渡し、ネットワークもモデルも要らない。
+- **GUI ロジックは FakeView 注入** — `MainPresenter` のテスト（`test_gui_presenter.py`）は
+  `MainView` の偽実装を渡し、tkinter を一切起動せず進捗率計算・フォーマット 3 択の解決・
+  ボタン状態遷移を検証する（Issue #49、8.5 節）。
 - ffmpeg がある環境では、生成したテストクリップから実際にフレームを抜く統合テストも
   走らせる（`-vsync` → `-fps_mode` の回帰もここで防いでいる）。
 
