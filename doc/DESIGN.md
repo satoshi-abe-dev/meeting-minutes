@@ -189,6 +189,35 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
   で警告（`load_minutes_structure`）。
 - 一発生成・分割生成の統合ステップの両方で同じ `structure` を使う。
 
+**GUI のフォーマット選択はラジオ 3 択に（2026-09、Issue #34 PR-B）:** 上記の
+`ttk.Combobox` は「選択済み項目がハイライトされたままで選び直しにくい」「幅が中身に
+合わない」問題があり、`ttk.Radiobutton` の排他 3 択（内蔵（既定）／ファイルを選択／
+おまかせ）に置き換えた。`_start()` で `output.auto_structure` と `output.template_path` を
+**毎回**ラジオの状態から設定する（`config.toml` で `auto_structure=true` でも GUI の
+明示選択が優先。3 ラジオが排他的に 1 状態を表す）。
+
+**「おまかせ」モード（2026-09、Issue #34）:** 動画の内容に合わせて見出し構成そのものを
+LLM に提案させる 3 つ目の選択肢。`config.toml` の `[output] auto_structure`（優先順位
+`auto_structure` > `template_path` > 内蔵）。要点:
+
+- **トークン予算を再燃させない**（Issue #16/#18/#19 と同種の再発を防ぐ）。構造生成は
+  1 回だけ。文字起こし全文が「構造生成用の軽い予算」（応答予約は議事録本文と同じ
+  `minutes_max_tokens`）に収まればそのまま材料に、収まらなければ **既存の map-reduce
+  チャンク要約を再利用**（`_summarize_chunks` は最大 1 周。新たな全文読み込みパスは
+  足さない）。長い material は `_fit_structure_material` で構造生成予算に切り詰めてから渡す。
+- **生成物はプレースホルダーをリテラルのまま出力させる**（プロンプトで明示）。
+  `output/<動画名>/structure_used.txt` に保存し、そのまま `templates/` にコピーして
+  固定テンプレート化できる。
+- **フォールバックは常に内蔵**（`_MINUTES_STRUCTURE`。ファイル指定時も内蔵）。失敗条件:
+  LLM 例外／空応答／必須プレースホルダー（`{title}` `{datetime_hint}` `{duration_hint}`）
+  欠落／構造単体で統合予算を超える（`_structure_fits_minutes_skeleton`。分割に
+  切り替えても救えないため棄却）。失敗時は `structure_used.txt` を残さない（前回実行の
+  残骸も消す）。
+- 構造を差し替えた **後** に予算（`one_pass` / `frames_text` / `size_chars`）を
+  `_minutes_budget` で計算し直す。統合直前には実際の `merged_transcript` ＋ frames を
+  含めた予算を確認し、超える分は `_fit_merged_transcript` で末尾を切り詰める。
+- 構造生成（重い LLM 呼び出し）の直後にも `check_cancel` を入れる。
+
 ---
 
 ## 6. 文字起こしバックエンド（faster-whisper / mlx）
