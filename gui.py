@@ -151,20 +151,22 @@ class App:
     def _build_ui(self) -> None:
         pad = {"padx": 10, "pady": 6}
 
-        # 「動画ファイルを選択…」ボタンと「議事録フォーマット:」ラベルを共通の grid に
-        # 置く。1 列目の幅は grid 自動（列内で広い方＝ボタンに合う）に任せ、2 列目
-        # （説明ラベル／ドロップダウン）の開始位置は共有列なので自動で揃う。
+        # 各行を「列0＝説明ラベル、列1＝操作」で統一する。列0 の幅は grid 自動
+        # （行内で広い方＝「議事録フォーマット:」に合う）に任せ、列1 の開始位置は
+        # 共有列なので全行で自動的に揃う。
         head = ttk.Frame(self.root)
         head.pack(fill="x", **pad)
         head.columnconfigure(1, weight=1)
 
-        ttk.Button(
-            head, text="動画ファイルを選択…", command=self._choose_file
-        ).grid(row=0, column=0, sticky="w")
-        self.file_label = ttk.Label(head, text="未選択", foreground="#666")
-        self.file_label.grid(row=0, column=1, sticky="w", padx=(6, 0))
+        # 行0: 動画ファイル
+        ttk.Label(head, text="動画ファイル:").grid(row=0, column=0, sticky="w")
+        video_row = ttk.Frame(head)
+        video_row.grid(row=0, column=1, sticky="w", padx=(6, 0))
+        ttk.Button(video_row, text="選択...", command=self._choose_file).pack(side="left")
+        self.file_label = ttk.Label(video_row, text="未選択", foreground="#666")
+        self.file_label.pack(side="left", padx=(8, 0))
 
-        # 議事録フォーマット（見出し・構成）の選択。
+        # 行1: 議事録フォーマット（見出し・構成）の選択。
         ttk.Label(head, text="議事録フォーマット:").grid(
             row=1, column=0, sticky="w", pady=(6, 0)
         )
