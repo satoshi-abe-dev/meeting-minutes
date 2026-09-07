@@ -46,15 +46,18 @@
 出力は `output/<動画名>/` に:
 
 ```
-transcript/audio.wav                抽出した音声（文字起こしと同じフォルダーにまとめる）
-transcript/transcript.json          時刻付き文字起こし（構造化）
-transcript/transcript.txt           時刻付き文字起こし（読みやすいテキスト）
-frames/*.jpg                        抽出フレーム
-frames/frames.json                  抽出フレームの索引（途中再開に使う）
-frames/frame_notes.json             フレームごとの解析結果（途中再開に使う）
-minutes_partials.json               議事録のチャンク要約（長い文字起こしの場合。途中再開に使う）
-structure_used.txt                  「おまかせ」で自動生成した見出し構成（気に入ったら templates/ にコピー。下記）
-minutes.md                          議事録（決定事項・宿題/担当・期限などの型で整理）
+output/<動画名>/
+├─ transcript/
+│   ├─ audio.wav              抽出した音声
+│   ├─ transcript.json        時刻付き文字起こし（構造化）
+│   └─ transcript.txt         時刻付き文字起こし（読みやすいテキスト）
+├─ frames/
+│   ├─ *.jpg                  抽出フレーム
+│   ├─ frames.json            抽出フレームの索引（途中再開に使う）
+│   └─ frame_notes.json       フレームごとの解析結果（途中再開に使う）
+├─ minutes_partials.json      議事録のチャンク要約（長い文字起こしの場合。途中再開に使う）
+├─ structure_used.txt         「おまかせ」で自動生成した見出し構成（気に入ったら templates/ にコピー。下記）
+└─ minutes.md                 議事録（決定事項・宿題/担当・期限などの型で整理）
 ```
 
 本プロジェクトは、Claude Code の複数セッション（実装担当・レビュー担当）を

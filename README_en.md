@@ -46,15 +46,18 @@ A CLI / GUI tool that takes a single video file and runs the following **entirel
 Output goes to `output/<video name>/`:
 
 ```
-transcript/audio.wav                Extracted audio (kept together with the transcript)
-transcript/transcript.json          Timestamped transcript (structured)
-transcript/transcript.txt           Timestamped transcript (readable text)
-frames/*.jpg                        Extracted frames
-frames/frames.json                  Index of extracted frames (used for resume)
-frames/frame_notes.json             Per-frame analysis results (used for resume)
-minutes_partials.json               Chunk summaries of the minutes (for long transcripts; used for resume)
-structure_used.txt                  Auto-generated heading structure from "Auto" mode (copy into templates/ if you like it; see below)
-minutes.md                          The minutes (organized into decisions / action items+owners / due dates, etc.)
+output/<video name>/
+├─ transcript/
+│   ├─ audio.wav              Extracted audio
+│   ├─ transcript.json        Timestamped transcript (structured)
+│   └─ transcript.txt         Timestamped transcript (readable text)
+├─ frames/
+│   ├─ *.jpg                  Extracted frames
+│   ├─ frames.json            Index of extracted frames (used for resume)
+│   └─ frame_notes.json       Per-frame analysis results (used for resume)
+├─ minutes_partials.json      Chunk summaries of the minutes (for long transcripts; used for resume)
+├─ structure_used.txt         Auto-generated heading structure from "Auto" mode (copy into templates/ if you like it; see below)
+└─ minutes.md                 The minutes (organized into decisions / action items+owners / due dates, etc.)
 ```
 
 This project was developed by running multiple Claude Code sessions (an implementer and a reviewer) in coordination, with a defined division of roles and review process (→ [Development process](#development-process-ai-assisted-collaboration)).
