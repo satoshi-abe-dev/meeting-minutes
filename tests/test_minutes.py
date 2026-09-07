@@ -910,3 +910,19 @@ def test_generate_minutes_truncates_oversized_merged_transcript(tmp_path):
     # 統合リクエスト（user + 応答予約 + マージン）が ctx に収まる
     assert _approx_tokens(merge_user) + reserve + _PROMPT_MARGIN_TOKENS <= ctx
     assert any("統合入力の末尾を一部省略" in m for m in msgs)
+
+
+def test_auto_structure_failure_removes_stale_structure_file(tmp_path):
+    """Codex 指摘: おまかせ失敗で内蔵にフォールバックするとき、前回実行の
+    structure_used.txt が残っていたら削除する（今回使っていない型の誤コピー防止）。"""
+    stale = tmp_path / "structure_used.txt"
+    stale.write_text("# 前回のおまかせ結果（今回とは無関係）\n", encoding="utf-8")
+
+    client = RoutingFakeClient(structure="型らしきもの（プレースホルダー無し）")  # 生成失敗
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        out_dir=tmp_path, auto_structure=True,
+    )
+
+    assert not stale.exists()  # 今回使っていない古い型は残さない
+    assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # 内蔵で生成

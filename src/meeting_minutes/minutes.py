@@ -453,13 +453,27 @@ def _resolve_auto_structure(
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
 ) -> str:
-    """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。"""
+    """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。
+
+    失敗して内蔵にフォールバックする場合、同じ out_dir に前回実行時の
+    structure_used.txt が残っていると「今回使った型」と誤認される（気に入ったら
+    templates/ にコピーする運用で無関係な型をコピーしてしまう）。消しておく。
+    """
     generated = _generate_structure(
         client, material, model=model, max_tokens=max_tokens,
         minutes_system=minutes_system, ctx=ctx,
         on_progress=on_progress, cancel_event=cancel_event,
     )
     if generated is None:
+        if out_dir is not None:
+            try:
+                (Path(out_dir) / _STRUCTURE_FILENAME).unlink(missing_ok=True)
+            except OSError as exc:
+                if on_progress:
+                    on_progress(
+                        0, 1,
+                        f"警告: 古い {_STRUCTURE_FILENAME} を削除できませんでした（{exc}）",
+                    )
         return fallback_structure
     if out_dir is not None:
         try:
