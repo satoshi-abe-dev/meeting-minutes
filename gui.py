@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""打ち合わせ動画 → 議事録AI の GUI。
+"""議事録生成AI（ローカル処理）の GUI。
 
     python gui.py
 
@@ -125,7 +125,7 @@ def _open_in_finder(path: Path) -> None:
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("打ち合わせ動画 → 議事録AI（ローカル処理）")
+        self.root.title("議事録生成AI（ローカル処理）")
         self.root.geometry(f"{_WINDOW_WIDTH}x{_WINDOW_HEIGHT}")
         self.root.minsize(640, 480)
 
