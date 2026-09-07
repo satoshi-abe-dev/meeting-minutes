@@ -25,7 +25,8 @@ A CLI / GUI tool that takes a single video file and runs the following **entirel
 3. Extract frames of screen shares / slides and summarize their content (local VLM)
 4. Generate minutes from the transcript + frame notes (local LLM)
 
-There is no code that connects to an external domain. The only thing it talks to is a **local LLM server you run yourself** (e.g. [LM Studio](https://lmstudio.ai/)) over `localhost`. Once the models are downloaded, it **runs to completion even with Wi-Fi turned off** (→ [`docs/privacy.md`](docs/privacy.md)).
+- There is no code that connects to an external domain. The only thing it talks to is a **local LLM server you run yourself** (e.g. [LM Studio](https://lmstudio.ai/)) over `localhost`
+- Once the models are downloaded, it **runs to completion even with Wi-Fi turned off** (→ [`docs/privacy.md`](docs/privacy.md))
 
 Output goes to `output/<video name>/`:
 
@@ -57,9 +58,10 @@ bash scripts/setup.sh        # creates the virtualenv, installs deps, and fetche
 cp config.example.toml config.toml
 ```
 
-`scripts/setup.sh` creates a virtualenv (`.venv`), installs dependencies, and fetches the transcription model from HuggingFace (first run only; offline afterwards). This one command is all the user has to type.
-
-Separately, start **LM Studio** for the minutes and frame analysis (Settings → Local Models → Local Model API: turn on "Local API server"; "Just-in-time model loading" is also recommended). **For minutes generation, choose an Instruct-style model that does not do reasoning (thinking), or can have it turned off** (reasoning models are extremely slow and can return empty bodies → [`docs/models.md`](docs/models.md)). For detailed steps, model selection, and troubleshooting, see [`docs/setup-mac.md`](docs/setup-mac.md) and [`docs/models.md`](docs/models.md).
+- `scripts/setup.sh` does the whole setup in one command: create the virtualenv (`.venv`), install dependencies, and fetch the transcription model from HuggingFace (first run only; offline afterwards)
+- Separately, start **LM Studio** (Settings → Local Models → Local Model API: turn on "Local API server"; "Just-in-time model loading" is also recommended)
+- For minutes generation, choose an **Instruct-style model that does not do reasoning (thinking), or can have it turned off** (reasoning models are extremely slow and can return empty bodies → [`docs/models.md`](docs/models.md))
+- For detailed steps, model selection, and troubleshooting, see [`docs/setup-mac.md`](docs/setup-mac.md) and [`docs/models.md`](docs/models.md)
 
 ## Usage
 
@@ -69,7 +71,8 @@ python src/meeting_minutes/gui.py --lang en       # Show the GUI text in English
 python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / automation
 ```
 
-The GUI display language can also be set via `[gui] language` in `config.toml` (`"ja"` / `"en"`, default `"ja"`). `--lang` overrides it just for that run. Only the **GUI screen text** changes; the transcription language and the content of the generated minutes are separate (`[transcribe] language` / the LLM side).
+- The GUI display language can also be set via `[gui] language` in `config.toml` (`"ja"` / `"en"`, default `"ja"`); `--lang` overrides it just for that run
+- Only the **GUI screen text** changes; the transcription language and the content of the generated minutes are separate (`[transcribe] language` / the LLM side)
 
 (For developers, `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` also work. In that case, either `cd src` or set `PYTHONPATH=src`.)
 
@@ -162,7 +165,8 @@ video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame a
         (ffmpeg)        (faster-whisper)  (ffmpeg)         (localhost)             (localhost)
 ```
 
-`pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all just call `run()`**. Each stage's implementation is swappable via `pipeline.Deps`. See [`docs/architecture.md`](docs/architecture.md) for details.
+- `pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all just call `run()`**
+- Each stage's implementation is swappable via `pipeline.Deps` (see [`docs/architecture.md`](docs/architecture.md) for details)
 
 ## Design highlights
 
