@@ -225,15 +225,12 @@ class App:
         )
         self._sync_fmt_widgets()
 
-        # ttk.LabelFrame のタイトルは標準で小さいフォントになるため、通常サイズの
-        # ラベルを見出しに置き、中身は枠線付きの素の Frame で囲う。
-        # relief は groove/ridge だと macOS(aqua) で二色ベベルの明るい側が背景に
-        # 溶けて上端が見えなくなるため、四辺が同じ太さ・同色になる solid を使う。
-        ttk.Label(self.root, text="設定（config.toml で変更）").pack(
-            anchor="w", padx=10, pady=(8, 2)
-        )
-        cfg = ttk.Frame(self.root, relief="solid", borderwidth=1)
-        cfg.pack(fill="x", padx=10, pady=(4, 8))
+        # ttk.LabelFrame の text= で指定したタイトルは macOS で小さいフォントになる。
+        # labelwidget= に通常サイズの ttk.Label を渡すと、「ラベルが枠線に乗る」
+        # ネイティブな見た目のまま、フォントを他の項目（「動画ファイル:」等）と揃えられる。
+        cfg_label = ttk.Label(self.root, text="設定（config.toml で変更）")
+        cfg = ttk.LabelFrame(self.root, labelwidget=cfg_label)
+        cfg.pack(fill="x", **pad)
         llm = self.config_obj.llm
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
