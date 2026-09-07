@@ -151,23 +151,27 @@ class App:
     def _build_ui(self) -> None:
         pad = {"padx": 10, "pady": 6}
 
-        top = ttk.Frame(self.root)
-        top.pack(fill="x", **pad)
+        # 「動画ファイルを選択…」ボタンと「議事録フォーマット:」ラベルを共通の grid に
+        # 置き、1 列目の幅を固定して 2 列目（説明ラベル／ドロップダウン）の開始位置を揃える。
+        head = ttk.Frame(self.root)
+        head.pack(fill="x", **pad)
+        head.columnconfigure(0, minsize=180)  # 1 列目（ボタン／ラベル）の幅を固定
+        head.columnconfigure(1, weight=1)
 
-        ttk.Button(top, text="動画ファイルを選択…", command=self._choose_file).pack(
-            side="left"
+        ttk.Button(
+            head, text="動画ファイルを選択…", command=self._choose_file
+        ).grid(row=0, column=0, sticky="w")
+        self.file_label = ttk.Label(head, text="未選択", foreground="#666")
+        self.file_label.grid(row=0, column=1, sticky="w", padx=(6, 0))
+
+        # 議事録フォーマット（見出し・構成）の選択。
+        ttk.Label(head, text="議事録フォーマット:").grid(
+            row=1, column=0, sticky="w", pady=(6, 0)
         )
-        self.file_label = ttk.Label(top, text="未選択", foreground="#666")
-        self.file_label.pack(side="left", padx=10)
-
-        # 議事録フォーマット（見出し・構成）の選択。動画選択ボタンの直下に置く。
-        fmt_row = ttk.Frame(self.root)
-        fmt_row.pack(fill="x", padx=10, pady=(0, 6))
-        ttk.Label(fmt_row, text="議事録フォーマット:").pack(side="left")
-        self.template_combo = ttk.Combobox(fmt_row, state="readonly", width=44)
+        self.template_combo = ttk.Combobox(head, state="readonly", width=44)
         self.template_combo["values"] = [self._config_choice_label(), _TEMPLATE_PICK_LABEL]
         self.template_combo.set(self._config_choice_label())
-        self.template_combo.pack(side="left", padx=8)
+        self.template_combo.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=(6, 0))
         self.template_combo.bind("<<ComboboxSelected>>", self._on_template_selected)
         _Tooltip(
             self.template_combo,
