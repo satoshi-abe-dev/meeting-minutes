@@ -45,9 +45,13 @@ class LLMConfig:
     # チャンク要約 → 統合の分割モードに切り替える。既定 40000 は LLM を 32k 前後の
     # コンテキストで動かす前提。LM Studio 側で Context Length を大きくできない場合は
     # 小さくする（例: 8000）。→ doc/models.md「コンテキスト長の設定」
-    chunk_trigger_chars: int = 40000
+    chunk_trigger_chars: int = 20000
     # 分割モードのときの 1 チャンクの文字数。
-    chunk_size_chars: int = 15000
+    chunk_size_chars: int = 12000
+    # ロード中モデルの実コンテキスト長（トークン）。0 なら自動検出
+    # （LM Studio の /api/v0/models）。検出できない基盤で、かつ 32k 以外を
+    # 使っている場合はここに実値を書く。
+    context_tokens: int = 0
 
 
 @dataclass
@@ -104,6 +108,7 @@ _ENV_MAP: dict[str, tuple[str, str, type]] = {
     "MM_LLM_MAX_TOKENS": ("llm", "max_tokens", int),
     "MM_LLM_CHUNK_TRIGGER_CHARS": ("llm", "chunk_trigger_chars", int),
     "MM_LLM_CHUNK_SIZE_CHARS": ("llm", "chunk_size_chars", int),
+    "MM_LLM_CONTEXT_TOKENS": ("llm", "context_tokens", int),
     "MM_TRANSCRIBE_BACKEND": ("transcribe", "backend", str),
     "MM_TRANSCRIBE_MODEL": ("transcribe", "model", str),
     "MM_TRANSCRIBE_COMPUTE_TYPE": ("transcribe", "compute_type", str),

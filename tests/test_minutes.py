@@ -45,6 +45,15 @@ def chunking_config() -> LLMConfig:
     return LLMConfig(chunk_trigger_chars=2000, chunk_size_chars=1000)
 
 
+def test_approx_tokens_ratio_matches_measured_qwen_japanese():
+    """_approx_tokens は実測（Qwen2.5 tokenizer で日本語 ~0.5〜0.8 tok/字）に基づき
+    安全側 0.8 で見積もる。"""
+    from meeting_minutes.minutes import _approx_tokens
+
+    assert _approx_tokens("あ" * 100) == 81
+    assert _approx_tokens("") == 1
+
+
 def test_split_segments_respects_size():
     segs = _segments(50, text="あ" * 100)  # 1 セグメント約 100 文字
     chunks = _split_segments(segs, size_chars=1000)
@@ -78,13 +87,67 @@ def test_generate_minutes_short_path_single_call():
     assert "表題スライド" in user
 
 
-def test_generate_minutes_single_pass_for_moderately_long_transcript():
-    """しきい値を上げたので、約 2 万字程度なら分割せず一発生成する（旧実装では分割された）。"""
+def test_generate_minutes_single_pass_under_char_fallback_threshold():
+    """context_tokens 不明時は文字数しきい値で判断。既定 20000 字未満は一発生成。"""
     client = FakeClient(reply="# 議事録\n\n本文\n")
-    segs = _segments(300, text="議題について長い発言をする" * 5)
+    segs = _segments(180, text="議題について長い発言をする" * 3)  # 1万字弱 < 20000
     generate_minutes(segs, [], client, LLMConfig(), MinutesMeta(title="会議"))
     assert len(client.calls) == 1
     assert client.calls[0]["user"].startswith("以下のテンプレートに沿って")
+
+
+def test_generate_minutes_char_fallback_chunks_over_threshold():
+    """context_tokens 不明で 20000 字を超えると分割する。"""
+    client = FakeClient(reply="要約")
+    segs = _segments(320, text="議題について長い発言をする" * 5)  # 2.5万字超 > 20000
+    generate_minutes(segs, [], client, LLMConfig(), MinutesMeta(title="会議"))
+    assert len(client.calls) >= 2
+
+
+def test_generate_minutes_context_tokens_allow_single_pass():
+    """実コンテキスト長が分かっていて余裕があれば、文字数が多めでも一発生成。"""
+    client = FakeClient(reply="# 議事録\n\n本文\n")
+    segs = _segments(320, text="議題について長い発言をする" * 5)  # char 閾値なら分割される長さ
+    generate_minutes(
+        segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        context_tokens=32768,
+    )
+    assert len(client.calls) == 1
+
+
+def test_generate_minutes_context_tokens_force_chunk_when_prompt_would_overflow():
+    """Issue #18: 文字数は少なくても、frames 込みで実コンテキスト長を超えると
+    推定される場合は分割生成にフォールバックする。"""
+    client = FakeClient(reply="要約")
+    segs = _segments(80, text="短い発言")
+    notes = [
+        FrameNote(timestamp=float(i), path=f"frames/f{i}.jpg",
+                  description="スライドの文字。" * 60)
+        for i in range(40)
+    ]
+    generate_minutes(
+        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        context_tokens=4096,
+    )
+    assert len(client.calls) >= 2
+
+
+def test_generate_minutes_frames_text_is_truncated_to_budget():
+    """巨大な frames_text は上限トークンで切り詰められ、プロンプトを食い尽くさない。"""
+    client = FakeClient(reply="# 議事録\n\n本文\n")
+    segs = _segments(20, text="短い発言")
+    notes = [
+        FrameNote(timestamp=float(i), path=f"frames/f{i}.jpg",
+                  description="スライドの詳細な文字起こし。" * 80)
+        for i in range(50)
+    ]
+    generate_minutes(
+        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        context_tokens=32768,
+    )
+    assert len(client.calls) == 1
+    user = client.calls[0]["user"]
+    assert "コンテキスト長の都合でここまで" in user  # 切り詰めマーカー
 
 
 def test_generate_minutes_chunk_trigger_chars_from_config_controls_path():

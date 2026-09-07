@@ -200,6 +200,42 @@ class LLMClient:
         except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
             return []
 
+    def loaded_context_length(self, model: str | None = None) -> int | None:
+        """ロード中 LLM の実コンテキスト長（トークン）を返す。取れなければ None。
+
+        LM Studio 拡張の GET /api/v0/models が返す `loaded_context_length` を読む。
+        LM Studio 以外／旧版など、この情報が無い基盤では None（best-effort）。
+        """
+        try:
+            from urllib.parse import urlsplit
+
+            u = urlsplit(self.config.base_url)
+            v0 = f"{u.scheme}://{u.netloc}/api/v0/models"
+            resp = self._client.get(v0)
+            if resp.status_code >= 400:
+                return None
+            entries = resp.json().get("data", [])
+        except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
+            return None
+
+        want = model or self.config.model
+        llm_entries = [e for e in entries if e.get("type") in (None, "llm")]
+
+        def _ctx(e: dict) -> int | None:
+            v = e.get("loaded_context_length") or e.get("max_context_length")
+            return int(v) if isinstance(v, (int, float)) and v > 0 else None
+
+        # 指定モデル優先 -> ロード済み -> どれか
+        for pred in (
+            lambda e: e.get("id") == want and e.get("state") == "loaded",
+            lambda e: e.get("id") == want,
+            lambda e: e.get("state") == "loaded",
+        ):
+            for e in llm_entries:
+                if pred(e) and _ctx(e) is not None:
+                    return _ctx(e)
+        return None
+
     def preflight(self, models: list[str]) -> None:
         """指定モデルそれぞれに極小のリクエストを投げ、実際に応答できるか確認する。
 

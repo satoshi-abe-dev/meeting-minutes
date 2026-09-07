@@ -127,6 +127,27 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 調整可能にし、小さいコンテキストのモデルでも下げて分割モードで回せるようにした
 （`minutes.py` の `_CHUNK_TRIGGER_CHARS` / `_CHUNK_SIZE_CHARS` はその既定値）。
 
+**文字数しきい値そのものが甘かった（2026-09、Issue #18）:** Context Length を
+32768 に正しく設定しても、既定 `_CHUNK_TRIGGER_CHARS=40000` のままだと一発生成が
+上限を超えて再び HTTP 400 になった。原因の切り分け:
+- Qwen 系トークナイザで日本語は約 **0.74 トークン/文字**（実測。コメントの
+  「1〜1.5」は過大）。40000 字 ≈ 3 万トークン。
+- 加えて **frames_text（フレーム解析の連結）が支配的**だった。実ケースで 60 枚
+  ≈ 1.8 万トークン。transcript より大きい。
+- `max_tokens=8192`（推論モデル対策の既定）をそのまま応答予約に使っていた。
+
+対応（`minutes.py` / `llm_client.py` / `pipeline.py`）:
+- `pipeline` が LM Studio の `/api/v0/models` から **ロード中モデルの実コンテキスト
+  長**（`loaded_context_length`）を取得し、`generate_minutes(context_tokens=...)` へ渡す。
+- `generate_minutes` は、実コンテキスト長が分かるときは
+  `概算プロンプトトークン + 応答予約 + マージン <= context_tokens` で一発 / 分割を
+  判断する（文字数しきい値は取れないときのフォールバックに降格。既定 20000 / 12000）。
+- `frames_text` はコンテキストの約 1/3（下限 6000 トークン）に切り詰める。
+- 議事録本文の応答予約は `max_tokens` ではなく `_MINUTES_RESPONSE_TOKENS`（5000）で
+  頭打ちにする（型を埋めるタスクなので十分。推論モデルは非対象）。
+- 取れないときのため `[llm] context_tokens` で実値を直接指定もできる。
+実測に基づくテストを `test_minutes.py` / `test_llm_client.py` に追加。
+
 **チャンク要約は1つ終えるたびに `minutes_partials.json` へ保存する:** 実際に、
 チャンク要約が2つとも終わったあとの最終統合（出力トークン数が多い）だけがタイムアウト
 する事例があった。チャンク要約自体は無事終わっているのに、`generate_minutes()` は
