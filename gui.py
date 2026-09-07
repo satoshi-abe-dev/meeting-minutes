@@ -202,19 +202,6 @@ class App:
         self._tpl_name_label.pack(side="left", padx=(8, 0))
         self._sync_fmt_widgets()
 
-        info = ttk.Label(
-            self.root,
-            text=(
-                "音声・映像・文字起こし・要約はすべてこの PC 内で処理します。"
-                "外部サービスへは送信しません。\n"
-                "（LLM・VLM はローカルサーバーのものを使用）"
-            ),
-            foreground="#337",
-            wraplength=720,
-            justify="left",
-        )
-        info.pack(fill="x", padx=10)
-
         cfg = ttk.LabelFrame(self.root, text="設定（config.toml で変更）")
         cfg.pack(fill="x", **pad)
         llm = self.config_obj.llm
@@ -247,6 +234,19 @@ class App:
             "チェックを入れると、前回までの中間ファイルを再利用して、"
             "処理を早く終えられます。",
         )
+
+        info = ttk.Label(
+            self.root,
+            text=(
+                "音声・映像・文字起こし・要約はすべてこの PC 内で処理します。"
+                "外部サービスへは送信しません。\n"
+                "（LLM・VLM はローカルサーバーのものを使用）"
+            ),
+            foreground="#337",
+            wraplength=720,
+            justify="left",
+        )
+        info.pack(fill="x", padx=10)
 
         run_bar = ttk.Frame(self.root)
         run_bar.pack(**pad)
