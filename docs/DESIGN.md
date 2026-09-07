@@ -1,7 +1,7 @@
 # 設計の判断と理由
 
 このドキュメントは「なぜこの形にしたか」を残すもの。実装の説明は
-[`architecture.md`](architecture.md)、想定問答は [`interview-qa.md`](interview-qa.md) を参照。
+[`architecture.md`](architecture.md) を参照。
 
 ---
 

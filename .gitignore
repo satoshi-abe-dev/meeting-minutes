@@ -44,3 +44,7 @@ docs/ai-workflow/SESSION_LOG.md
 # しない）。雛形の templates/minutes_template_example.txt は追跡対象のまま。
 templates/minutes_template.txt
 
+# 本人の面接想定問答集（一人称の受け答えメモ・口頭説明用の台本）。プロジェクトの
+# 技術ドキュメントではなく個人メモなのでコミットしない。ファイル自体は docs/ に残す。
+docs/interview-qa.md
+
