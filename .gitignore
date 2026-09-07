@@ -49,3 +49,8 @@ docs/ai-workflow/SESSION_LOG.md
 # しない）。雛形の templates/minutes_template_example.txt は追跡対象のまま。
 templates/minutes_template.txt
 
+# 旧パスの面接想定問答集（Issue #65 で private/ へ移動済み）。private/ の丸ごと ignore は
+# 新しい場所しか守らないので、この移行を pull する前のチェックアウトや別マシンに旧パスの
+# 未追跡ファイルが残っている場合に、それが誤って追跡対象へ入らないよう保護だけ残す。
+docs/interview-qa.md
+
