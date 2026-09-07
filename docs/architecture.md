@@ -55,8 +55,14 @@ LLM/VLM を呼ぶ工程の開始メッセージには使用モデル名と「応
 | `pipeline.py` | 全工程のオーケストレーション、進捗、`Deps` による差し替え | 上記すべて |
 | `prefetch.py` | 解決後バックエンドの Whisper モデルを事前DL（`scripts/setup.sh` から） | huggingface_hub / faster-whisper |
 
-ルート直下の `gui.py` / `cli.py` / `prefetch.py` は `src/` を `sys.path` に足して
-対応する `meeting_minutes.*` を呼ぶ薄いランチャー。
+## エントリポイント
+
+`src/meeting_minutes/` 配下の `gui.py` / `cli.py` / `prefetch.py` が実行の入口。
+GUI は `view/` + `presenter/` を組み立てて起動する薄いラッパー（→ `DESIGN.md` 8.5 節）、
+CLI / prefetch は argparse + `meeting_minutes.*` の呼び出し。いずれも冒頭に
+`__package__` ブートストラップがあり、`python src/meeting_minutes/gui.py` のような
+ファイル指定でも `python -m meeting_minutes.gui`（`cd src` か `PYTHONPATH=src` が要る）
+でも動く（→ `DESIGN.md` 8.6 節）。
 
 ## 進捗通知
 

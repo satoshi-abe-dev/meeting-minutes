@@ -93,7 +93,7 @@ A. モデルはリポジトリに含めず、HuggingFace の共有キャッシ�
 置く。**利用者ごとに 1 台につき一度だけ**ダウンロードが要る。
 
 - 手間を増やさないため、`scripts/setup.sh` が venv 作成・依存導入に続けて
-  `python prefetch.py` を呼び、**セットアップの 1 コマンドの中で**モデルまで取得する。
+  `python src/meeting_minutes/prefetch.py` を呼び、**セットアップの 1 コマンドの中で**モデルまで取得する。
   利用者が別途打つコマンドは無い。
 - `prefetch` は `resolve_backend()` の結果に合うモデルだけを落とし、取得済みなら
   何もしない（冪等）。

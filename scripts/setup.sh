@@ -22,7 +22,7 @@ echo "==> 依存をインストール"
 ./.venv/bin/pip install -r requirements.txt
 
 echo "==> 文字起こしモデルを取得（初回のみ。数分かかることがあります）"
-if ! ./.venv/bin/python prefetch.py; then
+if ! ./.venv/bin/python src/meeting_minutes/prefetch.py; then
   echo "  モデルの事前取得に失敗しました。"
   echo "  初回の文字起こし実行時に自動ダウンロードされるため、そのまま進めても構いません。"
 fi
@@ -34,7 +34,7 @@ cat <<'DONE'
 次のように起動します:
 
     source .venv/bin/activate
-    python gui.py            # GUI
-    python cli.py 動画.mp4    # CLI
+    python src/meeting_minutes/gui.py            # GUI
+    python src/meeting_minutes/cli.py 動画.mp4    # CLI
 
 DONE

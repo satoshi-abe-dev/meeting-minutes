@@ -83,9 +83,12 @@ Local Model API で「Local API server」を ON、「Just-in-time model loading�
 ## 使い方
 
 ```bash
-python gui.py                       # GUI: 動画を選んで「議事録を作成」。進捗バーとログ表示
-python cli.py 打ち合わせ.mp4         # CLI: 動作確認・自動化用
+python src/meeting_minutes/gui.py                 # GUI: 動画を選んで「議事録を作成」。進捗バーとログ表示
+python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・自動化用
 ```
+
+（開発者向けに `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` も動く。
+その場合は `cd src` するか `PYTHONPATH=src` を設定する。）
 
 ## 設計のポイント
 

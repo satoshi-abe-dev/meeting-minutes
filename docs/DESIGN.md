@@ -251,7 +251,7 @@ mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含�
 **モデル取得を利用者に意識させない:** Whisper モデル（既定 `large-v3-turbo`、約 1.6GB）は
 リポジトリに含めず HuggingFace の共有キャッシュ（`~/.cache/huggingface/hub/`）に入る。
 利用者ごとに 1 台につき一度だけダウンロードが要る。手間を増やさないため、
-`scripts/setup.sh` が venv 作成・依存導入に続けて `python prefetch.py`（→
+`scripts/setup.sh` が venv 作成・依存導入に続けて `python src/meeting_minutes/prefetch.py`（→
 `meeting_minutes.prefetch`）を呼び、**セットアップの 1 コマンドの中で**モデルまで
 取得する。`prefetch` は `resolve_backend()` の結果に合うモデルだけを落とし、取得済みなら
 何もしない（冪等）。setup.sh を通さず直接動かした場合の保険として、
@@ -288,7 +288,7 @@ Whisper 全般の既知の癖で、"大量に同じ行が続くループ" は防
 
 **判断:** GUI は tkinter。
 
-**理由:** CPython 同梱で追加依存ゼロ。非エンジニアへ「clone して `python gui.py`」で
+**理由:** CPython 同梱で追加依存ゼロ。非エンジニアへ「clone して `python src/meeting_minutes/gui.py`」で
 配布しやすい。同じ作業場の別プロジェクトと同じスタックで、学習コストも共有できる。
 
 **不採用にした案:** Web UI（Flask + ブラウザ等）。サーバープロセスとポートの管理、
@@ -304,8 +304,8 @@ Whisper 全般の既知の癖で、"大量に同じ行が続くループ" は防
 本プロジェクトはタブが無い単一画面なので、参考実装よりフラットな構成にしている。
 
 ```
-gui.py                              Model・View・Presenter を組み立てて起動するだけの薄いラッパー
 src/meeting_minutes/
+  gui.py           Model・View・Presenter を組み立てて起動するだけの薄いラッパー（8.6 節）
   view/
     contract.py    MainView（抽象クラス）— Presenter が依存する契約。tkinter を知らない
     tk_main_window.py  TkMainWindow（Tkinter 実装。旧 gui.py の _build_ui 相当。
@@ -324,9 +324,37 @@ src/meeting_minutes/
   必ず View 経由にすることで、Presenter が tkinter に触れない状態を保つ。
 - **`pipeline.run` は Presenter に注入**（`MainPresenter(view, config, run_pipeline=...)`）。
   既定は本物、テストではフェイク。
-- **リファクタのみ**。見た目・文言・進捗計算・`python gui.py` の起動方法は変えていない
-  （旧 `App` と新 `TkMainWindow`+`MainPresenter` でウィジェットツリーがバイト一致する
-  ことを確認済み）。
+- **リファクタのみ**。見た目・文言・進捗計算は変えていない（旧 `App` と新
+  `TkMainWindow`+`MainPresenter` でウィジェットツリーがバイト一致することを確認済み）。
+  ※ 起動コマンドはこの後 8.6 節（Issue #51）で別途変更した。
+
+---
+
+## 8.6 エントリポイントも src/ 配下へ（2026-09、Issue #51）
+
+**判断:** リポジトリ直下にあった `gui.py` / `cli.py` / `prefetch.py`（ルートの薄い
+ランチャー）を `src/meeting_minutes/` 配下へ移し、直下から `.py` を無くした。参考
+プロジェクト `tkinter-task-manager-mvp` と同じ構成。ルートのランチャーが持っていた
+`sys.path.insert(0, ".../src")` は、次の `__package__` ブートストラップに置き換えた:
+
+```python
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+```
+
+`python src/meeting_minutes/gui.py` のようにファイル指定で起動すると `__package__` が
+未設定なので `src/` を `sys.path` に足す。`python -m meeting_minutes.gui` で起動された
+場合は `__package__` が設定済みなので何もしない（この場合は `cd src` するか
+`PYTHONPATH=src` が要る）。両方の起動方法が動く。
+
+**主たる案内コマンドはファイル指定形式**（`python src/meeting_minutes/gui.py`）にした。
+非エンジニア利用者向けに「clone して 1 コマンド」の手軽さを保つため、`PYTHONPATH` の
+設定や `cd` を要求する `-m` 形式より、パスが長くなるだけで追加設定の要らないファイル
+指定形式を採る（8 節の設計判断の延長）。`-m` 形式は開発者向けの補足として併記する。
+
+`prefetch.py` は元々 `from .config import ...` という相対 import だったので、ファイル
+指定起動でも通るよう絶対 import（`from meeting_minutes.config import ...`）に変えた
+（`gui.py` / `cli.py` は元から絶対 import）。ロジックは変えていない。
 
 ---
 

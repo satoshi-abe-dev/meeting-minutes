@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """コマンドラインから議事録生成パイプラインを実行する（動作確認・自動化用）。
 
-    python cli.py 会議.mp4
-    python cli.py 会議.mp4 --config config.toml
+    python src/meeting_minutes/cli.py 会議.mp4
+    python src/meeting_minutes/cli.py 会議.mp4 --config config.toml
+（開発者向けに `python -m meeting_minutes.cli 会議.mp4` も可）
 
 GUI を使わずに全工程を回して output/<動画名>/minutes.md を作る。
 """
@@ -10,12 +11,15 @@ GUI を使わずに全工程を回して output/<動画名>/minutes.md を作る
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
-from pathlib import Path
 
-# src レイアウトなので import 前に src/ を通す
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+# `python src/meeting_minutes/cli.py` のようにファイル指定で直接起動されると
+# __package__ が未設定で絶対 import が通らない。src レイアウトのパッケージ親 = src/
+# （このファイルの 2 つ上）を sys.path に足す。-m で起動された場合は何もしない。
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from meeting_minutes.config import load_config  # noqa: E402
 from meeting_minutes.pipeline import run  # noqa: E402

@@ -32,7 +32,7 @@ faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "aut
 
 - モデルは `~/.cache/huggingface/hub/`（`HF_HOME` で変更可）に入る。リポジトリには
   含めない。
-- `scripts/setup.sh`（内部で `python prefetch.py`）がセットアップ時に既定モデルを
+- `scripts/setup.sh`（内部で `python src/meeting_minutes/prefetch.py`）がセットアップ時に既定モデルを
   取得する。取得済みなら何もしない（冪等）。
 - 事前取得しなくても、初回の文字起こし実行時に自動でダウンロードされる（その間 GUI の
   ログに「ダウンロード中」と出る）。以降はオフライン。

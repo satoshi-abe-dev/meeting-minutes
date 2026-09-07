@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 """議事録生成AI（ローカル処理）の GUI エントリポイント。
 
-    python gui.py
+起動:
+    python src/meeting_minutes/gui.py
+（開発者向けに `python -m meeting_minutes.gui` も可。その場合は `cd src` するか
+ `PYTHONPATH=src` を設定する。下の __package__ ブートストラップでどちらも動く。）
 
 Model（``meeting_minutes.pipeline`` ほか）/ View（``meeting_minutes.view``）/
 Presenter（``meeting_minutes.presenter``）を組み立てて起動するだけの薄いラッパー。
 画面まわりは view/、画面ロジックは presenter/ にある。実処理は
 ``meeting_minutes.pipeline.run`` に委譲する。
-
-構成:
-    gui.py                                これ（Model・View・Presenter を組み立てて起動）
-    src/meeting_minutes/
-        view/
-            contract.py       MainView（抽象クラス＝Presenter が依存する契約）
-            tk_main_window.py  TkMainWindow（Tkinter 実装。ウィジェット構築のみ）
-        presenter/
-            main.py           MainPresenter（進捗計算・フォーマット3択の解決・
-                              成功/失敗/中断の状態遷移などの画面ロジック一式）
 """
 
 from __future__ import annotations
 
+import os
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+# `python src/meeting_minutes/gui.py` のようにファイル指定で直接起動されると
+# __package__ が未設定で、絶対 import（meeting_minutes.*）が通らない。src レイアウトの
+# パッケージ親 = src/（このファイルの 2 つ上）を sys.path に足す。
+# `python -m meeting_minutes.gui` で起動された場合は __package__ 設定済みなので何もしない。
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from meeting_minutes.config import load_config  # noqa: E402
 from meeting_minutes.pipeline import run as run_pipeline  # noqa: E402
