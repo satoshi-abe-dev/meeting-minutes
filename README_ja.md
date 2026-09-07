@@ -26,9 +26,10 @@
 3. 画面共有・スライドのフレームを抽出し、内容を要点化（ローカル VLM）
 4. 文字起こし＋フレーム要点から議事録を生成（ローカル LLM）
 
-外部ドメインへ接続するコードは無い。唯一の通信先は **自分で立てるローカル LLM サーバー**
-（[LM Studio](https://lmstudio.ai/) など）への `localhost` 呼び出しのみ。モデルの
-ダウンロードさえ済ませれば **Wi-Fi を切っても最後まで動く**（→ [`docs/privacy.md`](docs/privacy.md)）。
+- 外部ドメインへ接続するコードは無い。唯一の通信先は **自分で立てるローカル LLM サーバー**
+  （[LM Studio](https://lmstudio.ai/) など）への `localhost` 呼び出しのみ
+- モデルのダウンロードさえ済ませれば **Wi-Fi を切っても最後まで動く**
+  （→ [`docs/privacy.md`](docs/privacy.md)）
 
 出力は `output/<動画名>/` に:
 
@@ -61,15 +62,14 @@ bash scripts/setup.sh        # 仮想環境の作成・依存導入・文字起�
 cp config.example.toml config.toml
 ```
 
-`scripts/setup.sh` が仮想環境（`.venv`）を作り、依存をインストールし、文字起こしモデルを
-HuggingFace から取得する（初回のみ、以降オフライン）。利用者が打つのはこの 1 コマンドだけ。
-
-別途、議事録・フレーム解析用に **LM Studio** を起動しておく（Settings → Local Models →
-Local Model API で「Local API server」を ON、「Just-in-time model loading」も ON 推奨）。
-**議事録生成の LLM は、推論（thinking）をしない／推論をオフにできる Instruct 系モデルを
-選ぶこと**（推論モデルは極端に遅く、本文が空で返ることがある → [`docs/models.md`](docs/models.md)）。
-詳しい手順・モデル選び・トラブルシューティングは [`docs/setup-mac.md`](docs/setup-mac.md) と
-[`docs/models.md`](docs/models.md)。
+- `scripts/setup.sh` が仮想環境（`.venv`）作成・依存インストール・文字起こしモデル取得
+  （初回のみ、以降オフライン）を 1 コマンドで行う
+- 別途 **LM Studio** を起動する（Settings → Local Models → Local Model API で
+  「Local API server」を ON。「Just-in-time model loading」も ON 推奨）
+- 議事録生成の LLM は **推論（thinking）をしない／オフにできる Instruct 系モデル** を選ぶ
+  （推論モデルは極端に遅く、本文が空で返ることがある → [`docs/models.md`](docs/models.md)）
+- 詳しい手順・モデル選び・トラブルシューティングは [`docs/setup-mac.md`](docs/setup-mac.md) と
+  [`docs/models.md`](docs/models.md)
 
 ## 使い方
 
@@ -79,9 +79,10 @@ python src/meeting_minutes/gui.py --lang en       # GUI の画面文言を英語
 python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・自動化用
 ```
 
-GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、既定 `"ja"`）でも
-指定できる。`--lang` はその回だけの上書き。切り替わるのは **GUI の画面文言だけ**で、
-文字起こし言語・生成される議事録の内容は別（`[transcribe] language` / LLM 側）。
+- GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、既定 `"ja"`）でも
+  指定できる。`--lang` はその回だけの上書き
+- 切り替わるのは **GUI の画面文言だけ**。文字起こし言語・議事録の内容は別
+  （`[transcribe] language` / LLM 側）
 
 （開発者向けに `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` も動く。
 その場合は `cd src` するか `PYTHONPATH=src` を設定する。）
@@ -183,9 +184,10 @@ CI・lint/型チェック・中間結果の再利用・LLM 落ち時のリトラ
        (ffmpeg)    (faster-whisper)   (ffmpeg)        (localhost)         (localhost)
 ```
 
-`pipeline.run()` がこの順序・進捗通知・出力ディレクトリ管理を担当し、**GUI・CLI・テストは
-すべて `run()` を呼ぶだけ**。各工程の実装は `pipeline.Deps` 経由で差し替えられる。
-詳細は [`docs/architecture.md`](docs/architecture.md)。
+- `pipeline.run()` がこの順序・進捗通知・出力ディレクトリ管理を担当し、
+  **GUI・CLI・テストはすべて `run()` を呼ぶだけ**
+- 各工程の実装は `pipeline.Deps` 経由で差し替えられる
+  （詳細は [`docs/architecture.md`](docs/architecture.md)）
 
 ## 設計のポイント
 
