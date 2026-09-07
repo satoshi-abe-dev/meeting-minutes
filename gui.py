@@ -152,10 +152,10 @@ class App:
         pad = {"padx": 10, "pady": 6}
 
         # 「動画ファイルを選択…」ボタンと「議事録フォーマット:」ラベルを共通の grid に
-        # 置き、1 列目の幅を固定して 2 列目（説明ラベル／ドロップダウン）の開始位置を揃える。
+        # 置く。1 列目の幅は grid 自動（列内で広い方＝ボタンに合う）に任せ、2 列目
+        # （説明ラベル／ドロップダウン）の開始位置は共有列なので自動で揃う。
         head = ttk.Frame(self.root)
         head.pack(fill="x", **pad)
-        head.columnconfigure(0, minsize=180)  # 1 列目（ボタン／ラベル）の幅を固定
         head.columnconfigure(1, weight=1)
 
         ttk.Button(
