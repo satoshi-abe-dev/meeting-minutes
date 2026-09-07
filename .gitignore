@@ -24,13 +24,17 @@ models/
 # 個人設定（config.example.toml をコピーして作る）
 config.toml
 
-# Claude Code のローカル権限設定（セッション個別・共有しない）。
-# .claude/skills/ の SKILL.md は共有したいので .claude/ 全体は除外しない。
-.claude/settings.local.json
+# Claude Code の作業用フォルダー（権限設定・skill 等）。議事録ツールの利用者には
+# 無関係なのでコミットしない。
+.claude/
 
 # Claude Code に見せる画像・動画などの一時受け渡し場所
 temp/
 
 # セッション間のやり取り履歴（ローカルの作業ログ。機密混入リスクを避けコミットしない）
 doc/ai-workflow/SESSION_LOG.md
+
+# 実運用中のカスタム議事録テンプレート（利用者ごとの様式。機密になり得るのでコミット
+# しない）。雛形の templates/minutes_template_example.txt は追跡対象のまま。
+templates/minutes_template.txt
 
