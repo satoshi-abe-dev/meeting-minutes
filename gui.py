@@ -166,8 +166,10 @@ class App:
         self.file_label.pack(side="left", padx=(8, 0))
 
         # 行1〜2: 議事録フォーマット（見出し・構成）の選択。ラジオ 2 択。
+        # ラベルは「内蔵（既定）」と同じ行（row=1）に置く。row=2（ファイルを選択）の
+        # 列0 は空欄のまま。
         ttk.Label(head, text="議事録フォーマット:").grid(
-            row=1, column=0, rowspan=2, sticky="w", pady=(6, 0)
+            row=1, column=0, sticky="w", pady=(6, 0)
         )
         builtin_radio = ttk.Radiobutton(
             head, text="内蔵（既定）", value="builtin",
