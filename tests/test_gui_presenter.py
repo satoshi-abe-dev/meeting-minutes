@@ -93,11 +93,12 @@ def _config(*, auto_structure=False, template_path="") -> Config:
     return cfg
 
 
-def _make(cfg=None, run_pipeline=None):
+def _make(cfg=None, run_pipeline=None, language="ja"):
     view = FakeMainView()
     presenter = MainPresenter(
         view, cfg or _config(),
         run_pipeline=run_pipeline or (lambda *a, **k: _FakeResult()),
+        language=language,
     )
     return view, presenter
 
@@ -315,3 +316,64 @@ def test_open_folder_only_when_dir_exists(tmp_path):
     presenter.result_dir = str(tmp_path)
     view.handlers["open_folder"]()
     assert view.opened == [tmp_path]
+
+
+# --- 表示言語 en（Issue #55）------------------------------------------
+
+def test_english_initial_state():
+    view, _ = _make(language="en")
+    assert view.template_name == "Not selected"
+    assert "Transcription:" in view.config_summary
+
+
+def test_english_update_progress_stage_text_and_log():
+    view, presenter = _make(language="en")
+    presenter._update_progress("transcribe", 1, 2, "recognizing")
+    assert view.stage_text == "Transcription (1/2)"
+    assert view.log == ["[Transcription] recognizing"]
+    presenter._update_progress("done", 1, 1, "")
+    assert view.stage_text == "Done"
+
+
+def test_english_on_error_dialog_and_log():
+    view, presenter = _make(language="en")
+    presenter._on_error(RuntimeError("LLM down"), "Traceback ...")
+    assert view.stage_text == "Error"
+    assert view.errors == [("Error", "LLM down")]
+    assert any("Failed: LLM down" in line for line in view.log)
+
+
+def test_english_on_cancelled_and_success_logs():
+    view, presenter = _make(language="en")
+    presenter._on_cancelled()
+    assert view.stage_text == "Cancelled"
+    assert any("Cancelled." in line for line in view.log)
+
+    view2, presenter2 = _make(language="en")
+    presenter2._on_success(_FakeResult(warnings=["template too big"]))
+    assert any("Minutes: /tmp/out/会議/minutes.md" in line for line in view2.log)
+    assert any(
+        "Transcript: 42 segments / Frames: 7" in line for line in view2.log
+    )
+    assert any("Warning: template too big" in line for line in view2.log)
+
+
+def test_english_start_log_and_format_error():
+    view, presenter = _make(language="en")
+    view.next_video_path = "/v/m.mp4"
+    view.handlers["choose_video"]()
+    view._format_mode = "builtin"
+    view.handlers["start"]()
+    if presenter._worker:
+        presenter._worker.join(timeout=2)
+    assert any(
+        line.startswith("Started: m.mp4") for line in view.log
+    )
+    assert "Minutes format: Built-in (default)" in view.log
+
+    view2, presenter2 = _make(language="en")
+    view2.next_video_path = "/v/m.mp4"
+    view2.handlers["choose_video"]()
+    view2._format_mode = "file"
+    view2.handlers["start"]()
+    assert view2.errors and view2.errors[0][0] == "Minutes format"

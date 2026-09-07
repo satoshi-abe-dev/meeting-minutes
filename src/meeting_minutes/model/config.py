@@ -15,6 +15,8 @@ import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
+from meeting_minutes.i18n import normalize_language
+
 # リポジトリのルート（このファイルは src/meeting_minutes/model/config.py なので 3 つ上）
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -99,11 +101,20 @@ class OutputConfig:
 
 
 @dataclass
+class GuiConfig:
+    # GUI の表示言語。"ja" / "en"。それ以外は load_config で "ja" に丸める。
+    # 起動時に gui.py の --lang で毎回上書きできる（優先順位: --lang > config/env > 既定）。
+    # 影響範囲は GUI の画面文言のみ（文字起こし言語・LLM プロンプト・議事録内容は別）。
+    language: str = "ja"
+
+
+@dataclass
 class Config:
     llm: LLMConfig = field(default_factory=LLMConfig)
     transcribe: TranscribeConfig = field(default_factory=TranscribeConfig)
     frames: FramesConfig = field(default_factory=FramesConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    gui: GuiConfig = field(default_factory=GuiConfig)
 
     @property
     def output_root(self) -> Path:
@@ -135,6 +146,7 @@ _ENV_MAP: dict[str, tuple[str, str, object]] = {
     "MM_OUTPUT_DIR": ("output", "dir", str),
     "MM_OUTPUT_TEMPLATE_PATH": ("output", "template_path", str),
     "MM_OUTPUT_AUTO_STRUCTURE": ("output", "auto_structure", _to_bool),
+    "MM_GUI_LANGUAGE": ("gui", "language", str),
 }
 
 _SECTION_TYPES = {
@@ -142,6 +154,7 @@ _SECTION_TYPES = {
     "transcribe": TranscribeConfig,
     "frames": FramesConfig,
     "output": OutputConfig,
+    "gui": GuiConfig,
 }
 
 
@@ -207,5 +220,9 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         except (TypeError, ValueError):
             casted = raw
         setattr(sections[section], key, casted)
+
+    # GUI 言語は対応外の値なら既定（ja）に丸める（TOML・環境変数どちらの経路でも）。
+    gui = sections["gui"]
+    gui.language = normalize_language(getattr(gui, "language", None))
 
     return Config(**sections)  # type: ignore[arg-type]

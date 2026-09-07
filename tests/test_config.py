@@ -87,3 +87,27 @@ def test_output_template_path_default_and_toml_and_env(tmp_path, monkeypatch):
 
     monkeypatch.setenv("MM_OUTPUT_TEMPLATE_PATH", "tpl/env.txt")
     assert load_config(p).output.template_path == "tpl/env.txt"
+
+
+def test_gui_language_default_toml_env_and_fallback(tmp_path, monkeypatch):
+    monkeypatch.setattr("meeting_minutes.model.config.default_config_path", lambda: None)
+    # 既定は "ja"
+    assert load_config(None).gui.language == "ja"
+
+    p = tmp_path / "config.toml"
+    p.write_text('[gui]\nlanguage = "en"\n', encoding="utf-8")
+    assert load_config(p).gui.language == "en"
+
+    # 環境変数が TOML を上書き
+    monkeypatch.setenv("MM_GUI_LANGUAGE", "ja")
+    assert load_config(p).gui.language == "ja"
+    monkeypatch.delenv("MM_GUI_LANGUAGE")
+
+    # 対応外の値は "ja" にフォールバック（TOML 経由）
+    p.write_text('[gui]\nlanguage = "fr"\n', encoding="utf-8")
+    assert load_config(p).gui.language == "ja"
+
+    # 対応外の値は "ja" にフォールバック（環境変数経由）
+    p.write_text('[gui]\nlanguage = "en"\n', encoding="utf-8")
+    monkeypatch.setenv("MM_GUI_LANGUAGE", "de")
+    assert load_config(p).gui.language == "ja"

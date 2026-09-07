@@ -3,6 +3,7 @@
 
 起動:
     python src/meeting_minutes/gui.py
+    python src/meeting_minutes/gui.py --lang en   # 画面を英語で
 （開発者向けに `python -m meeting_minutes.gui` も可。その場合は `cd src` するか
  `PYTHONPATH=src` を設定する。下の __package__ ブートストラップでどちらも動く。）
 
@@ -14,6 +15,7 @@ Presenter（``meeting_minutes.presenter``）を組み立てて起動するだけ
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 
@@ -31,9 +33,22 @@ from meeting_minutes.view.tk_main_window import TkMainWindow  # noqa: E402
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="議事録生成AIのGUIを起動する")
+    parser.add_argument(
+        "--lang",
+        choices=["ja", "en"],
+        default=None,
+        help="表示言語（省略時は config.toml の [gui] language、既定 ja）",
+    )
+    args = parser.parse_args()
+
     config = load_config(None)
-    view = TkMainWindow()
-    MainPresenter(view, config, run_pipeline=run_pipeline)
+    # 優先順位: --lang > config.toml/[gui] language・環境変数 > 既定 ja
+    # （config.gui.language は load_config で対応外の値を ja に丸め済み）。
+    language = args.lang or config.gui.language
+
+    view = TkMainWindow(language=language)
+    MainPresenter(view, config, language=language, run_pipeline=run_pipeline)
     view.run()
     return 0
 
