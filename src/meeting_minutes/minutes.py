@@ -133,6 +133,45 @@ _PLACEHOLDER_RE = re.compile(
 )
 
 
+def _minutes_budget(
+    system: str,
+    structure: str,
+    full_transcript: str,
+    frames_text_raw: str,
+    *,
+    ctx: int,
+    minutes_max_tokens: int,
+    trigger_chars: int,
+) -> tuple[str, bool]:
+    """(予算内に切り詰めた frames_text, 一発生成できるか) を返す。
+
+    テンプレート（structure）のサイズに依存するので、「おまかせ」モードで構造を
+    差し替えたら、生成後の構造でこれを呼び直す必要がある（構造の入れ替えで
+    最終リクエストが実コンテキスト長を超える PR #19 と同種の問題を防ぐ）。
+    """
+    skeleton = (
+        _approx_tokens(system) + _approx_tokens(structure) + _approx_tokens(_MINUTES_INPUT)
+    )
+    # frames_text がプロンプトを食い尽くさないよう上限を設ける。ctx が分かるときは
+    # 「1/3」を狙いつつ、応答予約・マージン・雛形を引いた残りを超えないようにする
+    # （小さい ctx で下限 6000 を無理に確保して溢れるのを防ぐ）。
+    if ctx <= 0:
+        frames_budget = _FRAMES_TOKEN_BUDGET
+    else:
+        room_after_reserve = ctx - minutes_max_tokens - _PROMPT_MARGIN_TOKENS - skeleton
+        frames_budget = max(0, min(ctx // 3, room_after_reserve))
+    frames_text = _truncate_to_token_budget(frames_text_raw, frames_budget)
+
+    if ctx > 0:
+        est_prompt = (
+            skeleton + _approx_tokens(full_transcript) + _approx_tokens(frames_text)
+        )
+        one_pass = est_prompt + minutes_max_tokens + _PROMPT_MARGIN_TOKENS <= ctx
+    else:
+        one_pass = len(full_transcript) <= trigger_chars
+    return frames_text, one_pass
+
+
 def load_minutes_structure(
     template_path: str | Path | None,
     *,
@@ -465,7 +504,7 @@ def _summarize_chunks(
     partials に既に入っている分（再開時の再利用、あるいは「おまかせ」モードで
     型生成の材料として先に走らせた分）はスキップする。すべて済んでいれば何もしない。
     1 つ終えるたびに out_path があれば minutes_partials.json を書き直す。
-    予算計算（safe_chunk_tokens）と実リクエストで同じ max_tokens を使う。
+    max_tokens は呼び出し側の予算計算（fit_chunk_size）と同じ値を渡すこと。
     """
     for i in range(len(partials) + 1, len(chunks) + 1):
         check_cancel(cancel_event)
@@ -557,7 +596,7 @@ def generate_minutes(
     check_cancel(cancel_event)
     system = _system_prompt()
     full_transcript = transcript_to_text(segments)
-    frames_text = notes_to_text(notes) or "（フレームなし）"
+    frames_text_raw = notes_to_text(notes) or "（フレームなし）"
 
     structure = load_minutes_structure(
         template_path,
@@ -575,34 +614,16 @@ def generate_minutes(
         int(getattr(llm_config, "max_tokens", _MINUTES_RESPONSE_TOKENS)),
         _MINUTES_RESPONSE_TOKENS,
     )
-    skeleton_tokens = (
-        _approx_tokens(system) + _approx_tokens(structure) + _approx_tokens(_MINUTES_INPUT)
-    )
 
-    # frames_text がプロンプトを食い尽くさないよう上限を設ける。ctx が分かるときは
-    # 「1/3」を狙いつつ、応答予約・マージン・雛形を引いた残りを超えないようにする
-    # （小さい ctx で下限 6000 を無理に確保して溢れるのを防ぐ）。
-    if ctx <= 0:
-        frames_budget = _FRAMES_TOKEN_BUDGET
-    else:
-        room_after_reserve = ctx - minutes_max_tokens - _PROMPT_MARGIN_TOKENS - skeleton_tokens
-        frames_budget = max(0, min(ctx // 3, room_after_reserve))
-    frames_text = _truncate_to_token_budget(frames_text, frames_budget)
-
-    if ctx > 0:
-        est_prompt = (
-            skeleton_tokens
-            + _approx_tokens(full_transcript)
-            + _approx_tokens(frames_text)
-        )
-        one_pass = est_prompt + minutes_max_tokens + _PROMPT_MARGIN_TOKENS <= ctx
-        # 個別チャンクのプロンプトも溢れないよう size_chars も絞る
-        safe_chunk_tokens = (
-            ctx - minutes_max_tokens - _PROMPT_MARGIN_TOKENS - _approx_tokens(frames_text)
-        )
-        if safe_chunk_tokens > 500:
-            size_chars = min(size_chars, int(safe_chunk_tokens / _TOKENS_PER_CHAR))
-        elif on_progress:
+    def fit_chunk_size(frames_text_now: str, *, warn: bool) -> None:
+        """個別チャンクのプロンプトも溢れないよう size_chars を絞る。"""
+        nonlocal size_chars
+        if ctx <= 0:
+            return
+        safe = ctx - minutes_max_tokens - _PROMPT_MARGIN_TOKENS - _approx_tokens(frames_text_now)
+        if safe > 500:
+            size_chars = min(size_chars, int(safe / _TOKENS_PER_CHAR))
+        elif warn and on_progress:
             # frames を切り詰めてもチャンクを小さくできる余地がほぼ無い。
             # そのまま進めるが（実 chat は 400 + 原因ヒントを返す）、先に警告する。
             on_progress(
@@ -611,16 +632,88 @@ def generate_minutes(
                 "LM Studio の Context Length を増やすか、config.toml の "
                 "[llm] context_tokens / chunk_size_chars を見直してください",
             )
-    else:
-        one_pass = len(full_transcript) <= trigger_chars
+
+    # まず現時点の構造（内蔵 or ファイル）で予算を見積もる。「おまかせ」で構造を
+    # 差し替えたら、生成後の構造でこれを計算し直す（下記）。
+    frames_text, one_pass = _minutes_budget(
+        system, structure, full_transcript, frames_text_raw,
+        ctx=ctx, minutes_max_tokens=minutes_max_tokens, trigger_chars=trigger_chars,
+    )
+    fit_chunk_size(frames_text, warn=True)
+
+    # --- 長い場合の状態（チャンク分割・部分要約）。必要になった時点で一度だけ用意する。
+    chunks: list[list[Segment]] = []
+    total_steps = 0
+    out_path: Path | None = None
+    partials: list[str] = []
+    _long_ready = False
+
+    def ensure_long_state() -> None:
+        nonlocal chunks, total_steps, out_path, partials, _long_ready
+        if _long_ready:
+            return
+        _long_ready = True
+        chunks = _split_segments(segments, size_chars)
+        total_steps = len(chunks) + 1
+        out_path = Path(out_dir) if out_dir is not None else None
+        if reuse and out_path is not None:
+            existing = _load_partials(
+                out_path, size_chars=size_chars, num_segments=len(segments)
+            )
+            if 0 < len(existing) <= len(chunks):
+                partials = existing
+                if on_progress:
+                    on_progress(
+                        len(partials), total_steps,
+                        f"既存の部分要約を再利用（{len(partials)}/{len(chunks)}）",
+                    )
+            elif on_progress and _partials_path(out_path).is_file():
+                on_progress(
+                    0, total_steps,
+                    "保存済みの部分要約は分割設定が変わっている（または旧形式）ため使わず、"
+                    "最初から要約し直します",
+                )
+
+    def summarize() -> list[str]:
+        # 予算計算（fit_chunk_size）と実リクエストで同じ max_tokens を使う。
+        # _MINUTES_RESPONSE_TOKENS(5000) 頭打ちなら要約には十分で、予算とも一致。
+        nonlocal partials
+        partials = _summarize_chunks(
+            chunks, client, llm_config,
+            partials=partials, out_path=out_path,
+            size_chars=size_chars, num_segments=len(segments),
+            max_tokens=minutes_max_tokens,
+            total_steps=total_steps, on_progress=on_progress, cancel_event=cancel_event,
+        )
+        return partials
+
+    if auto_structure:
+        # 全文が型生成の軽い予算に収まればそのまま、収まらなければ既存のチャンク要約を
+        # 材料にする（生の全文を再度読ませるパスは増やさない）。
+        if _struct_fits_one_pass(full_transcript, ctx, trigger_chars):
+            material = full_transcript
+            pre_summarized = False
+        else:
+            ensure_long_state()
+            material = "\n\n".join(summarize())
+            pre_summarized = True
+        # フォールバック先は必ず「内蔵」（仕様・警告文と一致させる。ファイル指定時も内蔵）。
+        structure = _resolve_auto_structure(
+            client, material, _MINUTES_STRUCTURE, out_dir,
+            model=llm_config.model, on_progress=on_progress, cancel_event=cancel_event,
+        )
+        # 生成後の構造サイズで予算を計算し直す（構造の入れ替えで最終リクエストが
+        # コンテキスト長を超えないように）。既にチャンク分割済みなら分割設定は据え置く。
+        frames_text, one_pass = _minutes_budget(
+            system, structure, full_transcript, frames_text_raw,
+            ctx=ctx, minutes_max_tokens=minutes_max_tokens, trigger_chars=trigger_chars,
+        )
+        if pre_summarized:
+            one_pass = False
+        else:
+            fit_chunk_size(frames_text, warn=False)
 
     if one_pass:
-        if auto_structure:
-            # 全文が一発生成に収まる＝型生成の軽い予算にも収まる。全文を材料にする。
-            structure = _resolve_auto_structure(
-                client, full_transcript, structure, out_dir,
-                model=llm_config.model, on_progress=on_progress, cancel_event=cancel_event,
-            )
         if on_progress:
             on_progress(
                 0, 1,
@@ -635,60 +728,14 @@ def generate_minutes(
         return md.strip() + "\n"
 
     # --- 長い場合: チャンク要約 -> 統合 ---
-    if on_progress and ctx > 0:
+    if on_progress and ctx > 0 and not _long_ready:
         on_progress(
             0, 1,
             f"一発生成はコンテキスト長（約 {ctx} トークン）に収まらないため"
             "分割生成に切り替えます",
         )
-    chunks = _split_segments(segments, size_chars)
-    total_steps = len(chunks) + 1
-    out_path = Path(out_dir) if out_dir is not None else None
-
-    partials: list[str] = []
-    if reuse and out_path is not None:
-        existing = _load_partials(
-            out_path, size_chars=size_chars, num_segments=len(segments)
-        )
-        if 0 < len(existing) <= len(chunks):
-            partials = existing
-            if on_progress:
-                on_progress(
-                    len(partials), total_steps,
-                    f"既存の部分要約を再利用（{len(partials)}/{len(chunks)}）",
-                )
-        elif on_progress and _partials_path(out_path).is_file():
-            on_progress(
-                0, total_steps,
-                "保存済みの部分要約は分割設定が変わっている（または旧形式）ため使わず、"
-                "最初から要約し直します",
-            )
-
-    def summarize() -> list[str]:
-        # 予算計算（safe_chunk_tokens）と実リクエストで同じ max_tokens を使う。
-        # _MINUTES_RESPONSE_TOKENS(5000) 頭打ちなら要約には十分で、予算とも一致。
-        return _summarize_chunks(
-            chunks, client, llm_config,
-            partials=partials, out_path=out_path,
-            size_chars=size_chars, num_segments=len(segments),
-            max_tokens=minutes_max_tokens,
-            total_steps=total_steps, on_progress=on_progress, cancel_event=cancel_event,
-        )
-
-    if auto_structure:
-        # 全文が型生成の軽い予算に収まればそのまま、収まらなければ既存のチャンク要約を
-        # 材料にする（生の全文を再度読ませるパスは増やさない）。
-        if _struct_fits_one_pass(full_transcript, ctx, trigger_chars):
-            material = full_transcript
-        else:
-            partials = summarize()
-            material = "\n\n".join(partials)
-        structure = _resolve_auto_structure(
-            client, material, structure, out_dir,
-            model=llm_config.model, on_progress=on_progress, cancel_event=cancel_event,
-        )
-
-    partials = summarize()
+    ensure_long_state()
+    summarize()
 
     if on_progress:
         on_progress(

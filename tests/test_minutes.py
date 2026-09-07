@@ -729,3 +729,46 @@ def test_auto_structure_without_out_dir_still_generates():
         auto_structure=True,  # out_dir なし → 保存はしないが生成はする
     )
     assert "## スケジュール" in client.calls[-1]["user"]
+
+
+def test_auto_structure_failure_falls_back_to_builtin_not_file_template(tmp_path):
+    """Codex 指摘2: auto 失敗時は template_path のファイルではなく必ず内蔵へ。"""
+    tpl = tmp_path / "cust.txt"
+    tpl.write_text("# 客先様式だけ\n## 合意事項\n", encoding="utf-8")
+    client = RoutingFakeClient(structure="型らしきもの（プレースホルダー無し）")  # 必須欠落→失敗
+
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        out_dir=tmp_path, auto_structure=True, template_path=str(tpl),
+    )
+
+    minutes_user = client.calls[-1]["user"]
+    assert "## 宿題・アクションアイテム" in minutes_user  # 内蔵テンプレート
+    assert "客先様式だけ" not in minutes_user  # ファイルテンプレートにはフォールバックしない
+    assert not (tmp_path / "structure_used.txt").exists()
+
+
+def test_auto_structure_recomputes_budget_after_generation(tmp_path):
+    """Codex 指摘1: 生成された構造が大きい場合、予算を計算し直して分割へ切り替える。
+
+    内蔵構造なら一発生成に収まる ctx でも、巨大な自動生成構造だと最終リクエストが
+    溢れるため、生成後に one_pass を評価し直してチャンク要約経路に落とす。
+    """
+    huge_structure = (
+        "# 議事録: {title}\n- {datetime_hint} / {duration_hint}\n"
+        + "## 追加の見出し\n（この見出しに書く内容の説明をそれなりの長さで書く）\n" * 300
+    )
+    client = RoutingFakeClient(
+        structure=huge_structure, chunk="- 部分要点", minutes="# 議事録\n本文\n"
+    )
+    segs = _segments(70, text="そこそこの長さの発言をする" * 4)
+
+    generate_minutes(
+        segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        out_dir=tmp_path, auto_structure=True, context_tokens=13000,
+    )
+
+    # 型生成は1回、そのうえで一発生成を諦めて分割（チャンク要約→統合）に切り替わる
+    assert len(client.struct_calls()) == 1
+    assert len(client.chunk_calls()) >= 1
+    assert (tmp_path / "structure_used.txt").is_file()
