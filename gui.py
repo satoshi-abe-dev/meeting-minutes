@@ -52,9 +52,6 @@ _STAGE_WEIGHT = {
 }
 _STAGE_ORDER = ["preflight", "audio", "transcribe", "frames", "vision", "minutes"]
 
-# 議事録フォーマット選択ドロップダウンの「ファイルを選択」項目のラベル。
-_TEMPLATE_PICK_LABEL = "ファイルを選択..."
-
 
 class _Tooltip:
     """ttk ウィジェットにマウスオーバーで出す簡易ツールチップ。
@@ -135,9 +132,11 @@ class App:
         self.video_path: Path | None = None
         self.result_dir: Path | None = None
         self.minutes_path: Path | None = None
-        # 議事録フォーマット: config.toml の設定と、GUI からその回だけ差し替える上書き。
-        self._config_template_path: str = self.config_obj.output.template_path
-        self._template_override: str | None = None  # None = config.toml の設定を使う
+        # 議事録フォーマット。config.toml の設定を初期値として尊重し、GUI の
+        # ラジオ／ファイル選択はその回だけの上書き（config.toml は書き換えない）。
+        _cfg_tpl = self.config_obj.output.template_path
+        self._template_path: str | None = _cfg_tpl or None  # 「ファイルを選択」側の対象
+        self._fmt_mode = tk.StringVar(value="file" if _cfg_tpl else "builtin")
 
         self._events: "queue.Queue[tuple]" = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -166,22 +165,40 @@ class App:
         self.file_label = ttk.Label(video_row, text="未選択", foreground="#666")
         self.file_label.pack(side="left", padx=(8, 0))
 
-        # 行1: 議事録フォーマット（見出し・構成）の選択。
+        # 行1〜2: 議事録フォーマット（見出し・構成）の選択。ラジオ 2 択。
         ttk.Label(head, text="議事録フォーマット:").grid(
-            row=1, column=0, sticky="w", pady=(6, 0)
+            row=1, column=0, rowspan=2, sticky="w", pady=(6, 0)
         )
-        self.template_combo = ttk.Combobox(head, state="readonly", width=44)
-        self.template_combo["values"] = [self._config_choice_label(), _TEMPLATE_PICK_LABEL]
-        self.template_combo.set(self._config_choice_label())
-        self.template_combo.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=(6, 0))
-        self.template_combo.bind("<<ComboboxSelected>>", self._on_template_selected)
+        builtin_radio = ttk.Radiobutton(
+            head, text="内蔵（既定）", value="builtin",
+            variable=self._fmt_mode, command=self._sync_fmt_widgets,
+        )
+        builtin_radio.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=(6, 0))
         _Tooltip(
-            self.template_combo,
+            builtin_radio,
             "「内蔵」は、会議の内容に関わらず常に同じ見出し・構成（決定事項・宿題・"
             "議事の要点など）を使う既定のフォーマットです。内容に応じて動的に変わる"
             "ことはありません。お客様ごとの様式に合わせたい場合は、テンプレートファイルを"
             "用意してこのメニューから選んでください。",
         )
+
+        file_row = ttk.Frame(head)
+        file_row.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=(2, 0))
+        ttk.Radiobutton(
+            file_row, text="ファイルを選択", value="file",
+            variable=self._fmt_mode, command=self._sync_fmt_widgets,
+        ).pack(side="left")
+        self._tpl_pick_btn = ttk.Button(
+            file_row, text="選択...", command=self._pick_template_file
+        )
+        self._tpl_pick_btn.pack(side="left", padx=(8, 0))
+        self._tpl_name_label = ttk.Label(
+            file_row,
+            text=Path(self._template_path).name if self._template_path else "未選択",
+            foreground="#666",
+        )
+        self._tpl_name_label.pack(side="left", padx=(8, 0))
+        self._sync_fmt_widgets()
 
         info = ttk.Label(
             self.root,
@@ -303,41 +320,30 @@ class App:
         self.run_btn.configure(state="normal")
 
     # --- 議事録フォーマットの選択 ---------------------------------------
-    def _config_choice_label(self) -> str:
-        """ドロップダウン先頭の固定項目（config.toml の設定）のラベル。"""
-        if self._config_template_path:
-            return f"{Path(self._config_template_path).name}（既定）"
-        return "内蔵（既定）"
+    def _sync_fmt_widgets(self) -> None:
+        """ラジオの状態に合わせて「選択...」ボタンとファイル名表示の有効／無効を切り替える。"""
+        file_mode = self._fmt_mode.get() == "file"
+        state = ["!disabled"] if file_mode else ["disabled"]
+        self._tpl_pick_btn.state(state)
+        self._tpl_name_label.state(state)
 
-    def _committed_template_label(self) -> str:
-        """いま確定している選択のラベル（ダイアログをキャンセルしたときの戻り先）。"""
-        if self._template_override is not None:
-            return Path(self._template_override).name
-        return self._config_choice_label()
+    def _pick_template_file(self) -> None:
+        path = filedialog.askopenfilename(
+            title="議事録テンプレートを選択",
+            filetypes=[("テキスト", "*.txt *.md"), ("すべてのファイル", "*.*")],
+        )
+        if not path:
+            return
+        self._template_path = path
+        self._fmt_mode.set("file")
+        self._tpl_name_label.configure(text=Path(path).name)
+        self._sync_fmt_widgets()
 
-    def _on_template_selected(self, _event: object = None) -> None:
-        choice = self.template_combo.get()
-        if choice == _TEMPLATE_PICK_LABEL:
-            path = filedialog.askopenfilename(
-                title="議事録テンプレートを選択",
-                filetypes=[("テキスト", "*.txt *.md"), ("すべてのファイル", "*.*")],
-            )
-            if not path:
-                self.template_combo.set(self._committed_template_label())  # キャンセル
-                return
-            self._template_override = path
-            name = Path(path).name  # ファイル名だけを表示（先頭項目は「…（既定）」で区別）
-            self.template_combo["values"] = [
-                self._config_choice_label(), name, _TEMPLATE_PICK_LABEL
-            ]
-            self.template_combo.set(name)
-        elif choice == self._config_choice_label():  # config.toml の設定 = 既定に戻す
-            self._template_override = None
-            self.template_combo["values"] = [
-                self._config_choice_label(), _TEMPLATE_PICK_LABEL
-            ]
-            self.template_combo.set(self._config_choice_label())
-        # それ以外はその回だけ上書き中のファイル名項目（_template_override は設定済み）
+    def _selected_template_path(self) -> str:
+        """この回で使うテンプレートのパス（内蔵なら空文字）。"""
+        if self._fmt_mode.get() == "file" and self._template_path:
+            return self._template_path
+        return ""
 
     def _start(self) -> None:
         if self.video_path is None or self._worker is not None:
@@ -349,18 +355,16 @@ class App:
         self.progress.configure(value=0)
         self._reuse = self.reuse_var.get()  # UI スレッドで読んでおく
         self._cancel_event = threading.Event()
-        # この回で使う議事録フォーマット（今回だけの上書き優先、無ければ config.toml の設定）。
-        self.config_obj.output.template_path = (
-            self._template_override
-            if self._template_override is not None
-            else self._config_template_path
-        )
+        # この回で使う議事録フォーマット（GUI の選択で config.toml をその回だけ上書き）。
+        tpl = self._selected_template_path()
+        self.config_obj.output.template_path = tpl
         self._append_log(
             f"開始: {self.video_path.name}"
             + ("" if self._reuse else "（最初からやり直す）")
         )
-        if self._template_override is not None:
-            self._append_log(f"議事録フォーマット（今回だけ）: {self._template_override}")
+        self._append_log(
+            "議事録フォーマット: " + (tpl if tpl else "内蔵（既定）")
+        )
 
         self._worker = threading.Thread(target=self._work, daemon=True)
         self._worker.start()
