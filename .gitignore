@@ -32,6 +32,12 @@ config.toml
 # Claude Code に見せる画像・動画などの一時受け渡し場所
 temp/
 
+# 旧パスのセッションログ（Issue #59 で .claude/ai-workflow/ へ移動済み）。この移行を
+# pull する前のチェックアウトや別マシンに旧パスの未追跡ファイルが残っている場合に、
+# それが誤って追跡対象へ入らないよう保護だけ残す。
+doc/ai-workflow/SESSION_LOG.md
+docs/ai-workflow/SESSION_LOG.md
+
 # 実運用中のカスタム議事録テンプレート（利用者ごとの様式。機密になり得るのでコミット
 # しない）。雛形の templates/minutes_template_example.txt は追跡対象のまま。
 templates/minutes_template.txt
