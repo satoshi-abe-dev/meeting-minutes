@@ -285,6 +285,7 @@ def run(
             reuse=reuse,
             context_tokens=ctx_tokens,
             template_path=config.output.template_path or None,
+            auto_structure=config.output.auto_structure,
         )
         minutes_path = deps.save_minutes(markdown, out_dir)
         # 完了メッセージ（所要時間つき）は generate_minutes 自身が _mp 経由で

@@ -42,6 +42,10 @@ _MINUTES_RESPONSE_TOKENS = 5000
 # 実コンテキスト長が分かるときは ctx/3 まで許容する。
 _FRAMES_TOKEN_BUDGET = 6000
 
+# 「おまかせ」モードで議事録の型（見出し構成）を自動生成するときの応答トークン上限。
+# 型だけで実内容は書かせないので、議事録本文より小さくてよい。予算判定にも使う。
+_STRUCTURE_RESPONSE_TOKENS = 1500
+
 # 実コンテキスト長が取得できない基盤向けのフォールバック（文字数しきい値）。
 # 32k コンテキスト前提で frames 上限・応答予約・マージンを引いた残りに収まる
 # おおよその文字数。config.toml の [llm] chunk_trigger_chars / chunk_size_chars で
@@ -197,6 +201,148 @@ _CHUNK_PROMPT = """次の会議の文字起こしの一部です。後で議事�
 """
 
 
+# --- 「おまかせ」モード: 議事録の型を会議内容から自動生成する ----------------
+_DEFAULT_STRUCTURE_SYSTEM = """あなたは議事録のフォーマット設計の専門家です。
+渡された会議の内容（全文または要約）から、その会議に合った議事録の「型」（見出し構成）
+だけを日本語で設計します。実際の議事録本文は書きません。
+
+守ること:
+- 出力は Markdown の見出しと、その下に置く「何を書くか」の指示文（丸括弧）だけ。
+  実際の会議内容・発言・数値・結論は書かない。
+- タイトル行とメタ情報には {title} {datetime_hint} {duration_hint} の3つを、実際の値で
+  埋めず文字列のまま入れる。
+- {transcript} や {frames} は書かない（入力セクションは後で自動的に足される）。
+- 見出しは会議の主題に合わせる。決定事項・次アクションに相当する見出しは必ず入れる。
+- 各見出しの指示文に「文字起こし・資料に明示的に出てくることだけ書く」「推測で
+  人名・日付・数値・期限を補わない」という趣旨を含める。
+- 前置き・後書き・自己言及・コードブロック囲みは書かない。"""
+
+# {material} だけを差し込む（.format は使わない。プロンプト本文中の {title} などの
+# リテラルを壊さないため str.replace で 1 箇所だけ置換する）。
+_STRUCTURE_PROMPT = """次の会議の内容（全文またはその要約）を踏まえて、この会議に最も適した
+議事録の「型」（見出し構成）だけを作ってください。実際の議事録は書かないでください。
+
+厳守:
+- 出力は Markdown の見出しと、各見出しの指示文（丸括弧）だけ。会議の実内容は書かない。
+- タイトル行・メタ情報に {title} {datetime_hint} {duration_hint} の3つを、実際の値で
+  埋めず文字列のまま必ず入れる。
+- {transcript} {frames} は書かない。
+- 見出しはこの会議の主題に合わせる（例: 団体旅行の説明会なら「スケジュール」「持ち物」
+  「集合場所・時間」「注意事項」など）。決定事項・次アクションに当たる見出しは必ず入れる。
+- 各見出しの指示文に「文字起こし・資料に明示的に出てくることだけ書く／推測で補わない」
+  趣旨を含める。
+- 前置き・後書き・自己言及は書かない。
+
+--- 会議の内容（全文または要約） ---
+{material}
+"""
+
+# 自動生成された型が満たすべき必須プレースホルダー（すべてリテラルで含まれること）。
+# 1つでも欠けたら「実値が混じった使い回せない型」とみなし内蔵にフォールバックする。
+_REQUIRED_PLACEHOLDERS = ("{title}", "{datetime_hint}", "{duration_hint}")
+
+_STRUCTURE_FILENAME = "structure_used.txt"
+
+
+def _structure_system_prompt() -> str:
+    try:
+        text = load_prompt("structure_ja.txt").strip()
+        return text or _DEFAULT_STRUCTURE_SYSTEM
+    except FileNotFoundError:
+        return _DEFAULT_STRUCTURE_SYSTEM
+
+
+def _struct_fits_one_pass(
+    text: str, ctx: int, trigger_chars: int
+) -> bool:
+    """会議全文をそのまま「型」生成の入力に使えるか（軽い予算に収まるか）。
+
+    収まらなければ呼び出し側は既存のチャンク要約を材料にする（新たな全文読み込み
+    パスを増やさない）。ctx 不明時は議事録一発生成と同じ文字数しきい値で判断する。
+    """
+    if ctx <= 0:
+        return len(text) <= trigger_chars
+    skeleton = _approx_tokens(_structure_system_prompt()) + _approx_tokens(_STRUCTURE_PROMPT)
+    est = skeleton + _approx_tokens(text)
+    return est + _STRUCTURE_RESPONSE_TOKENS + _PROMPT_MARGIN_TOKENS <= ctx
+
+
+def _generate_structure(
+    client: LLMClient,
+    material: str,
+    *,
+    model: str,
+    on_progress: ProgressFn | None,
+    cancel_event: threading.Event | None,
+) -> str | None:
+    """会議内容（全文または要約）から議事録の型を 1 回の chat で作る。
+
+    失敗（例外・空応答・必須プレースホルダー欠落）なら None を返す。呼び出し側は
+    None のとき内蔵テンプレートにフォールバックする。
+    """
+    check_cancel(cancel_event)
+    if on_progress:
+        on_progress(
+            0, 1,
+            f"議事録の型を自動生成中…応答を待っています（モデル: {model}）",
+        )
+    try:
+        out = client.chat(
+            system=_structure_system_prompt(),
+            user=_STRUCTURE_PROMPT.replace("{material}", material),
+            max_tokens=_STRUCTURE_RESPONSE_TOKENS,
+        ).strip()
+    except Exception as exc:  # noqa: BLE001 - 失敗しても内蔵で続行するため全捕捉
+        if on_progress:
+            on_progress(
+                0, 1,
+                f"警告: 議事録の型の自動生成に失敗しました（{exc}）。内蔵テンプレートを使います",
+            )
+        return None
+    missing = [ph for ph in _REQUIRED_PLACEHOLDERS if ph not in out]
+    if not out or missing:
+        if on_progress:
+            reason = "空の応答" if not out else f"プレースホルダー欠落 {' '.join(missing)}"
+            on_progress(
+                0, 1,
+                f"警告: 自動生成された議事録の型が不正（{reason}）でした。内蔵テンプレートを使います",
+            )
+        return None
+    return out
+
+
+def _resolve_auto_structure(
+    client: LLMClient,
+    material: str,
+    fallback_structure: str,
+    out_dir: "str | Path | None",
+    *,
+    model: str,
+    on_progress: ProgressFn | None,
+    cancel_event: threading.Event | None,
+) -> str:
+    """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。"""
+    generated = _generate_structure(
+        client, material, model=model, on_progress=on_progress, cancel_event=cancel_event
+    )
+    if generated is None:
+        return fallback_structure
+    if out_dir is not None:
+        try:
+            p = Path(out_dir)
+            p.mkdir(parents=True, exist_ok=True)
+            (p / _STRUCTURE_FILENAME).write_text(generated + "\n", encoding="utf-8")
+        except OSError as exc:
+            if on_progress:
+                on_progress(0, 1, f"警告: {_STRUCTURE_FILENAME} を保存できませんでした（{exc}）")
+    if on_progress:
+        on_progress(
+            0, 1,
+            f"議事録の型を自動生成しました（{_STRUCTURE_FILENAME} に保存）",
+        )
+    return generated
+
+
 @dataclass
 class MinutesMeta:
     title: str
@@ -300,6 +446,59 @@ def _system_prompt() -> str:
         return _DEFAULT_SYSTEM
 
 
+def _summarize_chunks(
+    chunks: list[list[Segment]],
+    client: LLMClient,
+    llm_config: LLMConfig,
+    *,
+    partials: list[str],
+    out_path: Path | None,
+    size_chars: int,
+    num_segments: int,
+    max_tokens: int,
+    total_steps: int,
+    on_progress: ProgressFn | None,
+    cancel_event: threading.Event | None,
+) -> list[str]:
+    """未処理のチャンクを順に要約し、埋めた partials を返す。
+
+    partials に既に入っている分（再開時の再利用、あるいは「おまかせ」モードで
+    型生成の材料として先に走らせた分）はスキップする。すべて済んでいれば何もしない。
+    1 つ終えるたびに out_path があれば minutes_partials.json を書き直す。
+    予算計算（safe_chunk_tokens）と実リクエストで同じ max_tokens を使う。
+    """
+    for i in range(len(partials) + 1, len(chunks) + 1):
+        check_cancel(cancel_event)
+        if on_progress:
+            on_progress(
+                i - 1, total_steps,
+                f"部分要約 {i}/{len(chunks)} の応答を待っています…"
+                f"（モデル: {llm_config.model}）",
+            )
+        chunk_text = transcript_to_text(chunks[i - 1])
+        t0 = time.monotonic()
+        summary = client.chat(
+            system="あなたは会議の記録を整理するアシスタントです。Markdown の箇条書きのみ出力します。",
+            user=_CHUNK_PROMPT.format(chunk=chunk_text),
+            max_tokens=max_tokens,
+        )
+        elapsed = _format_elapsed(time.monotonic() - t0)
+        partials.append(f"### 部分 {i}\n{summary.strip()}")
+        if out_path is not None:
+            _save_partials(
+                partials, out_path,
+                size_chars=size_chars,
+                num_segments=num_segments,
+                num_chunks=len(chunks),
+            )
+        if on_progress:
+            on_progress(
+                i, total_steps,
+                f"部分要約 {i}/{len(chunks)} 完了（所要 {elapsed}）",
+            )
+    return partials
+
+
 def _split_segments(segments: list[Segment], size_chars: int) -> list[list[Segment]]:
     chunks: list[list[Segment]] = []
     cur: list[Segment] = []
@@ -330,6 +529,7 @@ def generate_minutes(
     reuse: bool = True,
     context_tokens: int | None = None,
     template_path: str | Path | None = None,
+    auto_structure: bool = False,
 ) -> str:
     """議事録の Markdown 文字列を返す。
 
@@ -347,6 +547,12 @@ def generate_minutes(
         内蔵テンプレート。存在しない・読めない・空の場合は内蔵にフォールバックし警告する。
         システムプロンプト（捏造しない等のルール）はテンプレートに関わらず常に適用する。
         一発生成・分割生成の統合ステップの両方で同じテンプレートを使う。
+    auto_structure: True なら「おまかせ」モード。会議内容から議事録の型（見出し構成）を
+        LLM に 1 回だけ生成させ、それをテンプレートとして使う（template_path より優先）。
+        トークン予算に注意し、全文が軽い予算に収まればそのまま、収まらなければ既存の
+        チャンク要約を材料にする（新たな全文読み込みパスは増やさない）。生成した型は
+        out_dir/structure_used.txt に保存する。生成に失敗（例外・空・必須プレースホルダー
+        欠落）したら内蔵テンプレートにフォールバックし警告する。
     """
     check_cancel(cancel_event)
     system = _system_prompt()
@@ -409,6 +615,12 @@ def generate_minutes(
         one_pass = len(full_transcript) <= trigger_chars
 
     if one_pass:
+        if auto_structure:
+            # 全文が一発生成に収まる＝型生成の軽い予算にも収まる。全文を材料にする。
+            structure = _resolve_auto_structure(
+                client, full_transcript, structure, out_dir,
+                model=llm_config.model, on_progress=on_progress, cancel_event=cancel_event,
+            )
         if on_progress:
             on_progress(
                 0, 1,
@@ -452,39 +664,31 @@ def generate_minutes(
                 "最初から要約し直します",
             )
 
-    for i in range(len(partials) + 1, len(chunks) + 1):
-        check_cancel(cancel_event)
-        if on_progress:
-            on_progress(
-                i - 1, total_steps,
-                f"部分要約 {i}/{len(chunks)} の応答を待っています…"
-                f"（モデル: {llm_config.model}）",
-            )
-        chunk_text = transcript_to_text(chunks[i - 1])
-        t0 = time.monotonic()
-        summary = client.chat(
-            system="あなたは会議の記録を整理するアシスタントです。Markdown の箇条書きのみ出力します。",
-            user=_CHUNK_PROMPT.format(chunk=chunk_text),
-            # 予算計算（safe_chunk_tokens）と実リクエストで同じ上限を使う。
-            # 旧: 固定 1500（推論モデルが思考で使い切り本文が空になった）→ 一度
-            # llm_config.max_tokens にしたが、それだと予算計算とズレる。
-            # _MINUTES_RESPONSE_TOKENS(5000) 頭打ちなら要約には十分で、予算とも一致。
+    def summarize() -> list[str]:
+        # 予算計算（safe_chunk_tokens）と実リクエストで同じ max_tokens を使う。
+        # _MINUTES_RESPONSE_TOKENS(5000) 頭打ちなら要約には十分で、予算とも一致。
+        return _summarize_chunks(
+            chunks, client, llm_config,
+            partials=partials, out_path=out_path,
+            size_chars=size_chars, num_segments=len(segments),
             max_tokens=minutes_max_tokens,
+            total_steps=total_steps, on_progress=on_progress, cancel_event=cancel_event,
         )
-        elapsed = _format_elapsed(time.monotonic() - t0)
-        partials.append(f"### 部分 {i}\n{summary.strip()}")
-        if out_path is not None:
-            _save_partials(
-                partials, out_path,
-                size_chars=size_chars,
-                num_segments=len(segments),
-                num_chunks=len(chunks),
-            )
-        if on_progress:
-            on_progress(
-                i, total_steps,
-                f"部分要約 {i}/{len(chunks)} 完了（所要 {elapsed}）",
-            )
+
+    if auto_structure:
+        # 全文が型生成の軽い予算に収まればそのまま、収まらなければ既存のチャンク要約を
+        # 材料にする（生の全文を再度読ませるパスは増やさない）。
+        if _struct_fits_one_pass(full_transcript, ctx, trigger_chars):
+            material = full_transcript
+        else:
+            partials = summarize()
+            material = "\n\n".join(partials)
+        structure = _resolve_auto_structure(
+            client, material, structure, out_dir,
+            model=llm_config.model, on_progress=on_progress, cancel_event=cancel_event,
+        )
+
+    partials = summarize()
 
     if on_progress:
         on_progress(

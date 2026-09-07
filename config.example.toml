@@ -77,3 +77,9 @@ dir = "output"
 # システムプロンプト（捏造しない等のルール）はテンプレートに関わらず常に適用される。
 # 雛形: templates/minutes_template_example.txt
 template_path = ""
+# 「おまかせ」モード: 動画の内容に合わせて議事録の見出し構成を LLM に自動生成させる。
+# true にすると template_path より優先（優先順位: auto > file > builtin）。
+# 生成された構成は output/<動画名>/structure_used.txt に保存される。気に入れば
+# templates/ にコピーして、以後は template_path で固定テンプレートとして使い回せる。
+# 生成に失敗（LLM エラー・プレースホルダー欠落など）したら内蔵にフォールバックし警告する。
+auto_structure = false
