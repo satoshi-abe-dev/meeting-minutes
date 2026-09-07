@@ -15,9 +15,7 @@ English | [日本語](README_ja.md)
 >   from a different vendor (Codex)
 > - **Proposing "Auto" mode** — having the LLM suggest a heading structure per video,
 >   which can be pinned as a template once you like it
-> - **The overall GUI design** (the radio-button layout for choosing the minutes
->   format, the visible border on the settings panel, centering the button pairs,
->   standardizing on `grid` for layout, and tightening widget spacing)
+> - **The overall GUI design**
 >
 > Implementation was carried out by multiple Claude Code sessions. The roles and
 > review criteria are documented in
