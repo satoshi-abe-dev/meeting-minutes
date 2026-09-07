@@ -291,6 +291,16 @@ def _structure_system_prompt() -> str:
         return _DEFAULT_STRUCTURE_SYSTEM
 
 
+def _structure_material_budget(ctx: int) -> int:
+    """構造生成リクエストで「材料」（全文 or チャンク要約連結）に使えるトークン予算。
+
+    ctx > 0 前提。system プロンプト＋ユーザープロンプト雛形＋応答予約＋マージンを
+    引いた残り。負や 0 になり得る（極端に小さい ctx）。
+    """
+    skeleton = _approx_tokens(_structure_system_prompt()) + _approx_tokens(_STRUCTURE_PROMPT)
+    return ctx - skeleton - _STRUCTURE_RESPONSE_TOKENS - _PROMPT_MARGIN_TOKENS
+
+
 def _struct_fits_one_pass(
     text: str, ctx: int, trigger_chars: int
 ) -> bool:
@@ -301,9 +311,23 @@ def _struct_fits_one_pass(
     """
     if ctx <= 0:
         return len(text) <= trigger_chars
-    skeleton = _approx_tokens(_structure_system_prompt()) + _approx_tokens(_STRUCTURE_PROMPT)
-    est = skeleton + _approx_tokens(text)
-    return est + _STRUCTURE_RESPONSE_TOKENS + _PROMPT_MARGIN_TOKENS <= ctx
+    return _approx_tokens(text) <= _structure_material_budget(ctx)
+
+
+def _fit_structure_material(material: str, ctx: int) -> str:
+    """構造生成の材料が予算を超えるなら末尾を切り詰める（ctx 不明なら素通し）。
+
+    チャンク要約を全部連結した material は、非常に長い会議だとそれでも大きすぎて
+    構造生成リクエスト自体が溢れ得る。全文パス（_struct_fits_one_pass）と同じ予算に
+    対してチェックし、超える分は末尾を落とす（見出し設計には冒頭〜中盤で足りる）。
+    """
+    if ctx <= 0:
+        return material
+    budget = _structure_material_budget(ctx)
+    if budget <= 0 or _approx_tokens(material) <= budget:
+        return material
+    keep = max(0, int(budget / _TOKENS_PER_CHAR) - 40)
+    return material[:keep].rstrip() + "\n…（以降はコンテキスト長の都合で省略）"
 
 
 def _generate_structure(
@@ -689,19 +713,22 @@ def generate_minutes(
 
     if auto_structure:
         # 全文が型生成の軽い予算に収まればそのまま、収まらなければ既存のチャンク要約を
-        # 材料にする（生の全文を再度読ませるパスは増やさない）。
+        # 材料にする（生の全文を再度読ませるパスは増やさない）。どちらの材料も
+        # 構造生成リクエストの予算に収まるよう、超える分は末尾を落とす。
         if _struct_fits_one_pass(full_transcript, ctx, trigger_chars):
             material = full_transcript
             pre_summarized = False
         else:
             ensure_long_state()
-            material = "\n\n".join(summarize())
+            material = _fit_structure_material("\n\n".join(summarize()), ctx)
             pre_summarized = True
         # フォールバック先は必ず「内蔵」（仕様・警告文と一致させる。ファイル指定時も内蔵）。
         structure = _resolve_auto_structure(
             client, material, _MINUTES_STRUCTURE, out_dir,
             model=llm_config.model, on_progress=on_progress, cancel_event=cancel_event,
         )
+        # 構造生成（重い LLM 呼び出し）の後、次の議事録生成に進む前に中断を拾う。
+        check_cancel(cancel_event)
         # 生成後の構造サイズで予算を計算し直す（構造の入れ替えで最終リクエストが
         # コンテキスト長を超えないように）。既にチャンク分割済みなら分割設定は据え置く。
         frames_text, one_pass = _minutes_budget(

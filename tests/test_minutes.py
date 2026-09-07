@@ -772,3 +772,49 @@ def test_auto_structure_recomputes_budget_after_generation(tmp_path):
     assert len(client.struct_calls()) == 1
     assert len(client.chunk_calls()) >= 1
     assert (tmp_path / "structure_used.txt").is_file()
+
+
+def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):
+    """Codex 指摘: チャンク要約を連結した material も構造生成予算でチェック・切り詰める。"""
+    from meeting_minutes.minutes import _approx_tokens, _STRUCTURE_RESPONSE_TOKENS as _SRT
+
+    ctx = 8000
+    big_summary = "・とても長い部分要約の行。" * 60  # 連結すると予算超過
+    client = RoutingFakeClient(structure=_GEN_STRUCTURE, chunk=big_summary)
+    long_segs = _segments(400, text="議題について長い発言をする" * 5)
+
+    generate_minutes(
+        long_segs, [], client, LLMConfig(), MinutesMeta(title="長い会議"),
+        out_dir=tmp_path, auto_structure=True, context_tokens=ctx,
+    )
+
+    assert len(client.struct_calls()) == 1
+    struct_user = client.struct_calls()[0]["user"]
+    assert "コンテキスト長の都合で省略" in struct_user  # 末尾が切り詰められた
+    # 構造生成リクエスト（system + user + 応答予約）が ctx に収まる
+    total = (
+        _approx_tokens(client.struct_calls()[0]["system"])
+        + _approx_tokens(struct_user)
+        + _SRT
+    )
+    assert total <= ctx
+
+
+def test_auto_structure_cancel_after_generation_stops_before_minutes(tmp_path):
+    """Codex 指摘: 構造生成の直後にも中断を拾い、重い議事録生成へ進まない。"""
+    cancel_event = threading.Event()
+
+    def on_progress(cur, tot, msg):
+        if "型を自動生成しました" in msg:
+            cancel_event.set()  # 構造生成が終わった直後に「中断」
+
+    client = RoutingFakeClient(structure=_GEN_STRUCTURE)
+    with pytest.raises(PipelineCancelled):
+        generate_minutes(
+            _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+            out_dir=tmp_path, auto_structure=True,
+            on_progress=on_progress, cancel_event=cancel_event,
+        )
+
+    assert len(client.struct_calls()) == 1
+    assert client.calls == client.struct_calls()  # 議事録本文の呼び出しは無い
