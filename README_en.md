@@ -151,6 +151,10 @@ Then set `[output] template_path = "templates/<client name>.txt"` in `config.tom
 
 CI, lint / type checking, reuse of intermediate results, and retries when the LLM goes down are planned for the next phase.
 
+> 💡 **If you just want to run it, you can stop here.** The rest explains the
+> pipeline's internal design (the split via `pipeline.run` / `Deps`) and the
+> AI-assisted collaborative development workflow.
+
 ## How it works
 
 ```
