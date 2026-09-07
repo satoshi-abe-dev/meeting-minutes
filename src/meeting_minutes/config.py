@@ -49,7 +49,7 @@ class LLMConfig:
     # 議事録生成で「一発生成」する文字起こしの上限文字数。これを超えると
     # チャンク要約 → 統合の分割モードに切り替える。既定 40000 は LLM を 32k 前後の
     # コンテキストで動かす前提。LM Studio 側で Context Length を大きくできない場合は
-    # 小さくする（例: 8000）。→ doc/models.md「コンテキスト長の設定」
+    # 小さくする（例: 8000）。→ docs/models.md「コンテキスト長の設定」
     chunk_trigger_chars: int = 20000
     # 分割モードのときの 1 チャンクの文字数。
     chunk_size_chars: int = 12000

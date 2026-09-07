@@ -32,7 +32,7 @@ config.toml
 temp/
 
 # セッション間のやり取り履歴（ローカルの作業ログ。機密混入リスクを避けコミットしない）
-doc/ai-workflow/SESSION_LOG.md
+docs/ai-workflow/SESSION_LOG.md
 
 # 実運用中のカスタム議事録テンプレート（利用者ごとの様式。機密になり得るのでコミット
 # しない）。雛形の templates/minutes_template_example.txt は追跡対象のまま。

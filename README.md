@@ -26,7 +26,7 @@
 
 外部ドメインへ接続するコードは無い。唯一の通信先は **自分で立てるローカル LLM サーバー**
 （[LM Studio](https://lmstudio.ai/) など）への `localhost` 呼び出しのみ。モデルの
-ダウンロードさえ済ませれば **Wi-Fi を切っても最後まで動く**（→ [`doc/privacy.md`](doc/privacy.md)）。
+ダウンロードさえ済ませれば **Wi-Fi を切っても最後まで動く**（→ [`docs/privacy.md`](docs/privacy.md)）。
 
 出力は `output/<動画名>/` に:
 
@@ -60,7 +60,7 @@ _準備中。非機密のサンプル動画で生成した議事録とスクリ�
 
 `pipeline.run()` がこの順序・進捗通知・出力ディレクトリ管理を担当し、**GUI・CLI・テストは
 すべて `run()` を呼ぶだけ**。各工程の実装は `pipeline.Deps` 経由で差し替えられる。
-詳細は [`doc/architecture.md`](doc/architecture.md)。
+詳細は [`docs/architecture.md`](docs/architecture.md)。
 
 ## セットアップ（macOS / Apple Silicon）
 
@@ -76,9 +76,9 @@ HuggingFace から取得する（初回のみ、以降オフライン）。利�
 別途、議事録・フレーム解析用に **LM Studio** を起動しておく（Settings → Local Models →
 Local Model API で「Local API server」を ON、「Just-in-time model loading」も ON 推奨）。
 **議事録生成の LLM は、推論（thinking）をしない／推論をオフにできる Instruct 系モデルを
-選ぶこと**（推論モデルは極端に遅く、本文が空で返ることがある → [`doc/models.md`](doc/models.md)）。
-詳しい手順・モデル選び・トラブルシューティングは [`doc/setup-mac.md`](doc/setup-mac.md) と
-[`doc/models.md`](doc/models.md)。
+選ぶこと**（推論モデルは極端に遅く、本文が空で返ることがある → [`docs/models.md`](docs/models.md)）。
+詳しい手順・モデル選び・トラブルシューティングは [`docs/setup-mac.md`](docs/setup-mac.md) と
+[`docs/models.md`](docs/models.md)。
 
 ## 使い方
 
@@ -106,8 +106,8 @@ python cli.py 打ち合わせ.mp4         # CLI: 動作確認・自動化用
   GPU を使う mlx-whisper、それ以外は faster-whisper。`config.toml` で固定もできる。
 - **設定の多層化** — デフォルト < `config.toml` < 環境変数。TOML は標準 `tomllib` で依存ゼロ。
 
-判断の理由とトレードオフは [`doc/DESIGN.md`](doc/DESIGN.md)、
-想定質問と回答は [`doc/interview-qa.md`](doc/interview-qa.md)。
+判断の理由とトレードオフは [`docs/DESIGN.md`](docs/DESIGN.md)、
+想定質問と回答は [`docs/interview-qa.md`](docs/interview-qa.md)。
 
 ## 開発体制（AI協調開発）
 
@@ -118,7 +118,7 @@ python cli.py 打ち合わせ.mp4         # CLI: 動作確認・自動化用
   機密混入（実会議の固有名詞）・`.gitignore` の除外設定・差分が意図した範囲内か・
   破壊的操作の有無を確認した上でマージする
 - 役割分担・禁止事項・レビュー基準は
-  [`doc/ai-workflow/SESSION_RULES.md`](doc/ai-workflow/SESSION_RULES.md) に明文化
+  [`docs/ai-workflow/SESSION_RULES.md`](docs/ai-workflow/SESSION_RULES.md) に明文化
 - **manager は worker の自己申告を鵜呑みにしない** — 全 PR で pytest・機密 grep を
   manager 自身が再実行し、diff を直接確認した上でマージする
 - **セッション間で会話コンテキストは共有されない** — manager は worker の試行錯誤の
