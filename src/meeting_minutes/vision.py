@@ -63,8 +63,8 @@ def _format_elapsed(seconds: float) -> str:
 
 
 def _load_frame_notes(out_dir: Path) -> list[FrameNote]:
-    """save_frame_notes が書いた frame_notes.json を読み戻す（再開用）。"""
-    path = out_dir / "frame_notes.json"
+    """save_frame_notes が書いた frames/frame_notes.json を読み戻す（再開用）。"""
+    path = out_dir / "frames" / "frame_notes.json"
     if not path.is_file():
         return []
     try:
@@ -99,9 +99,9 @@ def describe_frames(
 
     cancel_event: セットされていれば、次のフレームに取り掛かる前に中断する
         （最大60回ある VLM 呼び出しの合間なので、中断ボタンが一番効くポイント）。
-    reuse: True（既定）なら out_dir に前回の frame_notes.json が残っていれば
+    reuse: True（既定）なら out_dir に前回の frames/frame_notes.json が残っていれば
         読み戻し、そこまでのフレームは解析し直さない。1 枚終えるたびに
-        frame_notes.json を書き直すので、途中で落ちても続きから再開できる。
+        frames/frame_notes.json を書き直すので、途中で落ちても続きから再開できる。
     """
     out_dir = Path(out_dir)
     prompt = _load_prompt_text()
@@ -151,8 +151,8 @@ def describe_frames(
 
 def save_frame_notes(notes: list[FrameNote], out_dir: str | Path) -> Path:
     out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / "frame_notes.json"
+    path = out_dir / "frames" / "frame_notes.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps([asdict(n) for n in notes], ensure_ascii=False, indent=2),
         encoding="utf-8",

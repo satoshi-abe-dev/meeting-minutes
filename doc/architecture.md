@@ -15,11 +15,11 @@
   │        └─ reuse=True かつ transcript.json があれば load_transcript で再利用
   │
   ├─(3) frames.extract_frames      ffmpeg でシーン変化＋一定間隔のフレーム抽出
-  │        ├─ save_frame_index → frames.json
-  │        └─ reuse=True かつ frames.json があれば load_frames で再利用
+  │        ├─ save_frame_index → frames/frames.json
+  │        └─ reuse=True かつ frames/frames.json があれば load_frames で再利用
   │
   ├─(4) vision.describe_frames     ローカル VLM で各フレームを要点化
-  │        ├─ 1枚終えるたびに save_frame_notes → frame_notes.json へ逐次保存
+  │        ├─ 1枚終えるたびに save_frame_notes → frames/frame_notes.json へ逐次保存
   │        └─ reuse=True なら残っているフレームだけ解析（1枚単位で再開）
   │
   └─(5) minutes.generate_minutes   文字起こし＋フレーム要点 → 議事録 Markdown
@@ -30,7 +30,7 @@
 
 `pipeline.run()` がこの順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の
 管理を担当する。GUI・CLI・テストはすべて `run()` を呼ぶだけ。`run(..., reuse=True)`
-（既定）は前回の中間生成物（transcript.json / frames.json / frame_notes.json /
+（既定）は前回の中間生成物（transcript/transcript.json / frames/frames.json / frames/frame_notes.json /
 minutes_partials.json）を再利用し、終わっている分をやり直さない（`--fresh` / GUI の
 チェックで無効化）。進捗の `stage` は
 `preflight → audio → transcribe → frames → vision → minutes → done`。

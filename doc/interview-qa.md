@@ -59,7 +59,7 @@ LM Studio が「No models loaded」を返して全部やり直しになった。
 - **エラーメッセージ**：接続失敗は `LLMConnectionError` に集約。400 応答に
   `No models loaded` 等があれば「JIT を ON / Loaded Instances でロード / モデル名を
   Library と一致」のヒントを添える。GUI はダイアログ＋ログ。
-- **途中再開**：再実行時は `transcript.json` / `frames.json` / `frame_notes.json`
+- **途中再開**：再実行時は `transcript/transcript.json` / `frames/frames.json` / `frames/frame_notes.json`
   （フレーム解析、1枚単位）/ `minutes_partials.json`（チャンク要約、1つ単位）を
   すべて再利用し、終わっている分はやり直さない。議事録の最終統合だけがタイムアウト
   した事例をきっかけにチャンク要約側の永続化を足し、そのあと「60枚のフレーム解析を
