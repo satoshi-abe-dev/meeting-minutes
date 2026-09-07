@@ -225,12 +225,18 @@ class App:
         )
         self._sync_fmt_widgets()
 
-        # ttk.LabelFrame の text= で指定したタイトルは macOS で小さいフォントになる。
-        # labelwidget= に通常サイズの ttk.Label を渡すと、「ラベルが枠線に乗る」
-        # ネイティブな見た目のまま、フォントを他の項目（「動画ファイル:」等）と揃えられる。
+        # ttk の relief 枠線（groove/solid いずれも）は macOS(aqua) テーマで薄すぎ／
+        # 描画されず、実画面で見えなかった（PR #33/#40/#41）。テーマ非依存で Tk コアが
+        # 直接描く tk.Frame の highlightthickness（1px の枠）に切り替える。
+        # 見出しラベルは text= の小フォント問題を避けるため引き続き枠の上に別置き。
+        # 色は明るい背景（systemWindowBackgroundColor ≒ 白〜淡灰）に対して WCAG 非テキスト
+        # UI 基準 3:1 を満たす #808080（対白 約 4.0:1 / 対 #ECECEC 約 3.3:1）。
         cfg_label = ttk.Label(self.root, text="設定（config.toml で変更）")
-        cfg = ttk.LabelFrame(self.root, labelwidget=cfg_label)
-        cfg.pack(fill="x", **pad)
+        cfg_label.pack(anchor="w", padx=10, pady=(6, 2))
+        cfg = tk.Frame(
+            self.root, highlightbackground="#808080", highlightthickness=1, bd=0
+        )
+        cfg.pack(fill="x", padx=10, pady=(0, 6))
         llm = self.config_obj.llm
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
