@@ -10,12 +10,12 @@ import pytest
 from meeting_minutes.model.cancel import PipelineCancelled
 from meeting_minutes.model.config import LLMConfig
 from meeting_minutes.model.minutes import (
-    MinutesMeta,
     _DEFAULT_SYSTEM,
+    _MINUTES_RESPONSE_TOKENS,
+    _MINUTES_STRUCTURE,
+    MinutesMeta,
     _fill_minutes_template,
     _leaked_instructions,
-    _MINUTES_STRUCTURE,
-    _MINUTES_RESPONSE_TOKENS,
     _save_partials,
     _split_segments,
     generate_minutes,
@@ -481,7 +481,8 @@ def test_generate_minutes_uses_custom_template_single_pass(tmp_path):
 
 def test_generate_minutes_uses_custom_template_in_merge_step(chunking_config):
     tpl_text = "# 客先様式\n## 決めたこと\n{transcript}\n{frames}\n"
-    import tempfile, os
+    import os
+    import tempfile
     fd, path = tempfile.mkstemp(suffix=".txt")
     os.write(fd, tpl_text.encode("utf-8"))
     os.close(fd)
@@ -892,7 +893,7 @@ def test_auto_structure_response_reserve_follows_llm_max_tokens():
 def test_generate_minutes_truncates_oversized_merged_transcript(tmp_path):
     """Codex 指摘: 統合ステップの実プロンプト（system+構造+merged_transcript+frames）を
     組み立てる前に実トークン数で予算チェックし、超える分は末尾を切り詰める。"""
-    from meeting_minutes.model.minutes import _approx_tokens, _PROMPT_MARGIN_TOKENS
+    from meeting_minutes.model.minutes import _PROMPT_MARGIN_TOKENS, _approx_tokens
 
     ctx = 12000
     # 各チャンク要約を大きく返す → 連結した merged_transcript が統合予算を超える

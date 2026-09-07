@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from meeting_minutes.model import ffmpeg_utils
@@ -127,7 +129,7 @@ def test_extract_frames_real_clip(tmp_path):
     times = [f.timestamp for f in frames]
     assert times == sorted(times)
     assert all(f.path.is_file() for f in frames)
-    assert all(b - a >= cfg.min_gap_sec - 0.5 for a, b in zip(times, times[1:]))
+    assert all(b - a >= cfg.min_gap_sec - 0.5 for a, b in itertools.pairwise(times))
     # 生の中間ディレクトリは片付けられている
     assert not (tmp_path / "out" / "frames" / "_raw").exists()
 

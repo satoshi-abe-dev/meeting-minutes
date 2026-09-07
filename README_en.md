@@ -167,7 +167,7 @@ Then set `[output] template_path = "templates/<client name>.txt"` in `config.tom
 | Interruption is not fully immediate | The GUI "Stop" reacts at stage / frame / chunk boundaries. However, **during an mlx-whisper transcription call** and **during ffmpeg execution** it waits for that stage to finish |
 | Settings cannot be changed from the GUI | Edit `config.toml` directly |
 
-CI, lint / type checking, reuse of intermediate results, and retries when the LLM goes down are planned for the next phase.
+Automatic retry when the LLM times out or drops the connection is not implemented yet (re-run to recover for now).
 
 > 💡 **If you just want to run it, you can stop here.** The rest explains the
 > pipeline's internal design (the split via `pipeline.run` / `Deps`) and the

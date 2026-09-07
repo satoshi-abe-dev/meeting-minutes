@@ -25,7 +25,6 @@ from meeting_minutes.model.transcribe import (
     save_transcript,
 )
 
-
 # --- _mlx_model_repo ---------------------------------------------------
 
 def test_mlx_model_repo_known_sizes():

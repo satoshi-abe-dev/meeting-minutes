@@ -26,8 +26,8 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from meeting_minutes.model.config import load_config  # noqa: E402
-from meeting_minutes.model.transcribe import _mlx_model_repo, resolve_backend  # noqa: E402
+from meeting_minutes.model.config import load_config
+from meeting_minutes.model.transcribe import _mlx_model_repo, resolve_backend
 
 
 def prefetch_transcribe_model(config) -> str:
@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         target = prefetch_transcribe_model(config)
-    except Exception as exc:  # noqa: BLE001 - セットアップ補助なので理由を見せて終了
+    except Exception as exc:
         print(
             f"モデルの取得に失敗しました: {exc}\n"
             "ネットワーク接続と HF_HOME を確認し、`python src/meeting_minutes/prefetch.py` を"

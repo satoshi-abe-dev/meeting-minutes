@@ -10,3 +10,49 @@ markers = [
     "needs_ffmpeg: 実物の ffmpeg を呼ぶ。ffmpeg が無ければ skip",
     "needs_llm: 実物のローカル LLM サーバー（LM Studio 等）を呼ぶ。無ければ skip",
 ]
+
+# --- lint（ruff）------------------------------------------------------------
+[tool.ruff]
+target-version = "py311"  # docs/setup-mac.md の最低ライン
+# 日本語コメント・文字列が全角で入るぶん、行が実測より短く見える。80/88 だと
+# 「見た目は収まっているのに違反」が大量に出るので、少し広めの 110 にする。
+line-length = 110
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/F: pycodestyle + pyflakes（基本）。I: import 並べ替え。UP: 新しい構文へ。
+# B: bugbear（バグになりやすい書き方）。C4: 内包表記。SIM: 冗長な条件の簡約。
+# RUF: ruff 固有。
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+# RUF001-003（ambiguous-unicode）は、日本語の全角括弧・句読点・記号を軒並み
+# 「紛らわしい Unicode」と誤検知する。このコードベースは日本語コメント／文字列が
+# 主体なので、ルールごと無効化する（個別 noqa では数百箇所になり無意味）。
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+# --- 型チェック（mypy）---------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+# サードパーティ（faster-whisper / mlx-whisper / httpx の一部）は型スタブが無い。
+# 「import が解決できない」だけのエラーは黙らせ、自コードの型不整合に集中する。
+ignore_missing_imports = true
+# 段階導入。まずは明確な型エラーだけ拾い、no-untyped-def 等の厳格化は後続で。
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+# numpy（faster-whisper / mlx-whisper が連れてくる）の同梱スタブは新しい構文
+# （3.12+ の type 文）を使っており、python_version=3.11 でパースすると落ちる。
+# 自コードは numpy に直接依存しないので、まるごと解析対象外にする。
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
+
+# view/tk_main_window.py は Tkinter アダプタ（MVP の View 層、ロジックを持たない）。
+# `widget.grid(**pad)` のような dict 展開が、tkinter スタブの多数のオーバーロードと
+# 噛み合わず arg-type エラーを量産する（既知の型スタブ相性問題）。この 1 ファイルだけ
+# arg-type を無効化する。name-defined / attr-defined 等の他のチェックは効かせる。
+[[tool.mypy.overrides]]
+module = "meeting_minutes.view.tk_main_window"
+disable_error_code = ["arg-type"]

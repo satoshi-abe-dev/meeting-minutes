@@ -18,9 +18,9 @@ import json
 import platform
 import sys
 import threading
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Iterable
 
 from .cancel import check_cancel
 from .config import TranscribeConfig
@@ -40,7 +40,7 @@ class Segment:
 
 def _format_ts(seconds: float) -> str:
     """秒を [HH:MM:SS] 形式にする。"""
-    seconds = max(0, int(round(seconds)))
+    seconds = max(0, round(seconds))
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
@@ -98,7 +98,7 @@ def _mlx_model_cached(repo: str) -> bool:
 
         snapshot_download(repo, local_files_only=True)
         return True
-    except Exception:  # noqa: BLE001 - 判定不能はキャッシュ無し扱い
+    except Exception:
         return False
 
 

@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
 
 from . import audio as _audio
 from . import ffmpeg_utils as _ffmpeg_utils
@@ -66,14 +66,14 @@ class PipelineResult:
     minutes_path: Path
     transcript_txt: Path
     transcript_json: Path
-    frames_index: Optional[Path]
-    frame_notes: Optional[Path]
+    frames_index: Path | None
+    frame_notes: Path | None
     n_segments: int
     n_frames: int
     warnings: list[str] = field(default_factory=list)
 
 
-def _noop(stage: str, current: int, total: int, message: str) -> None:  # noqa: ARG001
+def _noop(stage: str, current: int, total: int, message: str) -> None:
     pass
 
 
@@ -81,7 +81,7 @@ def _format_elapsed(seconds: float) -> str:
     """処理にかかった時間の表示用（`_format_duration` は動画長のおおよそ表示用で別物）。"""
     if seconds < 60:
         return f"{seconds:.1f}秒"
-    minutes, sec = divmod(int(round(seconds)), 60)
+    minutes, sec = divmod(round(seconds), 60)
     if minutes < 60:
         return f"{minutes}分{sec:02d}秒"
     hours, minutes = divmod(minutes, 60)
@@ -91,7 +91,7 @@ def _format_elapsed(seconds: float) -> str:
 def _format_duration(seconds: float) -> str:
     if not seconds:
         return "（不明）"
-    seconds = int(round(seconds))
+    seconds = round(seconds)
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     if h:
@@ -135,8 +135,8 @@ def run(
 
     # LLM サーバーを一度作り、以降ずっと使う。
     client = deps.make_client(config)
-    minutes_path: Optional[Path] = None
-    frame_notes_path: Optional[Path] = None
+    minutes_path: Path | None = None
+    frame_notes_path: Path | None = None
     try:
         # 0) 起動前チェック（重い処理の前に LLM サーバーとモデルを確認） --------
         check_cancel(cancel_event)
@@ -159,7 +159,7 @@ def run(
         duration = 0.0
         try:
             duration = float(deps.probe_duration(video_path))
-        except Exception as exc:  # noqa: BLE001 - 長さ取得の失敗は致命的でない
+        except Exception as exc:
             warnings.append(f"動画長の取得に失敗: {exc}")
         progress("audio", 1, 1, f"音声抽出が完了（所要 {_format_elapsed(audio_elapsed)}）")
 
@@ -175,7 +175,7 @@ def run(
                     "transcribe", len(segments), len(segments),
                     f"既存の文字起こしを再利用（{len(segments)} 区間）",
                 )
-            except Exception as exc:  # noqa: BLE001 - 壊れていたら作り直す
+            except Exception as exc:
                 warnings.append(f"transcript.json の再利用に失敗、作り直します: {exc}")
                 segments = None
         if segments is None:
@@ -205,7 +205,7 @@ def run(
             )
 
         # 3) フレーム抽出（再利用可）--------------------------------
-        frames_index: Optional[Path] = out_dir / "frames" / "frames.json"
+        frames_index: Path = out_dir / "frames" / "frames.json"
         frames = None
         if reuse and frames_index.is_file():
             try:
@@ -215,7 +215,7 @@ def run(
                         "frames", len(frames), len(frames),
                         f"既存のフレームを再利用（{len(frames)} 枚）",
                     )
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 warnings.append(f"frames/frames.json の再利用に失敗、作り直します: {exc}")
                 frames = None
         if frames is None:
@@ -268,7 +268,7 @@ def run(
         if callable(_lcl):
             try:
                 ctx_tokens = _lcl()
-            except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
+            except Exception:
                 ctx_tokens = None
 
         # 開始メッセージは generate_minutes 自身が _mp 経由ですぐ出す

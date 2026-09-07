@@ -156,7 +156,7 @@ def test_pipeline_runs_stages_in_order(config, video):
     client = FakeClient()
     events: list[tuple] = []
 
-    result = run(
+    run(
         video,
         config,
         on_progress=lambda *a: events.append(a),

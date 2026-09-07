@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
-from typing import Callable
-
 import tkinter as tk
+from collections.abc import Callable
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, normalize_language, t
@@ -88,7 +87,7 @@ def _open_in_finder(path: Path) -> None:
             os.startfile(str(path))  # type: ignore[attr-defined]
         else:
             subprocess.run(["xdg-open", str(path)], check=False)
-    except Exception:  # noqa: BLE001 - 開けなくても致命的でない
+    except Exception:
         pass
 
 

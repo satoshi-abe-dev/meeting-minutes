@@ -14,8 +14,8 @@ from __future__ import annotations
 import queue
 import threading
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, normalize_language, t
 from meeting_minutes.model.cancel import PipelineCancelled
@@ -59,7 +59,7 @@ class MainPresenter:
         _cfg_tpl = self.config_obj.output.template_path
         self._template_path: str | None = _cfg_tpl or None  # 「ファイルを選択」側の対象
 
-        self._events: "queue.Queue[tuple]" = queue.Queue()
+        self._events: queue.Queue[tuple] = queue.Queue()
         self._worker: threading.Thread | None = None
         self._reuse: bool = True
         self._cancel_event: threading.Event | None = None
@@ -196,7 +196,7 @@ class MainPresenter:
             self._events.put(("result", result))
         except PipelineCancelled:
             self._events.put(("cancelled",))
-        except Exception as exc:  # noqa: BLE001 - UI に見せるため全捕捉
+        except Exception as exc:
             self._events.put(("error", exc, traceback.format_exc()))
 
     # --- queue 消化（UI スレッド） --------------------------------
