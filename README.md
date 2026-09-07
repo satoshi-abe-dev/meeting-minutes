@@ -114,8 +114,7 @@ GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、�
   GPU を使う mlx-whisper、それ以外は faster-whisper。`config.toml` で固定もできる。
 - **設定の多層化** — デフォルト < `config.toml` < 環境変数。TOML は標準 `tomllib` で依存ゼロ。
 
-判断の理由とトレードオフは [`docs/DESIGN.md`](docs/DESIGN.md)、
-想定質問と回答は [`docs/interview-qa.md`](docs/interview-qa.md)。
+判断の理由とトレードオフは [`docs/DESIGN.md`](docs/DESIGN.md)。
 
 ## 開発体制（AI協調開発）
 
