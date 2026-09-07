@@ -36,6 +36,9 @@ manager は、worker が発行した PR の内容を精査し、問題がなけ�
   含まれていないか）。
 - `.gitignore` が `config.toml` / `output/` / `temp/` 等を正しく除外しているか。
 - 意図した差分のみか（対応する Issue／依頼の範囲を超える変更がないか）。
+- テストが通っていること。CI（`gh pr checks <PR番号>`）の結果を確認する。CI がカバーしない
+  範囲（`needs_ffmpeg` 等、CI 環境に無いツールに依存するテスト）は、ローカルで
+  `python -m pytest` を実行して補う（全件のフル再実行はしなくてよい）。
 - 破壊的操作（force push・履歴書き換え等）が含まれていないか。
 - 別ベンダー（OpenAI Codex）による独立コードレビュー（`codex exec review --commit <SHA>`）を
   実行し、指摘があればマージせず考慮する（manager と worker が同一モデルである弱点を補うため）。
