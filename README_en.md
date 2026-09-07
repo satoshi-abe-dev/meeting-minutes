@@ -226,3 +226,7 @@ This project was implemented through collaborative development by multiple Claud
 - **when a class of finding recurs, the operational rules themselves are updated** — not just the individual PRs; the loop is structured to improve itself (example: the old-path guard in `.gitignore` was dropped three times in a row across PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule)
 
 Because this project handles real meeting data, the practice of grepping tracked files for leaked confidential data before every push / PR is strictly followed.
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for the full text.
