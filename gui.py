@@ -30,7 +30,8 @@ from meeting_minutes.pipeline import run  # noqa: E402
 from meeting_minutes.transcribe import resolve_backend  # noqa: E402
 
 _WINDOW_WIDTH = 760
-_WINDOW_HEIGHT = 560
+# 議事録フォーマットのラジオ 3 択ぶんの高さを見込む（内容の必要高に合わせる）。
+_WINDOW_HEIGHT = 590
 
 _STAGE_LABEL = {
     "preflight": "サーバー確認",
@@ -136,7 +137,14 @@ class App:
         # ラジオ／ファイル選択はその回だけの上書き（config.toml は書き換えない）。
         _cfg_tpl = self.config_obj.output.template_path
         self._template_path: str | None = _cfg_tpl or None  # 「ファイルを選択」側の対象
-        self._fmt_mode = tk.StringVar(value="file" if _cfg_tpl else "builtin")
+        # 初期選択は config の優先順位（auto > file > builtin）に合わせる。
+        if self.config_obj.output.auto_structure:
+            _init_fmt = "auto"
+        elif _cfg_tpl:
+            _init_fmt = "file"
+        else:
+            _init_fmt = "builtin"
+        self._fmt_mode = tk.StringVar(value=_init_fmt)
 
         self._events: "queue.Queue[tuple]" = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -165,9 +173,9 @@ class App:
         self.file_label = ttk.Label(video_row, text="未選択", foreground="#666")
         self.file_label.pack(side="left", padx=(8, 0))
 
-        # 行1〜2: 議事録フォーマット（見出し・構成）の選択。ラジオ 2 択。
-        # ラベルは「内蔵（既定）」と同じ行（row=1）に置く。row=2（ファイルを選択）の
-        # 列0 は空欄のまま。
+        # 行1〜3: 議事録フォーマット（見出し・構成）の選択。ラジオ 3 択。
+        # ラベルは「内蔵（既定）」と同じ行（row=1）に置く。row=2（ファイルを選択）と
+        # row=3（おまかせ）の列0 は空欄のまま。
         ttk.Label(head, text="議事録フォーマット:").grid(
             row=1, column=0, sticky="w", pady=(6, 0)
         )
@@ -200,6 +208,21 @@ class App:
             foreground="#666",
         )
         self._tpl_name_label.pack(side="left", padx=(8, 0))
+
+        auto_radio = ttk.Radiobutton(
+            head, text="おまかせ（動画に合わせて自動生成）", value="auto",
+            variable=self._fmt_mode, command=self._sync_fmt_widgets,
+        )
+        auto_radio.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=(2, 0))
+        _Tooltip(
+            auto_radio,
+            "「おまかせ」は、動画の内容に合わせて議事録の見出し構成を毎回 AI に"
+            "提案させます（例: 団体旅行の説明会なら「スケジュール」「持ち物」"
+            "「注意事項」など）。生成された構成は出力フォルダーの structure_used.txt に"
+            "保存され、気に入ればテンプレートファイルとして保存して、以後は"
+            "「ファイルを選択」で固定できます。生成に失敗した場合は自動的に"
+            "「内蔵」で作成します。",
+        )
         self._sync_fmt_widgets()
 
         # ttk.LabelFrame のタイトルは標準で小さいフォントになるため、通常サイズの
@@ -373,15 +396,23 @@ class App:
         self._reuse = self.reuse_var.get()  # UI スレッドで読んでおく
         self._cancel_event = threading.Event()
         # この回で使う議事録フォーマット（GUI の選択で config.toml をその回だけ上書き）。
+        # 3 つのラジオが排他的に 1 状態を表す。config.toml で auto_structure=true でも
+        # GUI で「内蔵」「ファイルを選択」を選んだらそちらが勝つよう、両フラグを毎回セット。
+        fmt_mode = self._fmt_mode.get()
         tpl = self._selected_template_path()
+        self.config_obj.output.auto_structure = fmt_mode == "auto"
         self.config_obj.output.template_path = tpl
+        if fmt_mode == "auto":
+            fmt_desc = "おまかせ（動画に合わせて自動生成）"
+        elif tpl:
+            fmt_desc = tpl
+        else:
+            fmt_desc = "内蔵（既定）"
         self._append_log(
             f"開始: {self.video_path.name}"
             + ("" if self._reuse else "（最初からやり直す）")
         )
-        self._append_log(
-            "議事録フォーマット: " + (tpl if tpl else "内蔵（既定）")
-        )
+        self._append_log("議事録フォーマット: " + fmt_desc)
 
         self._worker = threading.Thread(target=self._work, daemon=True)
         self._worker.start()
