@@ -31,6 +31,11 @@ config.toml
 .claude/*
 !.claude/CLAUDE.md
 
+# 非公開ファイル専用フォルダー（面接想定問答集などの個人資料）。まるごとコミットしない
+# （Issue #65）。Claude Code が自動読み込みする .claude/CLAUDE.md だけはここへ移せず
+# .claude/ 側に残る。
+private/
+
 # Claude Code に見せる画像・動画などの一時受け渡し場所
 temp/
 
@@ -43,8 +48,4 @@ docs/ai-workflow/SESSION_LOG.md
 # 実運用中のカスタム議事録テンプレート（利用者ごとの様式。機密になり得るのでコミット
 # しない）。雛形の templates/minutes_template_example.txt は追跡対象のまま。
 templates/minutes_template.txt
-
-# 本人の面接想定問答集（一人称の受け答えメモ・口頭説明用の台本）。プロジェクトの
-# 技術ドキュメントではなく個人メモなのでコミットしない。ファイル自体は docs/ に残す。
-docs/interview-qa.md
 
