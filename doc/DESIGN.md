@@ -166,9 +166,12 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 
 **議事録の「構造」を外部テンプレートで差し替え可能に（2026-09、Issue #21）:** お客様
 ごとの規定様式に対応するため、`_MINUTES_TEMPLATE` を「構造（`_MINUTES_STRUCTURE`）」と
-「入力セクション（`_MINUTES_INPUT`）」に分割。`config.toml` の `[output] template_path`
-（GUI の「テンプレートを選択…」/ CLI の `--template` でその回だけ上書き可）で構造を
-差し替える。要点:
+「入力セクション（`_INPUT_TRANSCRIPT` / `_INPUT_FRAMES`）」に分割。`config.toml` の
+`[output] template_path` で構造を差し替える（`generate_minutes(template_path=...)` へは
+`pipeline` が config から渡す）。当初は GUI ボタン / CLI `--template` で実行時に一時
+上書きする経路も付けたが、複数様式を頻繁に切り替える運用が無く不要と判断して削除し、
+指定方法は config 一本に整理した（GUI は「今どのテンプレートか」を読み取り専用で表示）。
+要点:
 
 - **システムプロンプト（`prompts/minutes_ja.txt` の捏造禁止等）はテンプレートに関わらず
   常に適用**。テンプレートは構造だけ。品質ルールを客先様式に巻き込ませない。

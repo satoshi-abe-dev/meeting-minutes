@@ -62,12 +62,6 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="既存の文字起こし・フレームを再利用せず最初からやり直す",
     )
-    parser.add_argument(
-        "--template",
-        default=None,
-        help="議事録テンプレート（構造）のパス。省略時は config.toml の [output] template_path。"
-        "見つからない/読めない場合は内蔵テンプレートにフォールバック",
-    )
     args = parser.parse_args(argv)
 
     try:
@@ -75,9 +69,6 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"エラー: {exc}", file=sys.stderr)
         return 2
-
-    if args.template is not None:
-        config.output.template_path = args.template
 
     started = time.monotonic()
     try:
