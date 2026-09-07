@@ -102,7 +102,7 @@ python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・�
 
 ## 設定
 
-`config.toml`（無ければ `config.example.toml`）で調整。主な項目:
+`config.toml`（無ければ `config.example.toml` をコピーして作る）で調整。主な項目:
 
 - `[llm] base_url` — ローカルサーバーの接続先（Ollama なら `http://localhost:11434/v1`）
 - `[llm] model` / `[llm] vlm_model` — ロード済みモデル名
