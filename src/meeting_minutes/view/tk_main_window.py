@@ -118,13 +118,20 @@ class TkMainWindow(MainView):
 
     # --- UI 構築 -------------------------------------------------------
     def _build_ui(self) -> None:
+        # レイアウトは pack ではなく grid で統一する（`fill="x"` の有無で中央/左揃えが
+        # 暗黙に変わる pack より、grid で配置意図を明示するほうが読みやすい）。
+        # self.root は 1 列（column=0, weight=1）に各ブロックを縦積みする。横いっぱいに
+        # 広げたいものは sticky="ew"、ログ欄だけ縦にも伸ばすので sticky="nsew" ＋
+        # その行に rowconfigure(weight=1)。中身に合わせて縮めて中央寄せしたい run_bar /
+        # done_bar は sticky を付けない（grid 既定でセル内中央）。
         pad = {"padx": 10, "pady": 6}
+        self.root.columnconfigure(0, weight=1)
 
         # 各行を「列0＝説明ラベル、列1＝操作」で統一する。列0 の幅は grid 自動
         # （行内で広い方＝「議事録フォーマット:」に合う）に任せ、列1 の開始位置は
         # 共有列なので全行で自動的に揃う。
         head = ttk.Frame(self.root)
-        head.pack(fill="x", **pad)
+        head.grid(row=0, column=0, sticky="ew", **pad)
         head.columnconfigure(1, weight=1)
 
         # 行0: 動画ファイル
@@ -136,11 +143,11 @@ class TkMainWindow(MainView):
         ttk.Button(
             video_row, text=self._t("button.choose"),
             command=lambda: self._fire("choose_video"),
-        ).pack(side="left")
+        ).grid(row=0, column=0)
         self.file_label = ttk.Label(
             video_row, text=self._t("label.unselected"), foreground="#666"
         )
-        self.file_label.pack(side="left", padx=(8, 0))
+        self.file_label.grid(row=0, column=1, padx=(8, 0))
 
         # 行1〜3: 議事録フォーマット（見出し・構成）の選択。ラジオ 3 択。
         # ラベルは「内蔵（既定）」と同じ行（row=1）に置く。row=2（おまかせ）と
@@ -160,16 +167,16 @@ class TkMainWindow(MainView):
         ttk.Radiobutton(
             file_row, text=self._t("radio.file"), value="file",
             variable=self._fmt_mode, command=self._sync_fmt_widgets,
-        ).pack(side="left")
+        ).grid(row=0, column=0)
         self._tpl_pick_btn = ttk.Button(
             file_row, text=self._t("button.choose"),
             command=lambda: self._fire("pick_template"),
         )
-        self._tpl_pick_btn.pack(side="left", padx=(8, 0))
+        self._tpl_pick_btn.grid(row=0, column=1, padx=(8, 0))
         self._tpl_name_label = ttk.Label(
             file_row, text=self._t("label.unselected"), foreground="#666"
         )
-        self._tpl_name_label.pack(side="left", padx=(8, 0))
+        self._tpl_name_label.grid(row=0, column=2, padx=(8, 0))
 
         auto_radio = ttk.Radiobutton(
             head, text=self._t("radio.auto"), value="auto",
@@ -186,21 +193,21 @@ class TkMainWindow(MainView):
         # 色は明るい背景（systemWindowBackgroundColor ≒ 白〜淡灰）に対して WCAG 非テキスト
         # UI 基準 3:1 を満たす #808080（対白 約 4.0:1 / 対 #ECECEC 約 3.3:1）。
         cfg_label = ttk.Label(self.root, text=self._t("label.settings"))
-        cfg_label.pack(anchor="w", padx=10, pady=(6, 2))
+        cfg_label.grid(row=1, column=0, sticky="w", padx=10, pady=(6, 2))
         cfg = tk.Frame(
             self.root, highlightbackground="#808080", highlightthickness=1, bd=0
         )
-        cfg.pack(fill="x", padx=10, pady=(0, 6))
+        cfg.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 6))
         # 本文は Presenter が set_config_summary() で流し込む（config + resolve_backend）。
         self._cfg_summary_label = ttk.Label(cfg, text="", justify="left")
-        self._cfg_summary_label.pack(anchor="w", padx=8, pady=6)
+        self._cfg_summary_label.grid(row=0, column=0, sticky="w", padx=8, pady=6)
 
         reuse_check = ttk.Checkbutton(
             self.root,
             text=self._t("check.reuse"),
             variable=self.reuse_var,
         )
-        reuse_check.pack(anchor="w", padx=10)
+        reuse_check.grid(row=3, column=0, sticky="w", padx=10)
         _Tooltip(reuse_check, self._t("tooltip.reuse"))
 
         info = ttk.Label(
@@ -210,51 +217,55 @@ class TkMainWindow(MainView):
             wraplength=720,
             justify="left",
         )
-        info.pack(fill="x", padx=10)
+        info.grid(row=4, column=0, sticky="ew", padx=10)
 
         run_bar = ttk.Frame(self.root)
-        run_bar.pack(**pad)
+        run_bar.grid(row=5, column=0, **pad)
         self.run_btn = ttk.Button(
             run_bar, text=self._t("button.run"), command=lambda: self._fire("start"),
             state="disabled",
         )
-        self.run_btn.pack(side="left")
+        self.run_btn.grid(row=0, column=0)
         self.stop_btn = ttk.Button(
             run_bar, text=self._t("button.stop"), command=lambda: self._fire("stop"),
             state="disabled",
         )
-        self.stop_btn.pack(side="left", padx=(8, 0))
+        self.stop_btn.grid(row=0, column=1, padx=(8, 0))
 
         self.stage_label = ttk.Label(self.root, text=self._t("label.waiting"))
-        self.stage_label.pack(fill="x", padx=10)
+        self.stage_label.grid(row=6, column=0, sticky="ew", padx=10)
         self.progress = ttk.Progressbar(self.root, mode="determinate", maximum=1000)
-        self.progress.pack(fill="x", padx=10, pady=(0, 6))
+        self.progress.grid(row=7, column=0, sticky="ew", padx=10, pady=(0, 6))
 
+        # ログ欄だけウィンドウのリサイズで縦にも伸びる（行8 に weight）。
+        self.root.rowconfigure(8, weight=1)
         logframe = ttk.Frame(self.root)
-        logframe.pack(fill="both", expand=True, **pad)
+        logframe.grid(row=8, column=0, sticky="nsew", **pad)
+        logframe.columnconfigure(0, weight=1)
+        logframe.rowconfigure(0, weight=1)
         self.log = tk.Text(logframe, height=12, state="disabled", wrap="word")
-        self.log.pack(side="left", fill="both", expand=True)
+        self.log.grid(row=0, column=0, sticky="nsew")
         sb = ttk.Scrollbar(logframe, command=self.log.yview)
-        sb.pack(side="right", fill="y")
+        sb.grid(row=0, column=1, sticky="ns")
         self.log.configure(yscrollcommand=sb.set)
 
         self.done_bar = ttk.Frame(self.root)
-        # fill="x" を付けない → run_bar と同じくフレームが中身に合わせて縮み、中央に配置される
-        self.done_bar.pack(**pad)
+        # sticky を付けない → run_bar と同じくフレームが中身に合わせて縮み、セル内で中央に配置される
+        self.done_bar.grid(row=9, column=0, **pad)
         self.open_minutes_btn = ttk.Button(
             self.done_bar,
             text=self._t("button.open_minutes"),
             command=lambda: self._fire("open_minutes"),
             state="disabled",
         )
-        self.open_minutes_btn.pack(side="left")
+        self.open_minutes_btn.grid(row=0, column=0)
         self.open_folder_btn = ttk.Button(
             self.done_bar,
             text=self._t("button.open_folder"),
             command=lambda: self._fire("open_folder"),
             state="disabled",
         )
-        self.open_folder_btn.pack(side="left", padx=8)
+        self.open_folder_btn.grid(row=0, column=1, padx=8)
 
         self._center_on_screen(_WINDOW_WIDTH, _WINDOW_HEIGHT)
 
