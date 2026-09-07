@@ -20,6 +20,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = REPO_ROOT / "prompts"
 
 
+def _to_bool(raw: str) -> bool:
+    """環境変数の真偽値。"1"/"true"/"yes"/"on"（大小無視）だけ True。"""
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
 def load_prompt(name: str) -> str:
     """prompts/<name> を読み込んで文字列で返す。"""
     path = PROMPTS_DIR / name
@@ -86,6 +91,11 @@ class OutputConfig:
     # ここに設定しておくと毎回自動で使われる（GUI のドロップダウンからその回だけ上書きも可能）。
     # 存在しない・読めない・空の場合は内蔵にフォールバックし警告する。
     template_path: str = ""
+    # 「おまかせ」モード: 動画の内容に合わせて議事録の見出し構成を LLM に自動生成させる。
+    # True なら template_path より優先（優先順位: auto > file > builtin）。生成された構成は
+    # output/<動画名>/structure_used.txt に保存され、気に入れば templates/ にコピーして
+    # 固定テンプレートとして使い回せる。生成に失敗したら内蔵にフォールバックし警告する。
+    auto_structure: bool = False
 
 
 @dataclass
@@ -103,7 +113,7 @@ class Config:
 
 
 # 環境変数 -> (セクション, キー, 変換関数) の対応表
-_ENV_MAP: dict[str, tuple[str, str, type]] = {
+_ENV_MAP: dict[str, tuple[str, str, object]] = {
     "MM_LLM_BASE_URL": ("llm", "base_url", str),
     "MM_LLM_API_KEY": ("llm", "api_key", str),
     "MM_LLM_MODEL": ("llm", "model", str),
@@ -124,6 +134,7 @@ _ENV_MAP: dict[str, tuple[str, str, type]] = {
     "MM_FRAMES_MIN_GAP_SEC": ("frames", "min_gap_sec", float),
     "MM_OUTPUT_DIR": ("output", "dir", str),
     "MM_OUTPUT_TEMPLATE_PATH": ("output", "template_path", str),
+    "MM_OUTPUT_AUTO_STRUCTURE": ("output", "auto_structure", _to_bool),
 }
 
 _SECTION_TYPES = {
