@@ -8,8 +8,8 @@ Presenter はこの契約と Model（``meeting_minutes.model.*``）にだけ依�
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 
 class MainView(ABC):

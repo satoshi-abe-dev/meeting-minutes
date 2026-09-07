@@ -9,9 +9,9 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable
 
 from .cancel import check_cancel
 from .config import load_prompt
@@ -38,7 +38,7 @@ class FrameNote:
 
 
 def _hhmmss(seconds: float) -> str:
-    seconds = max(0, int(round(seconds)))
+    seconds = max(0, round(seconds))
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
@@ -55,7 +55,7 @@ def _format_elapsed(seconds: float) -> str:
     """処理にかかった時間の表示用（pipeline.py / minutes.py にも同名の複製がある）。"""
     if seconds < 60:
         return f"{seconds:.1f}秒"
-    minutes, sec = divmod(int(round(seconds)), 60)
+    minutes, sec = divmod(round(seconds), 60)
     if minutes < 60:
         return f"{minutes}分{sec:02d}秒"
     hours, minutes = divmod(minutes, 60)
@@ -133,7 +133,7 @@ def describe_frames(
         except LLMConnectionError:
             # 接続そのものが死んでいる場合は続けても無駄なので中断
             raise
-        except Exception as exc:  # noqa: BLE001 - 1 枚の失敗は握りつぶして続行
+        except Exception as exc:
             desc = f"(解析失敗: {exc})"
         elapsed = _format_elapsed(time.monotonic() - t0)
         notes.append(

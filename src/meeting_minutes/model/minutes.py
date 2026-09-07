@@ -10,9 +10,9 @@ import json
 import re
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from .cancel import check_cancel
 from .config import LLMConfig, load_prompt
@@ -244,7 +244,7 @@ def load_minutes_structure(
 
 
 def _fill_minutes_template(
-    structure: str, meta: "MinutesMeta", transcript: str, frames: str
+    structure: str, meta: MinutesMeta, transcript: str, frames: str
 ) -> str:
     """テンプレート（構造）にメタ情報・入力を差し込んで完成プロンプトを返す。
 
@@ -460,7 +460,7 @@ def _generate_structure(
             user=_STRUCTURE_PROMPT.replace("{material}", material),
             max_tokens=max_tokens,
         ).strip()
-    except Exception as exc:  # noqa: BLE001 - 失敗しても内蔵で続行するため全捕捉
+    except Exception as exc:
         if on_progress:
             on_progress(
                 0, 1,
@@ -491,7 +491,7 @@ def _resolve_auto_structure(
     client: LLMClient,
     material: str,
     fallback_structure: str,
-    out_dir: "str | Path | None",
+    out_dir: str | Path | None,
     *,
     model: str,
     max_tokens: int,
@@ -550,7 +550,7 @@ def _format_elapsed(seconds: float) -> str:
     近い割にモジュールをまたぐほどではないのでローカルに複製している）。"""
     if seconds < 60:
         return f"{seconds:.1f}秒"
-    minutes, sec = divmod(int(round(seconds)), 60)
+    minutes, sec = divmod(round(seconds), 60)
     if minutes < 60:
         return f"{minutes}分{sec:02d}秒"
     hours, minutes = divmod(minutes, 60)

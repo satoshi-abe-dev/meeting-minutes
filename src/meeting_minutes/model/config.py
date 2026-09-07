@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import os
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields
 from pathlib import Path
+from typing import cast
 
 from meeting_minutes.i18n import normalize_language
 
@@ -124,7 +126,7 @@ class Config:
 
 
 # 環境変数 -> (セクション, キー, 変換関数) の対応表
-_ENV_MAP: dict[str, tuple[str, str, object]] = {
+_ENV_MAP: dict[str, tuple[str, str, Callable[[str], object]]] = {
     "MM_LLM_BASE_URL": ("llm", "base_url", str),
     "MM_LLM_API_KEY": ("llm", "api_key", str),
     "MM_LLM_MODEL": ("llm", "model", str),
@@ -222,7 +224,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         setattr(sections[section], key, casted)
 
     # GUI 言語は対応外の値なら既定（ja）に丸める（TOML・環境変数どちらの経路でも）。
-    gui = sections["gui"]
+    gui = cast(GuiConfig, sections["gui"])
     gui.language = normalize_language(getattr(gui, "language", None))
 
     return Config(**sections)  # type: ignore[arg-type]

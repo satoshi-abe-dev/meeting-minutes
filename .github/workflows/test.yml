@@ -1,4 +1,6 @@
-# CI: pytest を Linux / Windows / macOS で回す（Issue #8）。
+# CI:
+#   tests … pytest を Linux / Windows / macOS で回す（Issue #8）
+#   lint  … ruff（lint）と mypy（型チェック）を Linux で回す（Issue #9）
 #
 # meeting-minutes のテストは tkinter / 画面に依存しない（GUI ロジックのテストも
 # FakeMainView 経由で tkinter を import しないため）。Xvfb 等の追加設定は不要。
@@ -39,3 +41,22 @@ jobs:
       # skip されるのが見える）。
       - name: Run pytest
         run: python -m pytest -ra
+
+  # ruff / mypy の結果は OS に依らないので Linux 1 本だけ。
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: ruff (lint)
+        run: python -m ruff check src tests
+
+      - name: mypy (type check)
+        run: python -m mypy

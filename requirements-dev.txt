@@ -2,3 +2,7 @@
 -r requirements.txt
 
 pytest>=8.0.0
+
+# lint（ruff）と型チェック（mypy）。設定は pyproject.toml の [tool.ruff] / [tool.mypy]。
+ruff>=0.16
+mypy>=1.11

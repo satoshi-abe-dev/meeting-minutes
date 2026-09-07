@@ -21,8 +21,8 @@ import time
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from meeting_minutes.model.config import load_config  # noqa: E402
-from meeting_minutes.model.pipeline import run  # noqa: E402
+from meeting_minutes.model.config import load_config
+from meeting_minutes.model.pipeline import run
 
 _STAGE_LABEL = {
     "audio": "音声抽出",
@@ -35,15 +35,17 @@ _STAGE_LABEL = {
 
 
 def _make_reporter():
-    last = {"stage": None, "t": 0.0}
+    last_stage: str | None = None
+    last_t = 0.0
 
     def report(stage: str, current: int, total: int, message: str) -> None:
+        nonlocal last_stage, last_t
         now = time.monotonic()
         # 同じ工程の細かい進捗は 0.5 秒に 1 回だけ出す（ログを溢れさせない）
-        if stage == last["stage"] and now - last["t"] < 0.5 and stage != "done":
+        if stage == last_stage and now - last_t < 0.5 and stage != "done":
             return
-        last["stage"] = stage
-        last["t"] = now
+        last_stage = stage
+        last_t = now
         label = _STAGE_LABEL.get(stage, stage)
         if total:
             print(f"[{label}] {current}/{total}  {message}", flush=True)
@@ -82,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"エラー: {exc}", file=sys.stderr)
         return 2
-    except Exception as exc:  # noqa: BLE001 - CLI なのでスタックより読めるメッセージを優先
+    except Exception as exc:
         print(f"失敗しました: {exc}", file=sys.stderr)
         return 1
 

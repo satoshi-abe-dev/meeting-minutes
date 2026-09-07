@@ -31,7 +31,7 @@ class Frame:
 
 
 def _hhmmss(seconds: float) -> str:
-    seconds = max(0, int(round(seconds)))
+    seconds = max(0, round(seconds))
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     return f"{h:02d}{m:02d}{s:02d}"
@@ -112,7 +112,7 @@ def extract_frames(
     keep_set = set(keep)
 
     frames: list[Frame] = []
-    for i, (ts, raw) in enumerate(zip(timestamps, raw_files)):
+    for i, (ts, raw) in enumerate(zip(timestamps, raw_files, strict=True)):
         if i not in keep_set:
             continue
         seq = len(frames) + 1

@@ -26,10 +26,10 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from meeting_minutes.model.config import load_config  # noqa: E402
-from meeting_minutes.model.pipeline import run as run_pipeline  # noqa: E402
-from meeting_minutes.presenter.main import MainPresenter  # noqa: E402
-from meeting_minutes.view.tk_main_window import TkMainWindow  # noqa: E402
+from meeting_minutes.model.config import load_config
+from meeting_minutes.model.pipeline import run as run_pipeline
+from meeting_minutes.presenter.main import MainPresenter
+from meeting_minutes.view.tk_main_window import TkMainWindow
 
 
 def main() -> int:

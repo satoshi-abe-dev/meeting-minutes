@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 
 from meeting_minutes.i18n import (
+    _STRINGS,
     DEFAULT_LANGUAGE,
     SUPPORTED_LANGUAGES,
-    _STRINGS,
     normalize_language,
     t,
 )

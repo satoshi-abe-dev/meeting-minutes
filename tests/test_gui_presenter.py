@@ -7,8 +7,8 @@ View の Tkinter 実装（view/tk_main_window.py）は読み込まないため t
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pytest
 
@@ -371,7 +371,7 @@ def test_english_start_log_and_format_error():
     )
     assert "Minutes format: Built-in (default)" in view.log
 
-    view2, presenter2 = _make(language="en")
+    view2, _ = _make(language="en")
     view2.next_video_path = "/v/m.mp4"
     view2.handlers["choose_video"]()
     view2._format_mode = "file"

@@ -197,7 +197,7 @@ class LLMClient:
             resp = self._client.get("/models")
             data = resp.json()
             return [m.get("id", "") for m in data.get("data", []) if m.get("id")]
-        except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
+        except Exception:
             return []
 
     def loaded_context_length(self, model: str | None = None) -> int | None:
@@ -219,7 +219,7 @@ class LLMClient:
             if resp.status_code >= 400:
                 return None
             entries = resp.json().get("data", [])
-        except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
+        except Exception:
             return None
 
         want = model or self.config.model
@@ -254,7 +254,7 @@ class LLMClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "LLMClient":
+    def __enter__(self) -> LLMClient:
         return self
 
     def __exit__(self, *exc) -> None:
