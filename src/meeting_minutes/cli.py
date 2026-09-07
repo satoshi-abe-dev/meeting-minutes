@@ -21,8 +21,8 @@ import time
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from meeting_minutes.config import load_config  # noqa: E402
-from meeting_minutes.pipeline import run  # noqa: E402
+from meeting_minutes.model.config import load_config  # noqa: E402
+from meeting_minutes.model.pipeline import run  # noqa: E402
 
 _STAGE_LABEL = {
     "audio": "音声抽出",

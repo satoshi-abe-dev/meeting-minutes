@@ -5,8 +5,9 @@ from __future__ import annotations
 import sys
 import types
 
-from meeting_minutes import prefetch, transcribe
-from meeting_minutes.config import Config
+from meeting_minutes import prefetch
+from meeting_minutes.model import transcribe
+from meeting_minutes.model.config import Config
 
 
 def _config(backend: str, model: str) -> Config:

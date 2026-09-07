@@ -26,8 +26,8 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from meeting_minutes.config import load_config  # noqa: E402
-from meeting_minutes.transcribe import _mlx_model_repo, resolve_backend  # noqa: E402
+from meeting_minutes.model.config import load_config  # noqa: E402
+from meeting_minutes.model.transcribe import _mlx_model_repo, resolve_backend  # noqa: E402
 
 
 def prefetch_transcribe_model(config) -> str:

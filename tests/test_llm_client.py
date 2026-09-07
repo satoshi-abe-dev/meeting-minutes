@@ -7,8 +7,8 @@ import json
 import httpx
 import pytest
 
-from meeting_minutes.config import LLMConfig
-from meeting_minutes.llm_client import LLMClient, LLMConnectionError
+from meeting_minutes.model.config import LLMConfig
+from meeting_minutes.model.llm_client import LLMClient, LLMConnectionError
 
 
 class _Resp:

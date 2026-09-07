@@ -15,8 +15,8 @@ import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
-# リポジトリのルート（このファイルは src/meeting_minutes/config.py）
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# リポジトリのルート（このファイルは src/meeting_minutes/model/config.py なので 3 つ上）
+REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPTS_DIR = REPO_ROOT / "prompts"
 
 

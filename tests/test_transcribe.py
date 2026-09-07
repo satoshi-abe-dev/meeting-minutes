@@ -12,10 +12,10 @@ import types
 
 import pytest
 
-from meeting_minutes import transcribe
-from meeting_minutes.cancel import PipelineCancelled
-from meeting_minutes.config import TranscribeConfig
-from meeting_minutes.transcribe import (
+from meeting_minutes.model import transcribe
+from meeting_minutes.model.cancel import PipelineCancelled
+from meeting_minutes.model.config import TranscribeConfig
+from meeting_minutes.model.transcribe import (
     Segment,
     _mlx_model_repo,
     _transcribe_faster_whisper,

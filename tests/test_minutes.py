@@ -7,9 +7,9 @@ import threading
 
 import pytest
 
-from meeting_minutes.cancel import PipelineCancelled
-from meeting_minutes.config import LLMConfig
-from meeting_minutes.minutes import (
+from meeting_minutes.model.cancel import PipelineCancelled
+from meeting_minutes.model.config import LLMConfig
+from meeting_minutes.model.minutes import (
     MinutesMeta,
     _DEFAULT_SYSTEM,
     _fill_minutes_template,
@@ -21,8 +21,8 @@ from meeting_minutes.minutes import (
     generate_minutes,
     load_minutes_structure,
 )
-from meeting_minutes.transcribe import Segment
-from meeting_minutes.vision import FrameNote
+from meeting_minutes.model.transcribe import Segment
+from meeting_minutes.model.vision import FrameNote
 
 
 class FakeClient:
@@ -54,7 +54,7 @@ def chunking_config() -> LLMConfig:
 def test_approx_tokens_ratio_matches_measured_qwen_japanese():
     """_approx_tokens は実測（Qwen2.5 tokenizer で日本語 ~0.5〜0.8 tok/字）に基づき
     安全側 0.8 で見積もる。"""
-    from meeting_minutes.minutes import _approx_tokens
+    from meeting_minutes.model.minutes import _approx_tokens
 
     assert _approx_tokens("あ" * 100) == 81
     assert _approx_tokens("") == 1
@@ -366,7 +366,7 @@ def test_generate_minutes_chunk_max_tokens_matches_budget_cap(tmp_path):
     ここがズレると safe_chunk_tokens の計算と実リクエストが食い違い、チャンクが
     コンテキストを超え得る（Codex 指摘）。
     """
-    from meeting_minutes.minutes import _MINUTES_RESPONSE_TOKENS
+    from meeting_minutes.model.minutes import _MINUTES_RESPONSE_TOKENS
 
     client = FakeClient(reply="要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
@@ -411,7 +411,7 @@ def test_generate_minutes_small_context_does_not_force_oversized_frames_budget()
         segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
         context_tokens=4096,
     )
-    from meeting_minutes.minutes import _approx_tokens
+    from meeting_minutes.model.minutes import _approx_tokens
     for c in client.calls:
         # どの実リクエストのプロンプトも、frames だけで ctx を食い尽くしていない
         assert _approx_tokens(c["user"]) < 4096 * 3  # ざっくり: 暴走していない
@@ -526,7 +526,7 @@ def test_generate_minutes_system_prompt_unchanged_by_custom_template(tmp_path):
 
 def test_example_template_file_matches_builtin_structure():
     """templates/minutes_template_example.txt は内蔵テンプレートと同一（雛形なので）。"""
-    from meeting_minutes.config import REPO_ROOT
+    from meeting_minutes.model.config import REPO_ROOT
 
     p = REPO_ROOT / "templates" / "minutes_template_example.txt"
     assert load_minutes_structure(str(p)) == _MINUTES_STRUCTURE.strip()
@@ -826,7 +826,7 @@ def test_auto_structure_no_size_reject_when_ctx_unknown(tmp_path):
 
 def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):
     """Codex 指摘: チャンク要約を連結した material も構造生成予算でチェック・切り詰める。"""
-    from meeting_minutes.minutes import _approx_tokens
+    from meeting_minutes.model.minutes import _approx_tokens
 
     ctx = 16000
     big_summary = "・とても長い部分要約の行。" * 400  # 連結すると構造生成予算を超える
@@ -892,7 +892,7 @@ def test_auto_structure_response_reserve_follows_llm_max_tokens():
 def test_generate_minutes_truncates_oversized_merged_transcript(tmp_path):
     """Codex 指摘: 統合ステップの実プロンプト（system+構造+merged_transcript+frames）を
     組み立てる前に実トークン数で予算チェックし、超える分は末尾を切り詰める。"""
-    from meeting_minutes.minutes import _approx_tokens, _PROMPT_MARGIN_TOKENS
+    from meeting_minutes.model.minutes import _approx_tokens, _PROMPT_MARGIN_TOKENS
 
     ctx = 12000
     # 各チャンク要約を大きく返す → 連結した merged_transcript が統合予算を超える
@@ -943,7 +943,7 @@ def test_default_system_forbids_writing_instruction_text():
 
 def test_prompt_file_forbids_writing_instruction_text():
     """prompts/minutes_ja.txt にも同じルールがある。"""
-    from meeting_minutes.config import REPO_ROOT
+    from meeting_minutes.model.config import REPO_ROOT
 
     text = (REPO_ROOT / "prompts" / "minutes_ja.txt").read_text(encoding="utf-8")
     assert _has_instruction_leak_rule(text)

@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import pytest
 
-from meeting_minutes import ffmpeg_utils
-from meeting_minutes.config import FramesConfig
-from meeting_minutes.frames import (
+from meeting_minutes.model import ffmpeg_utils
+from meeting_minutes.model.config import FramesConfig
+from meeting_minutes.model.frames import (
     Frame,
     _cap_count,
     _hhmmss,

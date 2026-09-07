@@ -12,7 +12,7 @@ from typing import Callable
 
 import pytest
 
-from meeting_minutes.config import Config
+from meeting_minutes.model.config import Config
 from meeting_minutes.presenter.main import (
     _STAGE_ORDER,
     _STAGE_WEIGHT,
