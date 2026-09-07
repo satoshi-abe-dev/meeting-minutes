@@ -3,8 +3,9 @@
 セットアップ（scripts/setup.sh）から呼ばれ、初回の文字起こし実行で
 フリーズしたように見えるのを防ぐ。手動でも実行できる:
 
-    python prefetch.py
-    python prefetch.py --config config.toml
+    python src/meeting_minutes/prefetch.py
+    python src/meeting_minutes/prefetch.py --config config.toml
+（開発者向けに `python -m meeting_minutes.prefetch` も可）
 
 解決後のバックエンド（mlx / faster-whisper）に対応する Whisper モデルだけを取得する。
 LM Studio の LLM / VLM は対象外（LM Studio 側で各自ダウンロードする）。
@@ -15,10 +16,18 @@ LM Studio の LLM / VLM は対象外（LM Studio 側で各自ダウンロード�
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
-from .config import load_config
-from .transcribe import _mlx_model_repo, resolve_backend
+# `python src/meeting_minutes/prefetch.py` のようにファイル指定で直接起動されると
+# __package__ が未設定で相対 import（from .config …）が使えない。src レイアウトの
+# パッケージ親 = src/（このファイルの 2 つ上）を sys.path に足し、絶対 import で書く。
+# import 済みモジュール（tests / `-m` / scripts）としては絶対 import でも問題なく解決する。
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from meeting_minutes.config import load_config  # noqa: E402
+from meeting_minutes.transcribe import _mlx_model_repo, resolve_backend  # noqa: E402
 
 
 def prefetch_transcribe_model(config) -> str:
@@ -68,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - セットアップ補助なので理由を見せて終了
         print(
             f"モデルの取得に失敗しました: {exc}\n"
-            "ネットワーク接続と HF_HOME を確認し、`python prefetch.py` を"
+            "ネットワーク接続と HF_HOME を確認し、`python src/meeting_minutes/prefetch.py` を"
             "後で再実行してください。未取得でも初回の文字起こし時に自動ダウンロードされます。",
             file=sys.stderr,
         )

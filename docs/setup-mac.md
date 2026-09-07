@@ -23,7 +23,7 @@ bash scripts/setup.sh
    - Apple Silicon の Mac では環境マーカーにより **mlx-whisper も一緒に入る**
      （GPU を使う文字起こしバックエンド）。Intel Mac / Linux では自動スキップされ
      faster-whisper だけになる。
-3. `python prefetch.py` で **文字起こしモデルを事前ダウンロード**
+3. `python src/meeting_minutes/prefetch.py` で **文字起こしモデルを事前ダウンロード**
    （`~/.cache/huggingface/hub/` に約 1.6GB、初回のみ。以降オフライン）。
    ダウンロードに失敗しても止まらず、初回の文字起こし実行時に自動取得される。
 
@@ -36,7 +36,7 @@ bash scripts/setup.sh
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python prefetch.py            # モデル取得（任意。省略しても初回実行時に自動DL）
+python src/meeting_minutes/prefetch.py            # モデル取得（任意。省略しても初回実行時に自動DL）
 ```
 
 ### モデルの置き場所と配布
@@ -103,13 +103,16 @@ model = "large-v3-turbo"  # 既定。精度優先なら "large-v3"、軽さ優�
 
 ```bash
 # CLI
-python cli.py sample.mp4
+python src/meeting_minutes/cli.py sample.mp4
 
 # GUI
-python gui.py
+python src/meeting_minutes/gui.py
 ```
 
 `output/sample/minutes.md` が生成されれば成功です。
+
+> 開発者向けには `python -m meeting_minutes.cli sample.mp4` / `-m meeting_minutes.gui`
+> でも起動できます（その場合は `cd src` するか `PYTHONPATH=src` を設定してください）。
 
 ## うまくいかないとき
 
@@ -123,5 +126,5 @@ python gui.py
 | 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |
 | mlx で進捗バーが動かない | 仕様。mlx-whisper は結果を一括で返すため、完了まで 0 のまま。GUI のログに「mlx-whisper で文字起こし中」と出ていれば動作中。 |
-| モデルのダウンロードに失敗する | ネット接続と `HF_HOME` を確認し `python prefetch.py` を再実行。未取得でも初回の文字起こし時に自動DLされる。 |
+| モデルのダウンロードに失敗する | ネット接続と `HF_HOME` を確認し `python src/meeting_minutes/prefetch.py` を再実行。未取得でも初回の文字起こし時に自動DLされる。 |
 | フレームが多すぎる／少なすぎる | `[frames] interval_sec`・`scene_threshold`・`max_frames` を調整。 |

@@ -17,7 +17,7 @@
 `config.toml` の `[llm] base_url` のみで、既定値は `http://localhost:1234/v1` です。
 
 唯一の例外は **セットアップ時のモデル取得**です。`scripts/setup.sh`（内部の
-`python prefetch.py`）と、モデル未取得のままの初回文字起こしが、HuggingFace から
+`python src/meeting_minutes/prefetch.py`）と、モデル未取得のままの初回文字起こしが、HuggingFace から
 Whisper モデルの重みをダウンロードします。会議の音声・映像・テキストは送りません。
 一度取得すればオフラインで動きます。エアギャップ環境では `HF_HOME` を社内ミラーに
 向けるか、キャッシュを配布物に含めてください。
@@ -28,7 +28,7 @@ Whisper モデルの重みをダウンロードします。会議の音声・映
 
 1. `bash scripts/setup.sh` と一度の通常実行で、文字起こしモデルと LM Studio のモデルを取得しておく。
 2. Wi-Fi をオフにする（有線があれば抜く）。
-3. LM Studio のローカルサーバーを起動したまま、`python cli.py sample.mp4` を実行。
+3. LM Studio のローカルサーバーを起動したまま、`python src/meeting_minutes/cli.py sample.mp4` を実行。
 4. `output/sample/minutes.md` まで生成されれば、外部通信なしで完走している。
 
 必要なら実行中に `nettop` や `Little Snitch` などで、このプロセスからの
