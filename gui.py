@@ -348,6 +348,16 @@ class App:
     def _start(self) -> None:
         if self.video_path is None or self._worker is not None:
             return
+        # 「ファイルを選択」なのに未選択のまま開始 → 無警告で内蔵にフォールバックさせず、
+        # ここで止めて気づかせる。
+        if self._fmt_mode.get() == "file" and not self._template_path:
+            messagebox.showerror(
+                "議事録フォーマット",
+                "「ファイルを選択」が選ばれていますが、テンプレートファイルが"
+                "選択されていません。\n「選択...」からファイルを選ぶか、"
+                "「内蔵（既定）」を選んでください。",
+            )
+            return
         self.run_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
         self.open_minutes_btn.configure(state="disabled")
