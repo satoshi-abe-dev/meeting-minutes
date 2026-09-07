@@ -24,6 +24,10 @@ models/
 # 個人設定（config.example.toml をコピーして作る）
 config.toml
 
+# Claude Code のローカル権限設定（セッション個別・共有しない）。
+# .claude/skills/ の SKILL.md は共有したいので .claude/ 全体は除外しない。
+.claude/settings.local.json
+
 # Claude Code に見せる画像・動画などの一時受け渡し場所
 temp/
 
