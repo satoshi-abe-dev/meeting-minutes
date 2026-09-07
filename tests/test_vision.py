@@ -34,11 +34,17 @@ def _frames(n: int) -> list[Frame]:
     return [Frame(timestamp=float(i), path=Path(f"/tmp/frame_{i}.jpg")) for i in range(n)]
 
 
+def _frame_path_str(i: int) -> str:
+    """`_frames` が作るパスを str 化したもの。OS のパス区切りに追従させる
+    （Windows では ``\\tmp\\frame_0.jpg`` になるため、リテラル比較だと落ちる）。"""
+    return str(Path(f"/tmp/frame_{i}.jpg"))
+
+
 def test_describe_frames_calls_each_frame_in_order(tmp_path):
     client = FakeVisionClient(replies=["A", "B", "C"])
     notes = describe_frames(_frames(3), client, tmp_path)
     assert [n.description for n in notes] == ["A", "B", "C"]
-    assert client.calls == ["/tmp/frame_0.jpg", "/tmp/frame_1.jpg", "/tmp/frame_2.jpg"]
+    assert client.calls == [_frame_path_str(0), _frame_path_str(1), _frame_path_str(2)]
 
 
 def test_describe_frames_reports_waiting_then_done_per_frame(tmp_path):
@@ -108,7 +114,7 @@ def test_describe_frames_resumes_from_saved_notes(tmp_path):
 
     assert [n.description for n in notes] == ["既存の解析", "B", "C"]
     # 1 枚目はやり直していない
-    assert client.calls == ["/tmp/frame_1.jpg", "/tmp/frame_2.jpg"]
+    assert client.calls == [_frame_path_str(1), _frame_path_str(2)]
 
 
 def test_describe_frames_fresh_ignores_saved_notes(tmp_path):
