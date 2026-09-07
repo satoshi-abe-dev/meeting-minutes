@@ -26,16 +26,21 @@ description: meeting-minutesプロジェクトでworkerセッションが発行�
 
 ## 3. 独自にテストを実行する
 
+PRブランチ（`FETCH_HEAD`）を checkout して実行する。**ここで `main` に戻さない**
+（手順4の `codex exec review --base main` を `main` 上で実行すると main 対 main ＝
+差分が空になり、実質何もレビューされない）。`main` に戻すのは手順4の最後。
+
 ```
 git checkout -q FETCH_HEAD
 source .venv/bin/activate 2>/dev/null
 python -m pytest -q
-git checkout -q main
 ```
 
 worker報告のpassed数と一致するか確認する。
 
 ## 4. Codexで独立レビューする
+
+手順3から**PRブランチ（`FETCH_HEAD`）を checkout したまま**実行する。
 
 ```
 codex exec review --base main --title "PR#<番号>: <概要>" -o /tmp/codex_review_pr<番号>.md
@@ -43,11 +48,19 @@ codex exec review --base main --title "PR#<番号>: <概要>" -o /tmp/codex_revi
 
 （単一コミットだけを見たい場合は `--commit <SHA>`）
 
+Codexの出力を確認し終えたら `main` に戻す：
+
+```
+git checkout -q main
+```
+
 ## 5. 問題があれば差し戻す
 
 Codexまたは自分の確認で問題が見つかったら、`SendMessage`でworkerに具体的な指摘内容
-（該当箇所・再現条件・対処方針）を送り、マージを保留する。修正コミットが来たら
-2〜4を再度実行する。
+（該当箇所・再現条件・対処方針）を送り、マージを保留する。修正コミットが来たら、
+**まず `git fetch origin <ブランチ名>` を再実行して `FETCH_HEAD` を最新の修正コミットに
+更新してから**、2〜4を再度実行する（再フェッチしないと古いコミットをレビュー・
+テストしてしまう）。
 
 ## 6. マージする
 
