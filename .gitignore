@@ -24,16 +24,17 @@ models/
 # 個人設定（config.example.toml をコピーして作る）
 config.toml
 
-# Claude Code の作業用フォルダー（権限設定・skill 等）。議事録ツールの利用者には
-# 無関係なのでコミットしない。
+# Claude Code の作業用フォルダー（プロジェクト専用 CLAUDE.md・権限設定・skill・
+# セッション間の作業ログ ai-workflow/ 等）。議事録ツールの利用者には無関係で、
+# 実運用のセッションログを含むためコミットしない。
 .claude/
 
 # Claude Code に見せる画像・動画などの一時受け渡し場所
 temp/
 
-# セッション間のやり取り履歴（ローカルの作業ログ。機密混入リスクを避けコミットしない）
-# 旧パス（doc/）も残す: doc→docs リネーム前のチェックアウトに旧パスの未追跡ファイルが
-# 残っている環境で、それが追跡対象から外れないようにするため。
+# 旧パスのセッションログ（Issue #59 で .claude/ai-workflow/ へ移動済み）。この移行を
+# pull する前のチェックアウトや別マシンに旧パスの未追跡ファイルが残っている場合に、
+# それが誤って追跡対象へ入らないよう保護だけ残す。
 doc/ai-workflow/SESSION_LOG.md
 docs/ai-workflow/SESSION_LOG.md
 
