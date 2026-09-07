@@ -328,6 +328,39 @@ def _fit_structure_material(material: str, ctx: int, response_tokens: int) -> st
     return material[:keep].rstrip() + "\n…（以降はコンテキスト長の都合で省略）"
 
 
+def _fit_merged_transcript(
+    merged: str,
+    system: str,
+    structure: str,
+    frames_text: str,
+    *,
+    ctx: int,
+    minutes_max_tokens: int,
+) -> tuple[str, bool]:
+    """統合ステップの実プロンプトが ctx に収まるよう merged_transcript を切り詰める。
+
+    _structure_fits_minutes_skeleton() は transcript/frames をゼロと仮定した最低限の
+    チェックなので、チャンク数が多い会議だと「構造単体は収まる」判定を通っても、
+    実際の merged_transcript（全 partials 連結）＋frames を足すと統合リクエストが
+    溢れることがある。ここで実際のトークン数で予算を取り、超える分は末尾を落とす。
+    戻り値は (収まる merged_transcript, 切り詰めたか)。ctx 不明時は素通し。
+    """
+    if ctx <= 0:
+        return merged, False
+    budget = ctx - (
+        _approx_tokens(system)
+        + _approx_tokens(structure)
+        + _approx_tokens(_MINUTES_INPUT)
+        + _approx_tokens(frames_text)
+        + minutes_max_tokens
+        + _PROMPT_MARGIN_TOKENS
+    )
+    if _approx_tokens(merged) <= budget:
+        return merged, False
+    keep = max(0, int(budget / _TOKENS_PER_CHAR) - 40)
+    return merged[:keep].rstrip() + "\n…（以降はコンテキスト長の都合で省略）", True
+
+
 def _structure_fits_minutes_skeleton(
     minutes_system: str, structure: str, ctx: int, minutes_max_tokens: int
 ) -> bool:
@@ -814,7 +847,16 @@ def generate_minutes(
             len(chunks), total_steps,
             f"議事録に統合中…応答を待っています（モデル: {llm_config.model}）",
         )
-    merged_transcript = "\n\n".join(partials)
+    merged_transcript, merged_truncated = _fit_merged_transcript(
+        "\n\n".join(partials), system, structure, frames_text,
+        ctx=ctx, minutes_max_tokens=minutes_max_tokens,
+    )
+    if merged_truncated and on_progress:
+        on_progress(
+            0, 1,
+            "警告: 部分要約が多く統合リクエストがコンテキスト長を超えるため、"
+            "統合入力の末尾を一部省略しました",
+        )
     user = _fill_minutes_template(structure, meta, merged_transcript, frames_text)
     t0 = time.monotonic()
     md = client.chat(system, user, max_tokens=minutes_max_tokens)

@@ -885,3 +885,28 @@ def test_auto_structure_response_reserve_follows_llm_max_tokens():
     struct_mt = client.struct_calls()[0]["kwargs"]["max_tokens"]
     minutes_mt = client.calls[-1]["kwargs"]["max_tokens"]
     assert struct_mt == minutes_mt == min(900, _MINUTES_RESPONSE_TOKENS)
+
+
+def test_generate_minutes_truncates_oversized_merged_transcript(tmp_path):
+    """Codex 指摘: 統合ステップの実プロンプト（system+構造+merged_transcript+frames）を
+    組み立てる前に実トークン数で予算チェックし、超える分は末尾を切り詰める。"""
+    from meeting_minutes.minutes import _approx_tokens, _PROMPT_MARGIN_TOKENS
+
+    ctx = 12000
+    # 各チャンク要約を大きく返す → 連結した merged_transcript が統合予算を超える
+    client = FakeClient(reply="・" + "とても長い部分要約の一行。" * 500)
+    long_segs = _segments(400, text="議題の発言" * 3)
+    msgs: list[str] = []
+
+    generate_minutes(
+        long_segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        out_dir=tmp_path, context_tokens=ctx,
+        on_progress=lambda c, t, m: msgs.append(m),
+    )
+
+    merge_user = client.calls[-1]["user"]
+    assert "以降はコンテキスト長の都合で省略" in merge_user  # 末尾を切り詰めた
+    reserve = min(LLMConfig().max_tokens, _MINUTES_RESPONSE_TOKENS)
+    # 統合リクエスト（user + 応答予約 + マージン）が ctx に収まる
+    assert _approx_tokens(merge_user) + reserve + _PROMPT_MARGIN_TOKENS <= ctx
+    assert any("統合入力の末尾を一部省略" in m for m in msgs)
