@@ -261,6 +261,16 @@ def run(
         def _mp(cur: int, tot: int, msg: str) -> None:
             progress("minutes", cur, tot, msg)
 
+        # ロード中モデルの実コンテキスト長（LM Studio なら取得可）。取れなければ
+        # generate_minutes 側は文字数しきい値にフォールバックする。
+        ctx_tokens: int | None = None
+        _lcl = getattr(client, "loaded_context_length", None)
+        if callable(_lcl):
+            try:
+                ctx_tokens = _lcl()
+            except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
+                ctx_tokens = None
+
         # 開始メッセージは generate_minutes 自身が _mp 経由ですぐ出す
         # （短いパスは「議事録を生成中」、長いパスは「部分要約 1/N…」等）。
         markdown = deps.generate_minutes(
@@ -273,6 +283,7 @@ def run(
             cancel_event=cancel_event,
             out_dir=out_dir,
             reuse=reuse,
+            context_tokens=ctx_tokens,
         )
         minutes_path = deps.save_minutes(markdown, out_dir)
         # 完了メッセージ（所要時間つき）は generate_minutes 自身が _mp 経由で

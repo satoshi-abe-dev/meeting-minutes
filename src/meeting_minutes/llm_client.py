@@ -200,6 +200,39 @@ class LLMClient:
         except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
             return []
 
+    def loaded_context_length(self, model: str | None = None) -> int | None:
+        """対象モデルの「実際にロードされている」コンテキスト長（トークン）を返す。
+
+        LM Studio 拡張の GET /api/v0/models が返す `loaded_context_length` を読む。
+        この値は「安全チェックを無効化してよい確かな上限」として使われるため、
+        **対象モデルが実際にロードされている場合の loaded_context_length のみ**を
+        返す。ID だけ一致（未ロード時の広告値 max_context_length）や、別モデルの
+        ロード値へのフォールバックは行わない（誤値は HTTP 400 を再発させるため）。
+        確認できなければ None（呼び出し側は文字数しきい値にフォールバックする）。
+        """
+        try:
+            from urllib.parse import urlsplit
+
+            u = urlsplit(self.config.base_url)
+            v0 = f"{u.scheme}://{u.netloc}/api/v0/models"
+            resp = self._client.get(v0)
+            if resp.status_code >= 400:
+                return None
+            entries = resp.json().get("data", [])
+        except Exception:  # noqa: BLE001 - 補助情報なので握りつぶす
+            return None
+
+        want = model or self.config.model
+        for e in entries:
+            if e.get("type") not in (None, "llm"):
+                continue
+            if e.get("id") != want or e.get("state") != "loaded":
+                continue
+            v = e.get("loaded_context_length")
+            if isinstance(v, (int, float)) and v > 0:
+                return int(v)
+        return None
+
     def preflight(self, models: list[str]) -> None:
         """指定モデルそれぞれに極小のリクエストを投げ、実際に応答できるか確認する。
 

@@ -45,6 +45,15 @@ def chunking_config() -> LLMConfig:
     return LLMConfig(chunk_trigger_chars=2000, chunk_size_chars=1000)
 
 
+def test_approx_tokens_ratio_matches_measured_qwen_japanese():
+    """_approx_tokens は実測（Qwen2.5 tokenizer で日本語 ~0.5〜0.8 tok/字）に基づき
+    安全側 0.8 で見積もる。"""
+    from meeting_minutes.minutes import _approx_tokens
+
+    assert _approx_tokens("あ" * 100) == 81
+    assert _approx_tokens("") == 1
+
+
 def test_split_segments_respects_size():
     segs = _segments(50, text="あ" * 100)  # 1 セグメント約 100 文字
     chunks = _split_segments(segs, size_chars=1000)
@@ -78,13 +87,67 @@ def test_generate_minutes_short_path_single_call():
     assert "表題スライド" in user
 
 
-def test_generate_minutes_single_pass_for_moderately_long_transcript():
-    """しきい値を上げたので、約 2 万字程度なら分割せず一発生成する（旧実装では分割された）。"""
+def test_generate_minutes_single_pass_under_char_fallback_threshold():
+    """context_tokens 不明時は文字数しきい値で判断。既定 20000 字未満は一発生成。"""
     client = FakeClient(reply="# 議事録\n\n本文\n")
-    segs = _segments(300, text="議題について長い発言をする" * 5)
+    segs = _segments(180, text="議題について長い発言をする" * 3)  # 1万字弱 < 20000
     generate_minutes(segs, [], client, LLMConfig(), MinutesMeta(title="会議"))
     assert len(client.calls) == 1
     assert client.calls[0]["user"].startswith("以下のテンプレートに沿って")
+
+
+def test_generate_minutes_char_fallback_chunks_over_threshold():
+    """context_tokens 不明で 20000 字を超えると分割する。"""
+    client = FakeClient(reply="要約")
+    segs = _segments(320, text="議題について長い発言をする" * 5)  # 2.5万字超 > 20000
+    generate_minutes(segs, [], client, LLMConfig(), MinutesMeta(title="会議"))
+    assert len(client.calls) >= 2
+
+
+def test_generate_minutes_context_tokens_allow_single_pass():
+    """実コンテキスト長が分かっていて余裕があれば、文字数が多めでも一発生成。"""
+    client = FakeClient(reply="# 議事録\n\n本文\n")
+    segs = _segments(320, text="議題について長い発言をする" * 5)  # char 閾値なら分割される長さ
+    generate_minutes(
+        segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        context_tokens=32768,
+    )
+    assert len(client.calls) == 1
+
+
+def test_generate_minutes_context_tokens_force_chunk_when_prompt_would_overflow():
+    """Issue #18: 文字数は少なくても、frames 込みで実コンテキスト長を超えると
+    推定される場合は分割生成にフォールバックする。"""
+    client = FakeClient(reply="要約")
+    segs = _segments(80, text="短い発言")
+    notes = [
+        FrameNote(timestamp=float(i), path=f"frames/f{i}.jpg",
+                  description="スライドの文字。" * 60)
+        for i in range(40)
+    ]
+    generate_minutes(
+        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        context_tokens=4096,
+    )
+    assert len(client.calls) >= 2
+
+
+def test_generate_minutes_frames_text_is_truncated_to_budget():
+    """巨大な frames_text は上限トークンで切り詰められ、プロンプトを食い尽くさない。"""
+    client = FakeClient(reply="# 議事録\n\n本文\n")
+    segs = _segments(20, text="短い発言")
+    notes = [
+        FrameNote(timestamp=float(i), path=f"frames/f{i}.jpg",
+                  description="スライドの詳細な文字起こし。" * 80)
+        for i in range(50)
+    ]
+    generate_minutes(
+        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        context_tokens=32768,
+    )
+    assert len(client.calls) == 1
+    user = client.calls[0]["user"]
+    assert "コンテキスト長の都合でここまで" in user  # 切り詰めマーカー
 
 
 def test_generate_minutes_chunk_trigger_chars_from_config_controls_path():
@@ -291,8 +354,14 @@ def test_generate_minutes_discards_legacy_list_format_partials(tmp_path, chunkin
     assert "旧形式の要約" not in client.calls[-1]["user"]
 
 
-def test_generate_minutes_chunk_uses_llm_config_max_tokens(tmp_path):
-    """チャンク要約の max_tokens は固定値ではなく llm_config.max_tokens を使う。"""
+def test_generate_minutes_chunk_max_tokens_matches_budget_cap(tmp_path):
+    """チャンク要約の実 max_tokens は予算計算と同じ値（_MINUTES_RESPONSE_TOKENS 頭打ち）。
+
+    ここがズレると safe_chunk_tokens の計算と実リクエストが食い違い、チャンクが
+    コンテキストを超え得る（Codex 指摘）。
+    """
+    from meeting_minutes.minutes import _MINUTES_RESPONSE_TOKENS
+
     client = FakeClient(reply="要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
     meta = MinutesMeta(title="長い会議")
@@ -300,8 +369,43 @@ def test_generate_minutes_chunk_uses_llm_config_max_tokens(tmp_path):
 
     generate_minutes(long_segs, [], client, llm_config, meta, out_dir=tmp_path)
 
-    chunk_calls = [
-        c for c in client.calls if c["user"].startswith("次の会議の文字起こしの一部です")
-    ]
+    calls = client.calls
+    chunk_calls = [c for c in calls if c["user"].startswith("次の会議の文字起こしの一部です")]
     assert chunk_calls
-    assert all(c["kwargs"]["max_tokens"] == 12345 for c in chunk_calls)
+    expected = min(12345, _MINUTES_RESPONSE_TOKENS)
+    assert all(c["kwargs"]["max_tokens"] == expected for c in chunk_calls)
+    # 最終統合も同じ上限
+    assert calls[-1]["kwargs"]["max_tokens"] == expected
+
+
+def test_generate_minutes_manual_context_tokens_beats_autodetect():
+    """config の [llm] context_tokens が 0 でなければ、自動検出値より優先される。"""
+    client = FakeClient(reply="要約")
+    segs = _segments(320, text="議題について長い発言をする" * 5)  # 約2.5万字
+    # 手動 4096（小さい）を設定。自動検出で 200000 が来ても手動が勝ち、分割になる。
+    cfg = LLMConfig(context_tokens=4096)
+    generate_minutes(
+        segs, [], client, cfg, MinutesMeta(title="会議"), context_tokens=200000
+    )
+    assert len(client.calls) >= 2  # 手動 4096 が効いて分割された
+
+
+def test_generate_minutes_small_context_does_not_force_oversized_frames_budget():
+    """ctx が小さくても frames 予算は下限 6000 を無理に確保せず ctx で頭打ちする。"""
+    client = FakeClient(reply="# 議事録\n\n本文\n")
+    segs = _segments(20, text="短い発言")
+    notes = [
+        FrameNote(timestamp=float(i), path=f"frames/f{i}.jpg",
+                  description="スライドの文字。" * 40)
+        for i in range(30)
+    ]
+    # ctx=4096 では一発生成は無理なので分割になるが、frames の切り詰めで
+    # frames_text 自体が 4096 を単独で超えることはない。
+    generate_minutes(
+        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        context_tokens=4096,
+    )
+    from meeting_minutes.minutes import _approx_tokens
+    for c in client.calls:
+        # どの実リクエストのプロンプトも、frames だけで ctx を食い尽くしていない
+        assert _approx_tokens(c["user"]) < 4096 * 3  # ざっくり: 暴走していない

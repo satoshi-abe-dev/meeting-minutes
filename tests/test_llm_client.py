@@ -135,6 +135,59 @@ def test_empty_content_without_reasoning_just_returns_empty(monkeypatch):
     assert c.chat("", "hi") == ""
 
 
+def test_loaded_context_length_reads_lmstudio_v0(monkeypatch):
+    c = _client()
+    body = json.dumps(
+        {
+            "data": [
+                {
+                    "id": "qwen2.5-7b-instruct",
+                    "type": "llm",
+                    "state": "loaded",
+                    "loaded_context_length": 32768,
+                    "max_context_length": 262144,
+                },
+                {"id": "some-vlm", "type": "vlm", "state": "not-loaded",
+                 "max_context_length": 262144},
+            ]
+        }
+    )
+    monkeypatch.setattr(c._client, "get", lambda *a, **k: _Resp(200, body))
+    # ロード済みの loaded_context_length のみ返す（広告値 max_context_length ではない）
+    assert c.loaded_context_length() == 32768
+    assert c.loaded_context_length("qwen2.5-7b-instruct") == 32768
+
+
+def test_loaded_context_length_none_when_target_not_loaded(monkeypatch):
+    """対象モデルが未ロードなら、広告値(max_context_length)には絶対フォールバックしない。"""
+    c = _client()
+    body = json.dumps(
+        {
+            "data": [
+                {"id": "qwen2.5-7b-instruct", "type": "llm", "state": "not-loaded",
+                 "max_context_length": 262144},
+                {"id": "other-llm", "type": "llm", "state": "loaded",
+                 "loaded_context_length": 4096},
+            ]
+        }
+    )
+    monkeypatch.setattr(c._client, "get", lambda *a, **k: _Resp(200, body))
+    # ID 一致だが未ロード -> None（other-llm のロード値 4096 にも漏らさない）
+    assert c.loaded_context_length() is None
+
+
+def test_loaded_context_length_none_when_unavailable(monkeypatch):
+    c = _client()
+    monkeypatch.setattr(c._client, "get", lambda *a, **k: _Resp(404, "not found"))
+    assert c.loaded_context_length() is None
+
+    def boom(*a, **k):
+        raise httpx.ConnectError("x")
+
+    monkeypatch.setattr(c._client, "get", boom)
+    assert c.loaded_context_length() is None
+
+
 def test_preflight_ok(monkeypatch):
     c = _client()
     calls: list[str] = []

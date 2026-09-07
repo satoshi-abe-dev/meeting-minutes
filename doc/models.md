@@ -67,8 +67,8 @@ faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "aut
 
 ### コンテキスト長の設定（重要）
 
-議事録生成は、文字起こし全体＋フレーム要点を **1 回のリクエスト**で LLM に渡す
-（`config.toml` の `[llm] chunk_trigger_chars`、既定 40000 文字までは分割しない）。
+議事録生成は、文字起こし全体＋フレーム要点をできるだけ **1 回のリクエスト**で
+LLM に渡す（分割すると「要約の要約」になり具体性が落ちるため）。
 LM Studio は **モデルをロードするときに Context Length を明示しないと小さい既定値**
 で読み込むため、そのままだと次のエラーで議事録生成が失敗します:
 
@@ -79,17 +79,23 @@ the context length. Try to load the model with a larger context length,
 or provide a shorter input"}
 ```
 
-対処（どちらか）:
+**対処: LM Studio でこの LLM をロードする際、Context Length を 32768 以上にする。**
+モデル読み込みバー → 対象モデル → 設定の Context Length を 32768 以上にして
+ロード。すでにロード済みなら一度 Eject してから設定し直す
+（Qwen2.5-7B / 14B はいずれも 32k 以上に対応）。
 
-1. **LM Studio でこの LLM をロードする際、Context Length を 32768 以上にする**。
-   モデル読み込みバー → 対象モデル → 設定の Context Length を 32768 以上にして
-   ロード。すでにロード済みなら一度 Eject してから設定し直す。
-   （Qwen2.5-7B/14B はいずれも 32k 以上に対応）
-2. メモリが厳しく Context Length を大きくできない場合は、`config.toml` の
-   `[llm] chunk_trigger_chars` と `chunk_size_chars` を小さくする
-   （例: `chunk_trigger_chars = 8000` / `chunk_size_chars = 6000`）。長い文字起こしは
-   チャンク要約 → 統合の分割モードになり、1 回あたりのプロンプトが短くなる。
-   ただし分割すると「要約の要約」から議事録を作るため、具体性はやや落ちる。
+**ツール側の自動調整:** このツールは LM Studio の `/api/v0/models` からロード中
+モデルの実コンテキスト長を取得し、文字起こし＋フレーム要点＋応答予約が収まらないと
+推定した場合は、自動で分割生成（チャンク要約 → 統合）に切り替えます。フレーム解析
+結果が大きすぎる場合はコンテキストの約 1/3 までに切り詰めます。トークン数の見積もりは
+Qwen 系トークナイザでの日本語の実測（**約 0.75 トークン/文字**、安全側に 0.8 で計算）
+に基づきます。
+
+**それでも収まらない／LM Studio 以外の基盤の場合:** `config.toml` の
+`[llm] chunk_trigger_chars` と `chunk_size_chars` を小さくする（既定 20000 / 12000。
+例: `chunk_trigger_chars = 8000` / `chunk_size_chars = 6000`）。実コンテキスト長が
+自動取得できない基盤では、`[llm] context_tokens` に実値（例: 32768）を書くと
+トークンベースの判定が効きます。
 
 ## フレーム解析（VLM）
 

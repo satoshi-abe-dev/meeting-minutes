@@ -108,6 +108,7 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         cancel_event=None,
         out_dir=None,
         reuse=None,
+        context_tokens=None,
     ):
         recorder.append("generate_minutes")
         assert client_ is client
