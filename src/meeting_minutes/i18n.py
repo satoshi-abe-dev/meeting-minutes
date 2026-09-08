@@ -275,21 +275,23 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     # transcribe.py
     "pmsg.stt_preparing": {
-        "ja": "文字起こしモデルを準備中（未取得なら初回ダウンロード）…",
-        "en": "Preparing the transcription model (first-time download if not present)…",
+        "ja": "文字起こしモデルを準備中…",
+        "en": "Preparing the transcription model…",
     },
     "pmsg.stt_mlx_running": {
         "ja": "mlx-whisper で文字起こし中（完了まで進捗は動きません）",
         "en": "Transcribing with mlx-whisper (progress will not move until it finishes)",
     },
-    "pmsg.stt_mlx_downloading": {
+    "pmsg.stt_model_missing": {
         "ja": (
-            "文字起こしモデル {repo} をダウンロード中（初回のみ、約1.6GB）…"
-            "その後 mlx-whisper で文字起こし"
+            "文字起こしモデル（{repo}）がローカルにありません。"
+            "先に `bash scripts/setup.sh` を実行してモデルを取得してください"
+            "（アプリ実行時は自動ダウンロードしません）。"
         ),
         "en": (
-            "Downloading the transcription model {repo} (first time only, ~1.6GB)… "
-            "then transcribing with mlx-whisper"
+            "The transcription model ({repo}) is not available locally. "
+            "Run `bash scripts/setup.sh` first to fetch it "
+            "(the app does not download models at runtime)."
         ),
     },
     # minutes.py

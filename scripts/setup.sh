@@ -4,6 +4,10 @@
 #
 #   bash scripts/setup.sh
 #
+# このスクリプトはインターネットに接続して Whisper モデル（HuggingFace）を
+# ダウンロードする。取得は必須で、失敗したらセットアップ自体を失敗終了させる
+# （アプリ実行時はオフライン強制のため自動ダウンロードしない。ここで取り切る）。
+#
 # 別途必要なもの:
 #   - ffmpeg（brew install ffmpeg）
 #   - LM Studio でローカルサーバーを起動し、LLM / VLM をロード（docs/setup-mac.md）
@@ -21,11 +25,11 @@ echo "==> 依存をインストール"
 ./.venv/bin/pip install --upgrade pip
 ./.venv/bin/pip install -r requirements.txt
 
-echo "==> 文字起こしモデルを取得（初回のみ。数分かかることがあります）"
-if ! ./.venv/bin/python src/meeting_minutes/prefetch.py; then
-  echo "  モデルの事前取得に失敗しました。"
-  echo "  初回の文字起こし実行時に自動ダウンロードされるため、そのまま進めても構いません。"
-fi
+echo "==> 文字起こしモデルを取得（インターネットに接続します。数分かかることがあります）"
+echo "    この手順は HuggingFace から Whisper モデルをダウンロードします。"
+echo "    アプリ実行時はオフライン強制のため、ここでの取得が必須です。"
+# 失敗したら set -e でセットアップ自体を失敗終了させる（握りつぶさない）。
+./.venv/bin/python src/meeting_minutes/prefetch.py
 
 cat <<'DONE'
 
