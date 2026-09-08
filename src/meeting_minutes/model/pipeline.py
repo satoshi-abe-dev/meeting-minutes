@@ -8,11 +8,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from meeting_minutes.i18n import DEFAULT_LANGUAGE, format_elapsed, normalize_language, t
 
 from . import audio as _audio
 from . import ffmpeg_utils as _ffmpeg_utils
@@ -77,17 +80,6 @@ def _noop(stage: str, current: int, total: int, message: str) -> None:
     pass
 
 
-def _format_elapsed(seconds: float) -> str:
-    """処理にかかった時間の表示用（`_format_duration` は動画長のおおよそ表示用で別物）。"""
-    if seconds < 60:
-        return f"{seconds:.1f}秒"
-    minutes, sec = divmod(round(seconds), 60)
-    if minutes < 60:
-        return f"{minutes}分{sec:02d}秒"
-    hours, minutes = divmod(minutes, 60)
-    return f"{hours}時間{minutes:02d}分"
-
-
 def _format_duration(seconds: float) -> str:
     if not seconds:
         return "（不明）"
@@ -109,6 +101,7 @@ def run(
     deps: Deps | None = None,
     reuse: bool = True,
     cancel_event: threading.Event | None = None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> PipelineResult:
     """動画 1 本を処理して議事録を書き出す。
 
@@ -118,10 +111,14 @@ def run(
     cancel_event: セットされていれば PipelineCancelled を送出して中断する。
         各ステージの開始前・フレーム解析の1枚ごと・議事録のチャンクごとで反応する。
         mlx-whisper の呼び出し中と ffmpeg 実行中は反応できない（docs/DESIGN.md 参照）。
+    language: on_progress へ渡す進捗メッセージ・エラーヒントの言語（"ja" / "en"）。
+        既定 "ja"。GUI が --lang en のとき "en" を渡す。CLI は渡さない（＝ja）。
+        文字起こし言語（config.transcribe.language）や議事録の中身は対象外。
     """
+    language = normalize_language(language)
     video_path = Path(video_path).expanduser().resolve()
     if not video_path.is_file():
-        raise FileNotFoundError(f"動画ファイルが見つかりません: {video_path}")
+        raise FileNotFoundError(t("pmsg.err_video_not_found", language, path=video_path))
 
     deps = deps or Deps()
     progress = on_progress or _noop
@@ -133,8 +130,10 @@ def run(
     (out_dir / "frames").mkdir(parents=True, exist_ok=True)
     transcript_dir.mkdir(parents=True, exist_ok=True)
 
-    # LLM サーバーを一度作り、以降ずっと使う。
+    # LLM サーバーを一度作り、以降ずっと使う。接続エラーヒントも language に従わせる。
     client = deps.make_client(config)
+    with contextlib.suppress(AttributeError):
+        client.language = language
     minutes_path: Path | None = None
     frame_notes_path: Path | None = None
     try:
@@ -142,17 +141,17 @@ def run(
         check_cancel(cancel_event)
         progress(
             "preflight", 0, 1,
-            f"LLM サーバーの応答を待っています…"
-            f"（LLM: {config.llm.model} / VLM: {config.llm.vlm_model}）",
+            t("pmsg.pre_wait", language,
+              model=config.llm.model, vlm=config.llm.vlm_model),
         )
         preflight = getattr(client, "preflight", None)
         if callable(preflight):
             preflight([config.llm.model, config.llm.vlm_model])
-        progress("preflight", 1, 1, "LLM サーバー確認 OK")
+        progress("preflight", 1, 1, t("pmsg.pre_ok", language))
 
         # 1) 音声抽出 --------------------------------------------------------
         check_cancel(cancel_event)
-        progress("audio", 0, 1, "動画から音声を抽出中")
+        progress("audio", 0, 1, t("pmsg.audio_extracting", language))
         t0 = time.monotonic()
         wav_path = deps.extract_audio(video_path, transcript_dir / "audio.wav")
         audio_elapsed = time.monotonic() - t0
@@ -160,8 +159,12 @@ def run(
         try:
             duration = float(deps.probe_duration(video_path))
         except Exception as exc:
-            warnings.append(f"動画長の取得に失敗: {exc}")
-        progress("audio", 1, 1, f"音声抽出が完了（所要 {_format_elapsed(audio_elapsed)}）")
+            warnings.append(t("pmsg.warn_duration", language, exc=exc))
+        progress(
+            "audio", 1, 1,
+            t("pmsg.audio_done", language,
+              elapsed=format_elapsed(audio_elapsed, language)),
+        )
 
         # 2) 文字起こし（再利用可）--------------------------------------
         total_hint = int(duration / 4) if duration else 0  # 1 区間 ≒ 4 秒と仮定
@@ -173,10 +176,10 @@ def run(
                 segments = deps.load_transcript(transcript_dir)
                 progress(
                     "transcribe", len(segments), len(segments),
-                    f"既存の文字起こしを再利用（{len(segments)} 区間）",
+                    t("pmsg.transcribe_reuse", language, n=len(segments)),
                 )
             except Exception as exc:
-                warnings.append(f"transcript.json の再利用に失敗、作り直します: {exc}")
+                warnings.append(t("pmsg.warn_transcript_reuse", language, exc=exc))
                 segments = None
         if segments is None:
             check_cancel(cancel_event)
@@ -187,7 +190,8 @@ def run(
             backend = _transcribe.resolve_backend(config.transcribe)
             progress(
                 "transcribe", 0, total_hint,
-                f"文字起こしを開始（モデル: {config.transcribe.model} / backend={backend}）",
+                t("pmsg.transcribe_start", language,
+                  model=config.transcribe.model, backend=backend),
             )
             t0 = time.monotonic()
             segments = deps.transcribe_wav(
@@ -196,12 +200,14 @@ def run(
                 on_progress=_tp,
                 total_hint=total_hint,
                 cancel_event=cancel_event,
+                language=language,
             )
             transcribe_elapsed = time.monotonic() - t0
             transcript_json, transcript_txt = deps.save_transcript(segments, transcript_dir)
             progress(
                 "transcribe", len(segments), len(segments),
-                f"文字起こし完了（{len(segments)} 区間、所要 {_format_elapsed(transcribe_elapsed)}）",
+                t("pmsg.transcribe_done", language, n=len(segments),
+                  elapsed=format_elapsed(transcribe_elapsed, language)),
             )
 
         # 3) フレーム抽出（再利用可）--------------------------------
@@ -213,21 +219,22 @@ def run(
                 if frames:
                     progress(
                         "frames", len(frames), len(frames),
-                        f"既存のフレームを再利用（{len(frames)} 枚）",
+                        t("pmsg.frames_reuse", language, n=len(frames)),
                     )
             except Exception as exc:
-                warnings.append(f"frames/frames.json の再利用に失敗、作り直します: {exc}")
+                warnings.append(t("pmsg.warn_frames_reuse", language, exc=exc))
                 frames = None
         if frames is None:
             check_cancel(cancel_event)
-            progress("frames", 0, 1, "フレームを抽出中")
+            progress("frames", 0, 1, t("pmsg.frames_extracting", language))
             t0 = time.monotonic()
             frames = deps.extract_frames(video_path, out_dir, config.frames)
             frames_elapsed = time.monotonic() - t0
             frames_index = deps.save_frame_index(frames, out_dir)
             progress(
                 "frames", len(frames), len(frames),
-                f"フレーム抽出完了（{len(frames)} 枚、所要 {_format_elapsed(frames_elapsed)}）",
+                t("pmsg.frames_done", language, n=len(frames),
+                  elapsed=format_elapsed(frames_elapsed, language)),
             )
 
         # 4) フレーム解析（VLM）+ 5) 議事録生成 ----------------------
@@ -238,18 +245,20 @@ def run(
 
         progress(
             "vision", 0, len(frames),
-            f"フレームを解析中（モデル: {config.llm.vlm_model}）",
+            t("pmsg.vision_analyzing", language, vlm=config.llm.vlm_model),
         )
         t0 = time.monotonic()
         notes = deps.describe_frames(
             frames, client, out_dir,
             on_progress=_vp, cancel_event=cancel_event, reuse=reuse,
+            language=language,
         )
         vision_elapsed = time.monotonic() - t0
         frame_notes_path = deps.save_frame_notes(notes, out_dir)
         progress(
             "vision", len(notes), len(notes),
-            f"フレーム解析完了（所要 {_format_elapsed(vision_elapsed)}）",
+            t("pmsg.vision_done", language,
+              elapsed=format_elapsed(vision_elapsed, language)),
         )
 
         check_cancel(cancel_event)
@@ -286,6 +295,7 @@ def run(
             context_tokens=ctx_tokens,
             template_path=config.output.template_path or None,
             auto_structure=config.output.auto_structure,
+            language=language,
         )
         minutes_path = deps.save_minutes(markdown, out_dir)
         # 完了メッセージ（所要時間つき）は generate_minutes 自身が _mp 経由で
@@ -295,7 +305,7 @@ def run(
         if callable(close):
             close()
 
-    progress("done", 1, 1, f"完了: {minutes_path}")
+    progress("done", 1, 1, t("pmsg.done", language, path=minutes_path))
     return PipelineResult(
         video_path=video_path,
         out_dir=out_dir,

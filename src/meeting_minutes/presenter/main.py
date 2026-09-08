@@ -218,6 +218,7 @@ class MainPresenter:
                 on_progress=on_progress,
                 reuse=self._reuse,
                 cancel_event=self._cancel_event,
+                language=self.language,
             )
             self._events.put(("result", result))
         except PipelineCancelled:

@@ -14,6 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from meeting_minutes.i18n import DEFAULT_LANGUAGE, format_elapsed, t
+
 from .cancel import check_cancel
 from .config import LLMConfig, load_prompt
 from .llm_client import LLMClient
@@ -160,7 +162,8 @@ def _leaked_instructions(structure: str, minutes_md: str) -> list[str]:
 
 
 def _warn_leaked_instructions(
-    structure: str, minutes_md: str, on_progress: ProgressFn | None
+    structure: str, minutes_md: str, on_progress: ProgressFn | None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> None:
     if not on_progress:
         return
@@ -170,9 +173,7 @@ def _warn_leaked_instructions(
     head = leaks[0][:40] + ("…" if len(leaks[0]) > 40 else "")
     on_progress(
         0, 1,
-        f"警告: テンプレートの指示文（丸括弧の説明）が議事録にそのまま残っている"
-        f"可能性があります（{len(leaks)} 箇所。例: {head}）。"
-        "より大きいモデルを使う・テンプレートの丸括弧を減らすと改善することがあります",
+        t("pmsg.leaked_instructions", language, n=len(leaks), head=head),
     )
 
 
@@ -219,6 +220,7 @@ def load_minutes_structure(
     template_path: str | Path | None,
     *,
     on_warning: Callable[[str], None] | None = None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> str:
     """カスタム議事録テンプレート（構造のみ）を読む。
 
@@ -232,13 +234,11 @@ def load_minutes_structure(
         text = p.read_text(encoding="utf-8").strip()
     except (OSError, ValueError) as exc:  # ValueError: UnicodeDecodeError
         if on_warning:
-            on_warning(
-                f"テンプレート {p} を読めませんでした。内蔵テンプレートを使います: {exc}"
-            )
+            on_warning(t("pmsg.tpl_unreadable", language, p=p, exc=exc))
         return _MINUTES_STRUCTURE
     if not text:
         if on_warning:
-            on_warning(f"テンプレート {p} が空です。内蔵テンプレートを使います")
+            on_warning(t("pmsg.tpl_empty", language, p=p))
         return _MINUTES_STRUCTURE
     return text
 
@@ -440,6 +440,7 @@ def _generate_structure(
     ctx: int,
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> str | None:
     """会議内容（全文または要約）から議事録の型を 1 回の chat で作る。
 
@@ -452,7 +453,7 @@ def _generate_structure(
     if on_progress:
         on_progress(
             0, 1,
-            f"議事録の型を自動生成中…応答を待っています（モデル: {model}）",
+            t("pmsg.struct_generating", language, model=model),
         )
     try:
         out = client.chat(
@@ -462,27 +463,22 @@ def _generate_structure(
         ).strip()
     except Exception as exc:
         if on_progress:
-            on_progress(
-                0, 1,
-                f"警告: 議事録の型の自動生成に失敗しました（{exc}）。内蔵テンプレートを使います",
-            )
+            on_progress(0, 1, t("pmsg.struct_gen_failed", language, exc=exc))
         return None
     missing = [ph for ph in _REQUIRED_PLACEHOLDERS if ph not in out]
     if not out or missing:
         if on_progress:
-            reason = "空の応答" if not out else f"プレースホルダー欠落 {' '.join(missing)}"
-            on_progress(
-                0, 1,
-                f"警告: 自動生成された議事録の型が不正（{reason}）でした。内蔵テンプレートを使います",
+            reason = (
+                t("pmsg.struct_reason_empty", language)
+                if not out
+                else t("pmsg.struct_reason_missing", language,
+                       names=" ".join(missing))
             )
+            on_progress(0, 1, t("pmsg.struct_invalid", language, reason=reason))
         return None
     if not _structure_fits_minutes_skeleton(minutes_system, out, ctx, max_tokens):
         if on_progress:
-            on_progress(
-                0, 1,
-                "警告: 自動生成された議事録の型が大きすぎます（文字起こしを抜いても"
-                "コンテキスト長に収まりません）。内蔵テンプレートを使います",
-            )
+            on_progress(0, 1, t("pmsg.struct_too_big", language))
         return None
     return out
 
@@ -499,6 +495,7 @@ def _resolve_auto_structure(
     ctx: int,
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> str:
     """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。
 
@@ -509,7 +506,7 @@ def _resolve_auto_structure(
     generated = _generate_structure(
         client, material, model=model, max_tokens=max_tokens,
         minutes_system=minutes_system, ctx=ctx,
-        on_progress=on_progress, cancel_event=cancel_event,
+        on_progress=on_progress, cancel_event=cancel_event, language=language,
     )
     if generated is None:
         if out_dir is not None:
@@ -519,7 +516,8 @@ def _resolve_auto_structure(
                 if on_progress:
                     on_progress(
                         0, 1,
-                        f"警告: 古い {_STRUCTURE_FILENAME} を削除できませんでした（{exc}）",
+                        t("pmsg.struct_rm_failed", language,
+                          name=_STRUCTURE_FILENAME, exc=exc),
                     )
         return fallback_structure
     if out_dir is not None:
@@ -529,11 +527,15 @@ def _resolve_auto_structure(
             (p / _STRUCTURE_FILENAME).write_text(generated + "\n", encoding="utf-8")
         except OSError as exc:
             if on_progress:
-                on_progress(0, 1, f"警告: {_STRUCTURE_FILENAME} を保存できませんでした（{exc}）")
+                on_progress(
+                    0, 1,
+                    t("pmsg.struct_save_failed", language,
+                      name=_STRUCTURE_FILENAME, exc=exc),
+                )
     if on_progress:
         on_progress(
             0, 1,
-            f"議事録の型を自動生成しました（{_STRUCTURE_FILENAME} に保存）",
+            t("pmsg.struct_saved", language, name=_STRUCTURE_FILENAME),
         )
     return generated
 
@@ -543,18 +545,6 @@ class MinutesMeta:
     title: str
     datetime_hint: str = "（記載なし）"
     duration_hint: str = "（不明）"
-
-
-def _format_elapsed(seconds: float) -> str:
-    """処理にかかった時間の表示用（pipeline.py にも同名の小関数がある。用途が
-    近い割にモジュールをまたぐほどではないのでローカルに複製している）。"""
-    if seconds < 60:
-        return f"{seconds:.1f}秒"
-    minutes, sec = divmod(round(seconds), 60)
-    if minutes < 60:
-        return f"{minutes}分{sec:02d}秒"
-    hours, minutes = divmod(minutes, 60)
-    return f"{hours}時間{minutes:02d}分"
 
 
 # minutes_partials.json のフォーマット版。チャンク境界のシグネチャを持つ。
@@ -654,6 +644,7 @@ def _summarize_chunks(
     total_steps: int,
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[str]:
     """未処理のチャンクを順に要約し、埋めた partials を返す。
 
@@ -667,8 +658,8 @@ def _summarize_chunks(
         if on_progress:
             on_progress(
                 i - 1, total_steps,
-                f"部分要約 {i}/{len(chunks)} の応答を待っています…"
-                f"（モデル: {llm_config.model}）",
+                t("pmsg.chunk_wait", language,
+                  i=i, n=len(chunks), model=llm_config.model),
             )
         chunk_text = transcript_to_text(chunks[i - 1])
         t0 = time.monotonic()
@@ -677,7 +668,7 @@ def _summarize_chunks(
             user=_CHUNK_PROMPT.format(chunk=chunk_text),
             max_tokens=max_tokens,
         )
-        elapsed = _format_elapsed(time.monotonic() - t0)
+        elapsed = format_elapsed(time.monotonic() - t0, language)
         partials.append(f"### 部分 {i}\n{summary.strip()}")
         if out_path is not None:
             _save_partials(
@@ -689,7 +680,7 @@ def _summarize_chunks(
         if on_progress:
             on_progress(
                 i, total_steps,
-                f"部分要約 {i}/{len(chunks)} 完了（所要 {elapsed}）",
+                t("pmsg.chunk_done", language, i=i, n=len(chunks), elapsed=elapsed),
             )
     return partials
 
@@ -725,8 +716,12 @@ def generate_minutes(
     context_tokens: int | None = None,
     template_path: str | Path | None = None,
     auto_structure: bool = False,
+    language: str = DEFAULT_LANGUAGE,
 ) -> str:
     """議事録の Markdown 文字列を返す。
+
+    language: on_progress へ渡す進捗・警告メッセージの言語（"ja" / "en"、既定 "ja"）。
+        議事録本文・システムプロンプトは対象外（別途 LLM 側）。
 
     cancel_event: セットされていれば、チャンク要約の合間（長い文字起こしの場合）で
         中断する。短いパス（1 回の chat 呼び出し）は呼び出し中に反応できない。
@@ -756,7 +751,12 @@ def generate_minutes(
 
     structure = load_minutes_structure(
         template_path,
-        on_warning=(lambda m: on_progress(0, 1, f"警告: {m}")) if on_progress else None,
+        on_warning=(
+            (lambda m: on_progress(0, 1, t("pmsg.warn_prefix", language, msg=m)))
+            if on_progress
+            else None
+        ),
+        language=language,
     )
 
     trigger_chars = getattr(llm_config, "chunk_trigger_chars", None) or _CHUNK_TRIGGER_CHARS
@@ -782,12 +782,7 @@ def generate_minutes(
         elif warn and on_progress:
             # frames を切り詰めてもチャンクを小さくできる余地がほぼ無い。
             # そのまま進めるが（実 chat は 400 + 原因ヒントを返す）、先に警告する。
-            on_progress(
-                0, 1,
-                f"警告: コンテキスト長（約 {ctx} トークン）が小さすぎます。"
-                "LM Studio の Context Length を増やすか、config.toml の "
-                "[llm] context_tokens / chunk_size_chars を見直してください",
-            )
+            on_progress(0, 1, t("pmsg.ctx_too_small", language, ctx=ctx))
 
     # まず現時点の構造（内蔵 or ファイル）で予算を見積もる。「おまかせ」で構造を
     # 差し替えたら、生成後の構造でこれを計算し直す（下記）。
@@ -821,13 +816,12 @@ def generate_minutes(
                 if on_progress:
                     on_progress(
                         len(partials), total_steps,
-                        f"既存の部分要約を再利用（{len(partials)}/{len(chunks)}）",
+                        t("pmsg.partials_reuse", language,
+                          n=len(partials), m=len(chunks)),
                     )
             elif on_progress and _partials_path(out_path).is_file():
                 on_progress(
-                    0, total_steps,
-                    "保存済みの部分要約は分割設定が変わっている（または旧形式）ため使わず、"
-                    "最初から要約し直します",
+                    0, total_steps, t("pmsg.partials_stale", language)
                 )
 
     def summarize() -> list[str]:
@@ -839,7 +833,8 @@ def generate_minutes(
             partials=partials, out_path=out_path,
             size_chars=size_chars, num_segments=len(segments),
             max_tokens=minutes_max_tokens,
-            total_steps=total_steps, on_progress=on_progress, cancel_event=cancel_event,
+            total_steps=total_steps, on_progress=on_progress,
+            cancel_event=cancel_event, language=language,
         )
         return partials
 
@@ -864,7 +859,7 @@ def generate_minutes(
             client, material, _MINUTES_STRUCTURE, out_dir,
             model=llm_config.model, max_tokens=minutes_max_tokens,
             minutes_system=system, ctx=ctx,
-            on_progress=on_progress, cancel_event=cancel_event,
+            on_progress=on_progress, cancel_event=cancel_event, language=language,
         )
         # 構造生成（重い LLM 呼び出し）の後、次の議事録生成に進む前に中断を拾う。
         check_cancel(cancel_event)
@@ -883,51 +878,46 @@ def generate_minutes(
         if on_progress:
             on_progress(
                 0, 1,
-                f"議事録を生成中…応答を待っています（モデル: {llm_config.model}）",
+                t("pmsg.minutes_generating", language, model=llm_config.model),
             )
         user = _fill_minutes_template(structure, meta, full_transcript, frames_text)
         t0 = time.monotonic()
         md = client.chat(system, user, max_tokens=minutes_max_tokens)
-        elapsed = _format_elapsed(time.monotonic() - t0)
+        elapsed = format_elapsed(time.monotonic() - t0, language)
         if on_progress:
-            on_progress(1, 1, f"議事録を生成しました（所要 {elapsed}）")
+            on_progress(1, 1, t("pmsg.minutes_generated", language, elapsed=elapsed))
         md = md.strip() + "\n"
-        _warn_leaked_instructions(structure, md, on_progress)
+        _warn_leaked_instructions(structure, md, on_progress, language)
         return md
 
     # --- 長い場合: チャンク要約 -> 統合 ---
     if on_progress and ctx > 0 and not _long_ready:
-        on_progress(
-            0, 1,
-            f"一発生成はコンテキスト長（約 {ctx} トークン）に収まらないため"
-            "分割生成に切り替えます",
-        )
+        on_progress(0, 1, t("pmsg.switch_to_split", language, ctx=ctx))
     ensure_long_state()
     summarize()
 
     if on_progress:
         on_progress(
             len(chunks), total_steps,
-            f"議事録に統合中…応答を待っています（モデル: {llm_config.model}）",
+            t("pmsg.merging", language, model=llm_config.model),
         )
     merged_transcript, merged_truncated = _fit_merged_transcript(
         "\n\n".join(partials), system, structure, frames_text,
         ctx=ctx, minutes_max_tokens=minutes_max_tokens,
     )
     if merged_truncated and on_progress:
-        on_progress(
-            0, 1,
-            "警告: 部分要約が多く統合リクエストがコンテキスト長を超えるため、"
-            "統合入力の末尾を一部省略しました",
-        )
+        on_progress(0, 1, t("pmsg.merge_truncated", language))
     user = _fill_minutes_template(structure, meta, merged_transcript, frames_text)
     t0 = time.monotonic()
     md = client.chat(system, user, max_tokens=minutes_max_tokens)
-    elapsed = _format_elapsed(time.monotonic() - t0)
+    elapsed = format_elapsed(time.monotonic() - t0, language)
     if on_progress:
-        on_progress(total_steps, total_steps, f"議事録を生成しました（所要 {elapsed}）")
+        on_progress(
+            total_steps, total_steps,
+            t("pmsg.minutes_generated", language, elapsed=elapsed),
+        )
     md = md.strip() + "\n"
-    _warn_leaked_instructions(structure, md, on_progress)
+    _warn_leaked_instructions(structure, md, on_progress, language)
     return md
 
 
