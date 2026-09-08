@@ -41,6 +41,16 @@ faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "aut
   `python src/meeting_minutes/prefetch.py` で取得すること。
 - **利用者ごとに 1 台につき一度だけ**、セットアップ時にダウンロードが発生する。
 
+## フレーム解析（VLM）
+
+| 例 | 必要メモリ（目安） | 備考 |
+| --- | --- | --- |
+| `qwen2-vl-7b-instruct` | 10〜16GB | 日本語のスライド文字にも比較的強い。 |
+| `qwen2-vl-2b-instruct` | 6〜8GB | 軽量。要点だけ拾えれば十分な場合。 |
+
+VLM を使わず OCR だけで済ませたい要望が出たら、`vision.describe_frames` を
+差し替える形で対応できます（現状は VLM 前提）。
+
 ## 議事録生成（テキスト LLM）
 
 ### モデル選びの前提（重要）
@@ -100,23 +110,13 @@ Qwen 系トークナイザでの日本語の実測（**約 0.75 トークン/文
 自動取得できない基盤では、`[llm] context_tokens` に実値（例: 32768）を書くと
 トークンベースの判定が効きます。
 
-## フレーム解析（VLM）
-
-| 例 | 必要メモリ（目安） | 備考 |
-| --- | --- | --- |
-| `qwen2-vl-7b-instruct` | 10〜16GB | 日本語のスライド文字にも比較的強い。 |
-| `qwen2-vl-2b-instruct` | 6〜8GB | 軽量。要点だけ拾えれば十分な場合。 |
-
-VLM を使わず OCR だけで済ませたい要望が出たら、`vision.describe_frames` を
-差し替える形で対応できます（現状は VLM 前提）。
-
 ## メモリ別のおすすめ構成
 
-| Mac のメモリ | 文字起こし（backend=auto なら mlx） | LLM | VLM |
+| Mac のメモリ | 文字起こし（backend=auto なら mlx） | VLM | LLM |
 | --- | --- | --- | --- |
-| 16GB | `medium` or `large-v3-turbo` | 7〜8B | 2B VLM（または VLM を使わない運用） |
-| 24GB | `large-v3-turbo` or `large-v3` | 7〜8B | `qwen2-vl-7b` |
-| 32GB 以上 | `large-v3` | 14B | `qwen2-vl-7b` |
+| 16GB | `medium` or `large-v3-turbo` | 2B VLM（または VLM を使わない運用） | 7〜8B |
+| 24GB | `large-v3-turbo` or `large-v3` | `qwen2-vl-7b` | 7〜8B |
+| 32GB 以上 | `large-v3` | `qwen2-vl-7b` | 14B |
 
 LLM と VLM を **同時にロードしておく** と切り替えが速いですが、その分メモリを食います。
 1 つずつロードする運用なら、上表より少ないメモリでも回せます。
