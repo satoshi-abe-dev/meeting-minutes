@@ -40,9 +40,9 @@ def test_normalize_language(given, expected):
 def test_t_returns_language_specific_text():
     assert t("button.stop", "ja") == "中断"
     assert t("button.stop", "en") == "Stop"
-    # 進捗ラベルの起動直後の表示（Issue #57 で「待機中」→「ログ」）
-    assert t("label.waiting", "ja") == "ログ"
-    assert t("label.waiting", "en") == "Log"
+    # 進捗ラベルの起動直後の表示（Issue #102 で「ログ」→「準備完了」/「Ready」）
+    assert t("label.waiting", "ja") == "準備完了"
+    assert t("label.waiting", "en") == "Ready"
 
 
 def test_t_falls_back_to_default_language_for_unsupported():
