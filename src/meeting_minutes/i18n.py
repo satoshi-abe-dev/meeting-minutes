@@ -388,13 +388,13 @@ _STRINGS: dict[str, dict[str, str]] = {
     "pmsg.ctx_too_small": {
         "ja": (
             "警告: コンテキスト長（約 {ctx} トークン）が小さすぎます。"
-            "LM Studio の Context Length を増やすか、config.toml の "
-            "[llm] context_tokens / chunk_size_chars を見直してください"
+            "使う LLM のコンテキスト長を増やすか（LM Studio なら Context Length）、"
+            "config.toml の [llm] context_tokens / chunk_size_chars を見直してください"
         ),
         "en": (
-            "Warning: the context window (~{ctx} tokens) is too small. Increase "
-            "Context Length in LM Studio, or review [llm] context_tokens / "
-            "chunk_size_chars in config.toml"
+            "Warning: the context window (~{ctx} tokens) is too small. Increase the "
+            "LLM's context length (in LM Studio, Context Length), or review "
+            "[llm] context_tokens / chunk_size_chars in config.toml"
         ),
     },
     "pmsg.minutes_generating": {
@@ -444,16 +444,18 @@ _STRINGS: dict[str, dict[str, str]] = {
     # llm_client.py（接続エラー時のヒント。例外メッセージとしてエラーダイアログ・ログに出る）
     "pmsg.llm_hint_conn": {
         "ja": (
-            "ローカル LLM サーバーに接続できません。LM Studio を開き、"
-            "Settings → Local Models → Local Model API で『Local API server』を ON "
-            "（Running）にしてください。旧 UI では Developer タブの Local Server を Start。"
-            "（接続先: {base_url}）"
+            "ローカル LLM サーバー（{base_url}）に接続できません。サーバーが起動していて "
+            "OpenAI 互換 API を待ち受けているか確認してください。"
+            "LM Studio なら Settings → Local Models → Local Model API で "
+            "『Local API server』を ON（Running）に、旧 UI では Developer タブの "
+            "Local Server を Start。"
         ),
         "en": (
-            "Cannot connect to the local LLM server. Open LM Studio and turn on "
-            "\"Local API server\" (Running) under Settings → Local Models → Local "
-            "Model API. In the old UI, Start the Local Server on the Developer tab. "
-            "(endpoint: {base_url})"
+            "Cannot connect to the local LLM server ({base_url}). Check that the "
+            "server is running and serving an OpenAI-compatible API. In LM Studio, "
+            "turn on \"Local API server\" (Running) under Settings → Local Models → "
+            "Local Model API; in the old UI, Start the Local Server on the Developer "
+            "tab."
         ),
     },
     "pmsg.llm_hint_timeout": {
@@ -474,35 +476,40 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     "pmsg.llm_hint_model": {
         "ja": (
-            "LM Studio でモデルがロードされていない可能性があります。"
-            "『Just-in-time model loading』を ON にするか、Loaded Instances で "
-            "対象モデルをロードしてください。config の model / vlm_model が Library の"
-            "モデルキー（`curl {base_url}/models` で確認可）と一致しているかも確認してください。"
+            "モデルがサーバーにロードされていない可能性があります。"
+            "config の model / vlm_model がサーバーの返すモデル ID"
+            "（`curl {base_url}/models` で確認可）と一致しているか、対象モデルが"
+            "ロード済みかを確認してください。"
+            "LM Studio なら『Just-in-time model loading』を ON にするか、"
+            "Loaded Instances で対象モデルをロード。"
         ),
         "en": (
-            "The model may not be loaded in LM Studio. Turn on \"Just-in-time model "
-            "loading\", or load the target model under Loaded Instances. Also check "
-            "that model / vlm_model in the config match the Library model keys "
-            "(check with `curl {base_url}/models`)."
+            "The model may not be loaded on the server. Check that model / vlm_model "
+            "in the config match the model IDs the server returns (check with "
+            "`curl {base_url}/models`) and that the target model is loaded. In "
+            "LM Studio, turn on \"Just-in-time model loading\", or load the target "
+            "model under Loaded Instances."
         ),
     },
     "pmsg.llm_hint_context": {
         "ja": (
-            "プロンプトがモデルのコンテキスト長を超えています。LM Studio でこの LLM を"
-            "ロードするときに Context Length を 32768 以上に設定して読み込み直してください"
-            "（一度ロード済みなら Eject してから設定し直す）。詳しくは docs/models.md の"
-            "「コンテキスト長の設定」を参照。"
+            "プロンプトがモデルのコンテキスト長を超えています。使う LLM のコンテキスト長を "
+            "32768 以上にしてください（設定方法はサーバー依存）。"
+            "LM Studio ならこの LLM をロードするときに Context Length を 32768 以上に"
+            "設定して読み込み直す（一度ロード済みなら Eject してから設定し直す）。"
+            "詳しくは docs/models.md の「コンテキスト長の設定」を参照。"
             "コンテキスト長を大きくできない場合は、config.toml の "
             "[llm] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
             "1 回あたりのプロンプトが短くなります。"
         ),
         "en": (
-            "The prompt exceeds the model's context window. When loading this LLM in "
-            "LM Studio, set Context Length to 32768 or more and reload it (if already "
-            "loaded, Eject first and set it again). See \"Setting the context length\" "
-            "in docs/models.md. If you cannot increase it, lowering [llm] "
-            "chunk_trigger_chars / chunk_size_chars in config.toml switches to split "
-            "summarization and shortens each prompt."
+            "The prompt exceeds the model's context window. Set the LLM's context "
+            "length to 32768 or more (how to do this depends on the server). In "
+            "LM Studio, set Context Length to 32768 or more when loading this LLM and "
+            "reload it (if already loaded, Eject first and set it again). See "
+            "\"Setting the context length\" in docs/models.md. If you cannot increase "
+            "it, lowering [llm] chunk_trigger_chars / chunk_size_chars in config.toml "
+            "switches to split summarization and shortens each prompt."
         ),
     },
     "pmsg.llm_hint_reasoning": {
@@ -511,7 +518,8 @@ _STRINGS: dict[str, dict[str, str]] = {
             "出力できませんでした（reasoning は {reasoning_len} 文字生成、本文は空、"
             "finish_reason={finish_reason!r}）。Qwen3 系などの推論モデルは、入力が長い"
             "ほど思考に多くのトークンを使います。config.toml の [llm] max_tokens を"
-            "増やすか、LM Studio 側でこのモデルの reasoning（思考の強さ）を下げてください。"
+            "増やすか、サーバー側でこのモデルの reasoning（思考の強さ）を下げてください"
+            "（LM Studio なら reasoning 設定、または非推論の Instruct 系モデルへ）。"
         ),
         "en": (
             "The model used up max_tokens on \"reasoning\" and produced no body text "
@@ -519,7 +527,8 @@ _STRINGS: dict[str, dict[str, str]] = {
             "finish_reason={finish_reason!r}). Reasoning models such as the Qwen3 "
             "family spend more tokens on thinking as the input gets longer. Increase "
             "[llm] max_tokens in config.toml, or lower this model's reasoning effort "
-            "in LM Studio."
+            "on the server side (in LM Studio, the reasoning setting; or switch to a "
+            "non-reasoning Instruct model)."
         ),
     },
     "pmsg.llm_err_http": {
