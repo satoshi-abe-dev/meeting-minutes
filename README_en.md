@@ -62,6 +62,14 @@ output/<video name>/
 
 This project was developed by running multiple Claude Code sessions (an implementer and a reviewer) in coordination, with a defined division of roles and review process (→ [Development process](#development-process-ai-assisted-collaboration)).
 
+## Demo
+
+![Screenshot of the GUI running](docs/screenshots/gui.png)
+
+Pick a video and click "Create minutes", then watch transcription → frame analysis →
+minutes generation proceed with a progress bar and a log. Custom templates
+("Choose a file") are supported too.
+
 ## Setup (macOS / Apple Silicon)
 
 ```bash
