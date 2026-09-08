@@ -258,6 +258,7 @@ class TkMainWindow(MainView):
             state="disabled",
         )
         self.open_minutes_btn.grid(row=0, column=0)
+        _Tooltip(self.open_minutes_btn, self._t("tooltip.open_minutes"))
         self.open_folder_btn = ttk.Button(
             self.done_bar,
             text=self._t("button.open_folder"),

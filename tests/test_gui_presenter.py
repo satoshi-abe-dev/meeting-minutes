@@ -81,6 +81,7 @@ class _FakeResult:
     def __init__(self, *, warnings=()):
         self.out_dir = "/tmp/out/会議"
         self.minutes_path = "/tmp/out/会議/minutes.md"
+        self.minutes_docx_path = "/tmp/out/会議/minutes.docx"
         self.n_segments = 42
         self.n_frames = 7
         self.warnings = list(warnings)
@@ -382,17 +383,38 @@ def test_stop_without_active_run_is_noop():
 
 # --- 外部を開く --------------------------------------------------
 
-def test_open_minutes_only_when_file_exists(tmp_path):
+def test_open_minutes_prefers_docx_then_md_then_folder(tmp_path):
     view, presenter = _make()
-    presenter.minutes_path = None
-    view.handlers["open_minutes"]()
-    assert view.opened == []
-
     md = tmp_path / "minutes.md"
+    docx = tmp_path / "minutes.docx"
     md.write_text("x", encoding="utf-8")
+    docx.write_text("x", encoding="utf-8")
+
+    # docx が実ファイルなら docx を開く
+    presenter.minutes_docx_path = str(docx)
     presenter.minutes_path = str(md)
+    presenter.result_dir = str(tmp_path)
+    view.handlers["open_minutes"]()
+    assert view.opened == [docx]
+
+    # docx が None なら .md に落ちる
+    view.opened.clear()
+    presenter.minutes_docx_path = None
     view.handlers["open_minutes"]()
     assert view.opened == [md]
+
+    # docx も .md も無ければ出力フォルダー
+    view.opened.clear()
+    presenter.minutes_docx_path = str(tmp_path / "missing.docx")
+    presenter.minutes_path = str(tmp_path / "missing.md")
+    view.handlers["open_minutes"]()
+    assert view.opened == [tmp_path]
+
+    # どれも無ければ何も開かない
+    view.opened.clear()
+    presenter.result_dir = str(tmp_path / "missing_dir")
+    view.handlers["open_minutes"]()
+    assert view.opened == []
 
 
 def test_open_folder_only_when_dir_exists(tmp_path):

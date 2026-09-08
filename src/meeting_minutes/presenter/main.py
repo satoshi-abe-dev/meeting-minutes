@@ -54,6 +54,7 @@ class MainPresenter:
         self.video_path: Path | None = None
         self.result_dir = None
         self.minutes_path = None
+        self.minutes_docx_path = None
         # 議事録フォーマット。config.toml の設定を初期値として尊重し、GUI の
         # ラジオ／ファイル選択はその回だけの上書き（config.toml は書き換えない）。
         _cfg_tpl = self.config_obj.output.template_path
@@ -284,6 +285,7 @@ class MainPresenter:
         self._worker = None
         self.result_dir = result.out_dir
         self.minutes_path = result.minutes_path
+        self.minutes_docx_path = result.minutes_docx_path
         self.view.set_progress(1000)
         self.view.set_stage_text(self._t("stage_text.done"))
         self._log("")
@@ -323,8 +325,15 @@ class MainPresenter:
 
     # --- 外部を開く ---------------------------------------------
     def _open_minutes(self) -> None:
-        if self.minutes_path and Path(self.minutes_path).is_file():
+        # Word 版を優先。docx 変換が失敗したランでは result.minutes_docx_path が
+        # None（pipeline は警告して継続）。過去実行後に .md だけ手で消された等の
+        # 保険として、最後は出力フォルダーにフォールバックする。
+        if self.minutes_docx_path and Path(self.minutes_docx_path).is_file():
+            self.view.open_in_file_manager(Path(self.minutes_docx_path))
+        elif self.minutes_path and Path(self.minutes_path).is_file():
             self.view.open_in_file_manager(Path(self.minutes_path))
+        elif self.result_dir and Path(self.result_dir).is_dir():
+            self.view.open_in_file_manager(Path(self.result_dir))
 
     def _open_folder(self) -> None:
         if self.result_dir and Path(self.result_dir).is_dir():

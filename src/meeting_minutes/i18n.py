@@ -104,6 +104,16 @@ _STRINGS: dict[str, dict[str, str]] = {
             "finish faster."
         ),
     },
+    "tooltip.open_minutes": {
+        "ja": (
+            "Word 版（minutes.docx）を開きます。無い場合は Markdown 版"
+            "（minutes.md）を開きます。"
+        ),
+        "en": (
+            "Opens the Word version (minutes.docx). If it wasn't produced, opens "
+            "the Markdown version (minutes.md) instead."
+        ),
+    },
     # --- ファイル選択ダイアログ（view）--------------------------------
     "dialog.choose_video.title": {
         "ja": "打ち合わせ動画を選択",
