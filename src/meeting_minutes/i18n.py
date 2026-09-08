@@ -405,6 +405,17 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": "議事録を生成しました（所要 {elapsed}）",
         "en": "Minutes generated (elapsed {elapsed})",
     },
+    "pmsg.docx_saved": {
+        "ja": "Word 版も書き出しました（{path}）",
+        "en": "Also wrote the Word version ({path})",
+    },
+    "pmsg.warn_docx_failed": {
+        "ja": "警告: Word 版（.docx）の書き出しに失敗しました（minutes.md は生成済み）: {exc}",
+        "en": (
+            "Warning: failed to write the Word (.docx) version (minutes.md was "
+            "written): {exc}"
+        ),
+    },
     "pmsg.switch_to_split": {
         "ja": (
             "一発生成はコンテキスト長（約 {ctx} トークン）に収まらないため"

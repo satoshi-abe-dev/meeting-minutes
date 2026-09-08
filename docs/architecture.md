@@ -25,7 +25,8 @@
   └─(5) minutes.generate_minutes   文字起こし＋フレーム要点 → 議事録 Markdown
            ├─ 長文はチャンク要約ごとに minutes/minutes_partials.json へ逐次保存
            │    → reuse=True なら残っている分は要約し直さない（1チャンク単位で再開）
-           └─ save_minutes → minutes.md
+           ├─ save_minutes → minutes.md
+           └─ save_minutes_docx → minutes.docx（.md と同内容の Word 版。失敗しても警告のみ）
 ```
 
 `pipeline.run()` がこの順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の

@@ -19,6 +19,7 @@
 ```
 examples/<サンプル名>/
 ├── minutes.md          生成された議事録
+├── minutes.docx        同じ議事録の Word 版（minutes.md から自動生成。任意）
 ├── transcript.head.txt 文字起こしの冒頭だけ（雰囲気が分かる程度）
 └── frame_sample.jpg    代表フレーム 1 枚（任意）
 ```

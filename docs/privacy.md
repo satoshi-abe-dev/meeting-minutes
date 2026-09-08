@@ -12,6 +12,7 @@
 | 文字起こし | ローカル（mlx-whisper / faster-whisper。モデルは**セットアップ時に取得済み**の前提。実行時はオフライン強制） | なし（実行時。モデル取得はセットアップ時のみ） |
 | 抽出フレーム画像 | ローカル（ffmpeg） | なし |
 | フレーム解析・議事録生成 | **手元で動かすローカル LLM サーバー**（LM Studio 等）へ `localhost` で送信 | なし（PC 内で完結） |
+| 議事録の出力（`output/<動画名>/minutes.md` と `minutes.docx`） | ローカル（`.docx` は python-docx で `.md` から変換。外部バイナリ不使用） | なし |
 
 実行時に外部ドメインへ HTTP リクエストを送るコードはありません。接続先は
 `config.toml` の `[llm] base_url` のみで、既定値は `http://localhost:1234/v1` です。

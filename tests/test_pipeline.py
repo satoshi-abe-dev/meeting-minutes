@@ -129,6 +129,12 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         p.write_text(markdown, encoding="utf-8")
         return p
 
+    def save_minutes_docx(markdown, out_dir):
+        recorder.append("save_minutes_docx")
+        p = Path(out_dir) / "minutes.docx"
+        p.write_text("(fake docx)", encoding="utf-8")
+        return p
+
     def load_transcript(out_dir):
         recorder.append("load_transcript")
         return [Segment(0.0, 3.0, "再利用こんにちは"), Segment(3.0, 6.0, "再利用本題")]
@@ -149,6 +155,7 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         save_frame_notes=save_frame_notes,
         generate_minutes=generate_minutes,
         save_minutes=save_minutes,
+        save_minutes_docx=save_minutes_docx,
         make_client=lambda cfg: client,
         probe_duration=lambda p: 123.0,
     )
@@ -176,6 +183,7 @@ def test_pipeline_runs_stages_in_order(config, video):
         "save_frame_notes",
         "generate_minutes",
         "save_minutes",
+        "save_minutes_docx",
     ]
 
     # 進捗の stage が定義順どおりに初出する
@@ -252,6 +260,38 @@ def test_pipeline_result_paths(config, video):
     assert result.transcript_json.parent == result.transcript_txt.parent
     assert result.n_segments == 2
     assert result.n_frames == 1
+    # .docx（Word）版も同じフォルダのルートに出て、結果に載る
+    assert result.minutes_docx_path == result.out_dir / "minutes.docx"
+    assert result.minutes_docx_path.is_file()
+
+
+def test_pipeline_writes_real_docx_from_markdown(config, video):
+    """save_minutes_docx を実変換にして、生成 .docx を python-docx で開き直せる。"""
+    import docx
+
+    from meeting_minutes.model.docx_export import save_minutes_docx
+
+    deps = _fake_deps([], FakeClient())
+    deps.save_minutes_docx = save_minutes_docx
+    result = run(video, config, deps=deps)
+
+    assert result.minutes_docx_path.is_file()
+    opened = docx.Document(str(result.minutes_docx_path))
+    assert opened.paragraphs[0].style.name == "Heading 1"  # "# 議事録: 会議"
+
+
+def test_pipeline_docx_failure_is_isolated(config, video):
+    """.docx 変換が例外でも run は完走し、minutes.md は出て warnings に警告が載る。"""
+    def boom(markdown, out_dir):
+        raise RuntimeError("docx broke")
+
+    deps = _fake_deps([], FakeClient())
+    deps.save_minutes_docx = boom
+    result = run(video, config, deps=deps)
+
+    assert result.minutes_path.is_file()
+    assert result.minutes_docx_path is None
+    assert any("docx broke" in w for w in result.warnings)
 
 
 def test_pipeline_puts_audio_alongside_transcript(config, video):
@@ -302,7 +342,7 @@ def test_pipeline_reuses_existing_transcript_and_frames(config, video):
     assert "load_transcript" in recorder
     assert "load_frames" in recorder
     # VLM・議事録は通常どおり実行
-    assert recorder[-2:] == ["generate_minutes", "save_minutes"]
+    assert recorder[-3:] == ["generate_minutes", "save_minutes", "save_minutes_docx"]
     assert result.n_segments == 2
     assert result.n_frames == 1
 
