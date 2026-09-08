@@ -79,6 +79,8 @@ minutes generation proceed with a progress bar and a log. Custom templates
 
 ## Setup
 
+Quickstart for macOS / Linux (Windows: see [`docs/setup.md`](docs/setup.md)):
+
 ```bash
 brew install ffmpeg          # required for audio / frame extraction
 bash scripts/setup.sh        # creates the virtualenv, installs deps, and fetches the transcription model

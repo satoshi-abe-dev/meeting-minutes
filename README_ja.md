@@ -79,6 +79,8 @@ output/<動画名>/
 
 ## セットアップ
 
+macOS / Linux のクイックスタート（Windows は [`docs/setup.md`](docs/setup.md) を参照）:
+
 ```bash
 brew install ffmpeg          # 音声・フレーム抽出に必要
 bash scripts/setup.sh        # 仮想環境の作成・依存導入・文字起こしモデルの取得まで自動

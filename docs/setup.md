@@ -30,8 +30,10 @@ cd meeting-minutes
 bash scripts/setup.sh
 ```
 
-**Windows** は `scripts/setup.sh` が bash 前提なので、Git Bash / WSL で叩くか、
-下記「### 手動でやる場合」の Windows 手順を使う。
+**Windows**: WSL（Linux 環境）なら上の macOS / Linux 手順がそのまま使える。
+ネイティブ Windows は `scripts/setup.sh` が使えない（中で `./.venv/bin/pip` など
+POSIX パスをハードコードしており、`python -m venv` が作る `.venv\Scripts\` と噛み
+合わない）ので、下記「### 手動でやる場合」の Windows（PowerShell）手順を使う。
 
 `scripts/setup.sh`（および手動手順）が行うこと:
 
@@ -61,14 +63,18 @@ pip install -r requirements.txt
 python src/meeting_minutes/download_transcribe_model.py   # モデル取得（必須。実行時は自動DLしない）
 ```
 
-**Windows（PowerShell）:**
+**Windows（PowerShell。venv の有効化は不要 — `.venv\Scripts\python` を直接呼ぶ）:**
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\Activate.ps1        # cmd.exe なら .venv\Scripts\activate.bat
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python src\meeting_minutes\download_transcribe_model.py
 ```
+
+> venv を有効化して短いコマンドで使いたい場合は `.venv\Scripts\Activate.ps1`。
+> 実行ポリシーで弾かれるときは、そのセッションだけ許可する:
+> `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`
+> （`cmd.exe` なら `.venv\Scripts\activate.bat`、こちらは実行ポリシーの影響を受けない）。
 
 ### モデルの置き場所と配布
 
@@ -168,16 +174,24 @@ model = "large-v3-turbo"  # 既定。精度優先なら "large-v3"、軽さ優�
 
 短い動画（スライド提示のある 1〜2 分程度）で試します。
 
-```bash
-# CLI
-python src/meeting_minutes/cli.py sample.mp4
+**macOS / Linux**（venv 有効化済み。未有効化なら `.venv/bin/python` を明示）:
 
-# GUI
-python src/meeting_minutes/gui.py
+```bash
+python src/meeting_minutes/cli.py sample.mp4   # CLI
+python src/meeting_minutes/gui.py              # GUI
 ```
 
-`output/sample/minutes.md` が生成されれば成功です。Windows でもこのコマンドはそのまま
-動きます（Python はパス区切りに `/` を受け付けます。`\` でも可）。
+**Windows**（venv 未有効化なら `.venv\Scripts\python` を明示）:
+
+```powershell
+.venv\Scripts\python src\meeting_minutes\cli.py sample.mp4
+.venv\Scripts\python src\meeting_minutes\gui.py
+```
+
+`output/sample/minutes.md` が生成されれば成功です。venv を有効化しているか、
+上のように venv 内の Python を明示すれば、どの OS でも同じコマンド構成で動きます
+（Python はパス区切りに `/` も `\` も受けます。venv 未有効化のまま素の `python` で
+呼ぶとグローバル環境が使われ ImportError になります）。
 
 > 開発者向けには `python -m meeting_minutes.cli sample.mp4` / `-m meeting_minutes.gui`
 > でも起動できます（その場合は `cd src` するか `PYTHONPATH=src` を設定してください）。
