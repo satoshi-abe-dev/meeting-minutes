@@ -37,9 +37,9 @@ Meeting minutes are a natural fit for AI automation. But meeting audio and share
 A CLI / GUI tool that takes a single video file and runs the following **entirely locally** to generate minutes.
 
 1. Extract audio from the video (ffmpeg)
-2. Transcribe with timestamps (Whisper; local and offline)
-3. Extract frames of screen shares / slides and summarize their content (local VLM)
-4. Generate minutes from the transcript + frame notes (local LLM)
+2. Transcribe with timestamps (Whisper)
+3. Extract frames of screen shares / slides and summarize their content (VLM)
+4. Generate minutes from the transcript + frame notes (LLM)
 
 - There is no code that connects to an external domain. The only thing it talks to is a **local LLM server you run yourself** (e.g. [LM Studio](https://lmstudio.ai/)) over `localhost`
 - Once the models are downloaded, it **runs to completion even with Wi-Fi turned off** (→ [`docs/privacy.md`](docs/privacy.md))
