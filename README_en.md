@@ -219,10 +219,10 @@ pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipp
 
 ## Development process (AI-assisted collaboration)
 
-This project was implemented through collaborative development by multiple Claude Code sessions.
+This project was implemented by **two role-separated Claude Code sessions** (independent `claude` processes) working together.
 
-- **worker** — handles implementation, tests, and git operations
-- **manager** — reviews the PRs the worker opens and handles merging to `main`. Merges only after checking for leaked confidential data (proper nouns from real meetings), the `.gitignore` exclusions, that the diff stays within the intended scope, and the absence of destructive operations
+- **worker** — the session that handles implementation, tests, and git operations
+- **manager** — the session that reviews the PRs the worker opens and merges them to `main`. Merges only after checking for leaked confidential data (proper nouns from real meetings), the `.gitignore` exclusions, that the diff stays within the intended scope, and the absence of destructive operations
 - The division of roles, the prohibitions, and the review criteria are written out in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) (Claude Code loads it automatically at session start; the rest of `.claude/`, such as the operational session log, is private)
 - **the manager does not take the worker's self-report at face value** — for every PR the manager re-runs pytest and the confidential-data grep itself and reviews the diff directly before merging
 - **conversation context is not shared between sessions** — the manager does not see the worker's trial and error, and reviews only from the final diff and report
