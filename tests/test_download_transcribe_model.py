@@ -1,11 +1,11 @@
-"""prefetch のテスト（実ダウンロードはせず、フェイクモジュールを注入）。"""
+"""download_transcribe_model のテスト（実ダウンロードはせず、フェイクモジュールを注入）。"""
 
 from __future__ import annotations
 
 import sys
 import types
 
-from meeting_minutes import prefetch
+from meeting_minutes.download_transcribe_model import download_transcribe_model, main
 from meeting_minutes.model import transcribe
 from meeting_minutes.model.config import Config
 
@@ -42,32 +42,30 @@ def _fake_faster_whisper(captured: dict):
     return mod
 
 
-def test_prefetch_mlx_downloads_mapped_repo(monkeypatch):
+def test_download_mlx_downloads_mapped_repo(monkeypatch):
     monkeypatch.setattr(transcribe, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(transcribe, "_mlx_available", lambda: True)
     captured: dict = {}
     monkeypatch.setitem(sys.modules, "huggingface_hub", _fake_hf(captured))
 
-    target = prefetch.prefetch_transcribe_model(
-        _config("auto", "large-v3-turbo")
-    )
+    target = download_transcribe_model(_config("auto", "large-v3-turbo"))
     assert target == "mlx-community/whisper-large-v3-turbo"
     assert captured["repo"] == "mlx-community/whisper-large-v3-turbo"
 
 
-def test_prefetch_faster_whisper_instantiates_model(monkeypatch):
+def test_download_faster_whisper_instantiates_model(monkeypatch):
     monkeypatch.setattr(transcribe, "_is_apple_silicon", lambda: False)
     captured: dict = {}
     monkeypatch.setitem(
         sys.modules, "faster_whisper", _fake_faster_whisper(captured)
     )
 
-    target = prefetch.prefetch_transcribe_model(_config("auto", "medium"))
+    target = download_transcribe_model(_config("auto", "medium"))
     assert target == "medium"
     assert captured["model"] == "medium"
 
 
-def test_prefetch_explicit_faster_whisper_on_apple(monkeypatch):
+def test_download_explicit_faster_whisper_on_apple(monkeypatch):
     # Apple Silicon でも backend="faster-whisper" を明示したら faster-whisper 側を取得
     monkeypatch.setattr(transcribe, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(transcribe, "_mlx_available", lambda: True)
@@ -76,12 +74,10 @@ def test_prefetch_explicit_faster_whisper_on_apple(monkeypatch):
         sys.modules, "faster_whisper", _fake_faster_whisper(captured)
     )
 
-    target = prefetch.prefetch_transcribe_model(
-        _config("faster-whisper", "large-v3")
-    )
+    target = download_transcribe_model(_config("faster-whisper", "large-v3"))
     assert target == "large-v3"
     assert captured["model"] == "large-v3"
 
 
-def test_prefetch_main_missing_config_returns_2():
-    assert prefetch.main(["--config", "/no/such/config.toml"]) == 2
+def test_download_main_missing_config_returns_2():
+    assert main(["--config", "/no/such/config.toml"]) == 2

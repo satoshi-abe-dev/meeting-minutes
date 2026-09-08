@@ -29,7 +29,7 @@ echo "==> 文字起こしモデルを取得（インターネットに接続し�
 echo "    この手順は HuggingFace から Whisper モデルをダウンロードします。"
 echo "    アプリ実行時はオフライン強制のため、ここでの取得が必須です。"
 # 失敗したら set -e でセットアップ自体を失敗終了させる（握りつぶさない）。
-./.venv/bin/python src/meeting_minutes/prefetch.py
+./.venv/bin/python src/meeting_minutes/download_transcribe_model.py
 
 cat <<'DONE'
 

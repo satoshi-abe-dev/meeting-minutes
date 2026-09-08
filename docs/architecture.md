@@ -43,8 +43,8 @@ LLM/VLM を呼ぶ工程の開始メッセージには使用モデル名と「応
 
 実処理（Model）は `src/meeting_minutes/model/` にまとまっている。GUI は
 `src/meeting_minutes/view/` + `src/meeting_minutes/presenter/`、実行の入口は
-`src/meeting_minutes/` 直下の `gui.py` / `cli.py` / `prefetch.py`。下表の
-`prefetch.py` 以外の 10 モジュールが `model/` 配下（例: `model/pipeline.py` ⇔
+`src/meeting_minutes/` 直下の `gui.py` / `cli.py` / `download_transcribe_model.py`。下表の
+`download_transcribe_model.py` 以外の 10 モジュールが `model/` 配下（例: `model/pipeline.py` ⇔
 `meeting_minutes.model.pipeline`）。
 
 | モジュール | 役割 | 外部依存 |
@@ -60,13 +60,13 @@ LLM/VLM を呼ぶ工程の開始メッセージには使用モデル名と「応
 | `model/minutes.py` | `Segment`＋`FrameNote` → 議事録 Markdown。長文はチャンク要約→統合 | `llm_client` |
 | `model/pipeline.py` | 全工程のオーケストレーション、進捗、`Deps` による差し替え | 上記すべて |
 | `i18n.py` | GUI 表示文言のカタログ（`{key: {"ja", "en"}}`）と `t(key, language, **kwargs)`。`view/` と `presenter/` が共有（→ `DESIGN.md` 8.8 節） | なし |
-| `prefetch.py` | 解決後バックエンドの Whisper モデルを事前DL（`scripts/setup.sh` から） | huggingface_hub / faster-whisper |
+| `download_transcribe_model.py` | 解決後バックエンドの Whisper モデルを取得（`scripts/setup.sh` から） | huggingface_hub / faster-whisper |
 
 ## エントリポイント
 
-`src/meeting_minutes/` 配下の `gui.py` / `cli.py` / `prefetch.py` が実行の入口。
+`src/meeting_minutes/` 配下の `gui.py` / `cli.py` / `download_transcribe_model.py` が実行の入口。
 GUI は `view/` + `presenter/` を組み立てて起動する薄いラッパー（→ `DESIGN.md` 8.5 節）、
-CLI / prefetch は argparse + `meeting_minutes.model.*`（prefetch は自身が model 外）の呼び出し。いずれも冒頭に
+CLI / モデル取得は argparse + `meeting_minutes.model.*`（取得スクリプトは自身が model 外）の呼び出し。いずれも冒頭に
 `__package__` ブートストラップがあり、`python src/meeting_minutes/gui.py` のような
 ファイル指定でも `python -m meeting_minutes.gui`（`cd src` か `PYTHONPATH=src` が要る）
 でも動く（→ `DESIGN.md` 8.6 節）。

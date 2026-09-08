@@ -251,8 +251,10 @@ mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含�
 **モデルは事前取得必須、実行時はオフライン強制:** Whisper モデル（既定
 `large-v3-turbo`、約 1.6GB）はリポジトリに含めず HuggingFace の共有キャッシュ
 （`~/.cache/huggingface/hub/`）に入る。取得は **セットアップ時の 1 回だけ**。
-`scripts/setup.sh` が venv 作成・依存導入に続けて `python src/meeting_minutes/prefetch.py`
-（→ `meeting_minutes.prefetch`）を呼ぶ。`prefetch` は `resolve_backend()` の結果に
+`scripts/setup.sh` が venv 作成・依存導入に続けて
+`python src/meeting_minutes/download_transcribe_model.py`
+（→ `meeting_minutes.download_transcribe_model`）を呼ぶ。この取得スクリプトは
+`resolve_backend()` の結果に
 合うモデルだけを落とし、取得済みなら何もしない（冪等）。**取得は必須で、失敗したら
 `set -e` でセットアップ自体を失敗終了させる**（旧: 失敗を握りつぶし「初回実行時に
 自動DL」と案内していた）。
@@ -261,9 +263,9 @@ mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含�
 
 1. **環境変数** — エントリポイントが HuggingFace 系ライブラリの import より前に
    `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` を `setdefault` する。`__init__.py`
-   ではなく `cli.py` / `gui.py` に置く（`prefetch.py` が同じパッケージを import
-   するため、`__init__.py` に置くと prefetch 自身までオフラインになりモデルを
-   取得できなくなる）。`setdefault` なので社内ミラー等で明示的に `0` を指定した
+   ではなく `cli.py` / `gui.py` に置く（`download_transcribe_model.py` が同じ
+   パッケージを import するため、`__init__.py` に置くと取得スクリプト自身まで
+   オフラインになりモデルを取得できなくなる）。`setdefault` なので社内ミラー等で明示的に `0` を指定した
    利用者の意図は尊重する。
 2. **環境変数に依存しない実行時ガード** — `_transcribe_faster_whisper` は
    `WhisperModel(..., local_files_only=True)` を無条件で渡し、事前に
@@ -277,7 +279,8 @@ mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含�
    ディレクトリのパス**も取れる（エアギャップ配布向け）。両ガードは先頭で
    `Path(...).is_dir()` を見て、実在するディレクトリなら HF 解決をスキップする。
 
-LM Studio 側の LLM/VLM は別管理なので prefetch・オフライン強制いずれの対象外。
+LM Studio 側の LLM/VLM は別管理なので、モデル取得スクリプト・オフライン強制いずれの
+対象外。
 
 **空耳の繰り返し（repetition loop）対策:** 実際に起きた不具合。歌や BGM を含む区間で、
 faster-whisper・mlx-whisper 共通の既定 `condition_on_previous_text=True`（直前の窓の
@@ -353,8 +356,9 @@ src/meeting_minutes/
 
 ## 8.6 エントリポイントも src/ 配下へ（2026-09、Issue #51）
 
-**判断:** リポジトリ直下にあった `gui.py` / `cli.py` / `prefetch.py`（ルートの薄い
-ランチャー）を `src/meeting_minutes/` 配下へ移し、直下から `.py` を無くした。参考
+**判断:** リポジトリ直下にあった `gui.py` / `cli.py` / `download_transcribe_model.py`
+（当時は `prefetch.py`。ルートの薄いランチャー）を `src/meeting_minutes/` 配下へ移し、
+直下から `.py` を無くした。参考
 プロジェクト `tkinter-task-manager-mvp` と同じ構成。ルートのランチャーが持っていた
 `sys.path.insert(0, ".../src")` は、次の `__package__` ブートストラップに置き換えた:
 
@@ -373,8 +377,9 @@ if __package__ in (None, ""):
 設定や `cd` を要求する `-m` 形式より、パスが長くなるだけで追加設定の要らないファイル
 指定形式を採る（8 節の設計判断の延長）。`-m` 形式は開発者向けの補足として併記する。
 
-`prefetch.py` は元々 `from .config import ...` という相対 import だったので、ファイル
-指定起動でも通るよう絶対 import（`from meeting_minutes.model.config import ...`）に変えた
+`download_transcribe_model.py` は元々 `from .config import ...` という相対 import
+だったので、ファイル指定起動でも通るよう絶対 import
+（`from meeting_minutes.model.config import ...`）に変えた
 （`gui.py` / `cli.py` は元から絶対 import）。ロジックは変えていない。
 
 ---
@@ -385,11 +390,12 @@ if __package__ in (None, ""):
 `frames` / `llm_client` / `minutes` / `pipeline` / `transcribe` / `vision`）を
 `src/meeting_minutes/model/` へ移し、`view/` + `presenter/` + `model/` の対称な
 構成にした（参考プロジェクト `tkinter-task-manager-mvp` と同じ）。`gui.py` /
-`cli.py` / `prefetch.py`（エントリポイント）は直下のまま。
+`cli.py` / `download_transcribe_model.py`（エントリポイント）は直下のまま。
 
 - **10 モジュールは互いに相対 import**（`from . import audio` 等）なので、まとめて
-  `model/` 直下に移すだけで内部参照は変更不要。外部（`gui` / `cli` / `prefetch` /
-  `presenter/main`）の絶対 import を `meeting_minutes.xxx` → `meeting_minutes.model.xxx`
+  `model/` 直下に移すだけで内部参照は変更不要。外部（`gui` / `cli` /
+  `download_transcribe_model` / `presenter/main`）の絶対 import を
+  `meeting_minutes.xxx` → `meeting_minutes.model.xxx`
   に変えるだけ。
 - `config.py` の `REPO_ROOT = Path(__file__).resolve().parents[N]` は、ファイルが
   1 階層深くなったぶん `parents[2]` → `parents[3]` に直した（挙動を保つための機械的な

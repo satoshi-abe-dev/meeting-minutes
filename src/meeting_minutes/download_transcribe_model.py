@@ -4,9 +4,9 @@
 オフライン強制のため Whisper モデルを自動ダウンロードしない**ので、事前取得は必須。
 手動でも実行できる:
 
-    python src/meeting_minutes/prefetch.py
-    python src/meeting_minutes/prefetch.py --config config.toml
-（開発者向けに `python -m meeting_minutes.prefetch` も可）
+    python src/meeting_minutes/download_transcribe_model.py
+    python src/meeting_minutes/download_transcribe_model.py --config config.toml
+（開発者向けに `python -m meeting_minutes.download_transcribe_model` も可）
 
 解決後のバックエンド（mlx / faster-whisper）に対応する Whisper モデルだけを取得する。
 LM Studio の LLM / VLM は対象外（LM Studio 側で各自ダウンロードする）。
@@ -23,7 +23,7 @@ import argparse
 import os
 import sys
 
-# `python src/meeting_minutes/prefetch.py` のようにファイル指定で直接起動されると
+# `python src/meeting_minutes/download_transcribe_model.py` のようにファイル指定で直接起動されると
 # __package__ が未設定で相対 import（from .config …）が使えない。src レイアウトの
 # パッケージ親 = src/（このファイルの 2 つ上）を sys.path に足し、絶対 import で書く。
 # import 済みモジュール（tests / `-m` / scripts）としては絶対 import でも問題なく解決する。
@@ -34,21 +34,21 @@ from meeting_minutes.model.config import load_config
 from meeting_minutes.model.transcribe import _mlx_model_repo, resolve_backend
 
 
-def prefetch_transcribe_model(config) -> str:
+def download_transcribe_model(config) -> str:
     """設定に対応する Whisper モデルを取得し、取得対象の識別子を返す。"""
     backend = resolve_backend(config.transcribe)
     model_name = config.transcribe.model
 
     if backend == "mlx":
         repo = _mlx_model_repo(model_name)
-        print(f"[prefetch] mlx モデルを取得: {repo}", flush=True)
+        print(f"[download] mlx モデルを取得: {repo}", flush=True)
         from huggingface_hub import snapshot_download
 
         snapshot_download(repo)
         return repo
 
     # faster-whisper: モデルの生成でダウンロードが起きる
-    print(f"[prefetch] faster-whisper モデルを取得: {model_name}", flush=True)
+    print(f"[download] faster-whisper モデルを取得: {model_name}", flush=True)
     from faster_whisper import WhisperModel
 
     WhisperModel(
@@ -77,18 +77,19 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        target = prefetch_transcribe_model(config)
+        target = download_transcribe_model(config)
     except Exception as exc:
         print(
             f"モデルの取得に失敗しました: {exc}\n"
-            "ネットワーク接続と HF_HOME を確認し、`python src/meeting_minutes/prefetch.py` を"
+            "ネットワーク接続と HF_HOME を確認し、"
+            "`python src/meeting_minutes/download_transcribe_model.py` を"
             "再実行してください。アプリ実行時は自動ダウンロードしないため、"
             "モデルが無いと文字起こしは実行できません。",
             file=sys.stderr,
         )
         return 1
 
-    print(f"[prefetch] 完了: {target}", flush=True)
+    print(f"[download] 完了: {target}", flush=True)
     return 0
 
 

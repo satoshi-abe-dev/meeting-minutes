@@ -17,8 +17,8 @@
 `config.toml` の `[llm] base_url` のみで、既定値は `http://localhost:1234/v1` です。
 
 唯一の外部通信は **セットアップ時のモデル取得**です。`scripts/setup.sh`（内部の
-`python src/meeting_minutes/prefetch.py`）が HuggingFace から Whisper モデルの重みを
-ダウンロードします。会議の音声・映像・テキストは送りません。
+`python src/meeting_minutes/download_transcribe_model.py`）が HuggingFace から Whisper
+モデルの重みをダウンロードします。会議の音声・映像・テキストは送りません。
 
 アプリ本体（`cli.py` / `gui.py`）は実行時に外部通信しません。エントリポイントで
 `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` を立てて HuggingFace 系ライブラリの通信を
