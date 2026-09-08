@@ -57,6 +57,7 @@ output/<video name>/
 │   └─ frame_notes.json       Per-frame analysis results (used for resume)
 ├─ minutes_partials.json      Chunk summaries of the minutes (for long transcripts; used for resume)
 ├─ structure_used.txt         Auto-generated heading structure from "Auto" mode (copy into templates/ if you like it; see below)
+├─ gui.log                    GUI log output (same content as the on-screen log; appended)
 └─ minutes.md                 The minutes (organized into decisions / action items+owners / due dates, etc.)
 ```
 

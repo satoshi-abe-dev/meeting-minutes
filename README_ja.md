@@ -57,6 +57,7 @@ output/<動画名>/
 │   └─ frame_notes.json       フレームごとの解析結果（途中再開に使う）
 ├─ minutes_partials.json      議事録のチャンク要約（長い文字起こしの場合。途中再開に使う）
 ├─ structure_used.txt         「おまかせ」で自動生成した見出し構成（気に入ったら templates/ にコピー。下記）
+├─ gui.log                    GUI のログ欄の書き出し（画面表示と同じ内容。追記）
 └─ minutes.md                 議事録（決定事項・宿題/担当・期限などの型で整理）
 ```
 
