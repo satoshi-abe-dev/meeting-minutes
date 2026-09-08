@@ -37,7 +37,7 @@ Meeting minutes are a natural fit for AI automation. But meeting audio and share
 A CLI / GUI tool that takes a single video file and runs the following **entirely locally** to generate minutes.
 
 1. Extract audio from the video (ffmpeg)
-2. Transcribe with timestamps (faster-whisper; local and offline)
+2. Transcribe with timestamps (Whisper; local and offline)
 3. Extract frames of screen shares / slides and summarize their content (local VLM)
 4. Generate minutes from the transcript + frame notes (local LLM)
 
@@ -189,7 +189,7 @@ Automatic retry when the LLM times out or drops the connection is not implemente
 
 ```
 video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame analysis(VLM) ─▶ minutes generation(LLM) ─▶ minutes.md
-        (ffmpeg)        (faster-whisper)  (ffmpeg)         (localhost)             (localhost)
+        (ffmpeg)        (Whisper)         (ffmpeg)         (localhost)             (localhost)
 ```
 
 - `pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all just call `run()`**

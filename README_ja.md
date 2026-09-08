@@ -34,7 +34,7 @@
 動画ファイルを 1 つ渡すと、次を **すべてローカルで** 実行して議事録を生成する CLI / GUI ツール。
 
 1. 動画から音声を抽出（ffmpeg）
-2. 時刻付きで文字起こし（faster-whisper。ローカル・オフライン）
+2. 時刻付きで文字起こし（Whisper。ローカル・オフライン）
 3. 画面共有・スライドのフレームを抽出し、内容を要点化（ローカル VLM）
 4. 文字起こし＋フレーム要点から議事録を生成（ローカル LLM）
 
@@ -205,7 +205,7 @@ LLM がタイムアウト・切断したときの自動リトライは未対応�
 
 ```
 動画 ─▶ 音声抽出 ─▶ 文字起こし ─▶ フレーム抽出 ─▶ フレーム解析(VLM) ─▶ 議事録生成(LLM) ─▶ minutes.md
-       (ffmpeg)    (faster-whisper)   (ffmpeg)        (localhost)         (localhost)
+       (ffmpeg)       (Whisper)       (ffmpeg)        (localhost)         (localhost)
 ```
 
 - `pipeline.run()` がこの順序・進捗通知・出力ディレクトリ管理を担当し、
