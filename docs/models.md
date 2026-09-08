@@ -43,11 +43,12 @@ faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "aut
   失敗すると setup.sh はエラー終了する。
 - `download_transcribe_model.py` は `config.toml`（無ければ `config.example.toml`）の
   `[transcribe] backend` / `model` を見て、その組み合わせのモデルを取得する。既定から
-  変えたら再実行して取り直すこと（→ [`setup-mac.md`](setup-mac.md) §4）。
+  変えたら再実行して取り直すこと（→ [`setup.md`](setup.md) §4）。
 - アプリ実行時（`cli.py` / `gui.py`）はオフライン強制のため、モデルが未取得でも
   自動ダウンロードされない。未取得のまま文字起こしを始めると「文字起こしモデル
   （…）がローカルにありません」で停止する。`bash scripts/setup.sh` か
-  `python src/meeting_minutes/download_transcribe_model.py` で取得すること。
+  `python src/meeting_minutes/download_transcribe_model.py`（venv 内の Python で。
+  → [`setup.md`](setup.md) §2）で取得すること。
 - **利用者ごとに 1 台につき一度だけ**、セットアップ時にダウンロードが発生する。
 
 ## フレーム解析（VLM）
@@ -89,7 +90,7 @@ VLM を使わず OCR だけで済ませたい要望が出たら、`vision.descri
 
 ### コンテキスト長の設定（重要）
 
-（[`setup-mac.md`](setup-mac.md) §3 でこの設定を促しています。ここはその詳細版です。）
+（[`setup.md`](setup.md) §3 でこの設定を促しています。ここはその詳細版です。）
 
 議事録生成は、文字起こし全体＋フレーム要点をできるだけ **1 回のリクエスト**で
 LLM に渡す（分割すると「要約の要約」になり具体性が落ちるため）。

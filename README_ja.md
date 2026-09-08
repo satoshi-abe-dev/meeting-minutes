@@ -77,7 +77,9 @@ output/<動画名>/
 文字起こし → フレーム解析 → 議事録生成が進む。カスタムテンプレート
 （「ファイルを選択」）にも対応している。
 
-## セットアップ（macOS / Apple Silicon）
+## セットアップ
+
+macOS / Linux のクイックスタート（Windows は [`docs/setup.md`](docs/setup.md) を参照）:
 
 ```bash
 brew install ffmpeg          # 音声・フレーム抽出に必要
@@ -92,7 +94,7 @@ cp config.example.toml config.toml
   「Local API server」を ON。「Just-in-time model loading」も ON 推奨）
 - 議事録生成の LLM は **推論（thinking）をしない／オフにできる Instruct 系モデル** を選ぶ
   （推論モデルは極端に遅く、本文が空で返ることがある → [`docs/models.md`](docs/models.md)）
-- 詳しい手順・モデル選び・トラブルシューティングは [`docs/setup-mac.md`](docs/setup-mac.md) と
+- 詳しい手順・モデル選び・トラブルシューティングは [`docs/setup.md`](docs/setup.md) と
   [`docs/models.md`](docs/models.md)
 
 ## 使い方

@@ -10,7 +10,7 @@
 #
 # 別途必要なもの:
 #   - ffmpeg（brew install ffmpeg）
-#   - LM Studio でローカルサーバーを起動し、LLM / VLM をロード（docs/setup-mac.md）
+#   - LM Studio でローカルサーバーを起動し、LLM / VLM をロード（docs/setup.md）
 
 set -euo pipefail
 

@@ -77,7 +77,9 @@ Pick a video and click "Create minutes", then watch transcription → frame anal
 minutes generation proceed with a progress bar and a log. Custom templates
 ("Choose a file") are supported too.
 
-## Setup (macOS / Apple Silicon)
+## Setup
+
+Quickstart for macOS / Linux (Windows: see [`docs/setup.md`](docs/setup.md)):
 
 ```bash
 brew install ffmpeg          # required for audio / frame extraction
@@ -88,7 +90,7 @@ cp config.example.toml config.toml
 - `scripts/setup.sh` does the whole setup in one command: create the virtualenv (`.venv`), install dependencies, and fetch the transcription model from HuggingFace. This setup step is the only time the model is downloaded — **the app itself runs fully offline** (`cli.py` / `gui.py` set `HF_HUB_OFFLINE`; if the model is missing at runtime it stops with an error instead of downloading)
 - Separately, start **LM Studio** (Settings → Local Models → Local Model API: turn on "Local API server"; "Just-in-time model loading" is also recommended)
 - For minutes generation, choose an **Instruct-style model that does not do reasoning (thinking), or can have it turned off** (reasoning models are extremely slow and can return empty bodies → [`docs/models.md`](docs/models.md))
-- For detailed steps, model selection, and troubleshooting, see [`docs/setup-mac.md`](docs/setup-mac.md) and [`docs/models.md`](docs/models.md)
+- For detailed steps, model selection, and troubleshooting, see [`docs/setup.md`](docs/setup.md) and [`docs/models.md`](docs/models.md)
 
 ## Usage
 
