@@ -257,6 +257,24 @@ def test_log_write_failure_does_not_break_gui(tmp_path):
     assert "画面には出る" in view.log  # 例外は握りつぶされ、表示は行われる
 
 
+def test_log_path_uses_resolved_video_stem_for_symlink(tmp_path):
+    """シンボリックリンクを選んだとき、gui.log は pipeline と同じ「実体名」の
+    フォルダに出る（Codex 指摘: リンク名だと別フォルダに分かれてしまう）。"""
+    real = tmp_path / "real_video.mp4"
+    real.write_bytes(b"x")
+    link = tmp_path / "shortcut.mp4"
+    link.symlink_to(real)
+
+    view, presenter = _make()
+    view.next_video_path = str(link)
+    view.handlers["choose_video"]()
+    view.handlers["start"]()
+    if presenter._worker:
+        presenter._worker.join(timeout=2)
+
+    assert presenter._log_path == tmp_path / "output" / "real_video" / "gui.log"
+
+
 # --- 進捗率計算（_STAGE_ORDER / _STAGE_WEIGHT）--------------------
 
 def test_update_progress_matches_stage_weight_formula():

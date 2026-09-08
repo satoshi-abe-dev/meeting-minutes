@@ -158,8 +158,12 @@ class MainPresenter:
             )
             return
 
-        # この回のログ書き出し先。pipeline.py の out_dir 算出と同じ式。
-        out_dir = self.config_obj.output_root / self.video_path.stem
+        # この回のログ書き出し先。pipeline.run() は video_path を
+        # expanduser().resolve() してから out_dir を決めるので、こちらも同じ正規化を
+        # 通す（シンボリックリンク等でリンク名と実体名が違うと、gui.log と
+        # transcript/ ・ minutes.md が別フォルダに分かれてしまうのを防ぐ）。
+        resolved_video = self.video_path.expanduser().resolve()
+        out_dir = self.config_obj.output_root / resolved_video.stem
         try:
             out_dir.mkdir(parents=True, exist_ok=True)
             self._log_path = out_dir / "gui.log"
