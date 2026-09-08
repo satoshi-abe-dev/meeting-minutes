@@ -93,6 +93,11 @@ python -m venv .venv
 
 ## 3. ローカル LLM サーバー（LM Studio）
 
+この節は **LM Studio 前提**の手順です。本ツールは OpenAI 互換 API クライアントなので、
+他の互換サーバー（Ollama など）でも動きます。その場合は各サーバーの起動方法に
+読み替え、`config.toml` の `[llm] base_url` をそのサーバーに合わせてください
+（末尾の「### 他の OpenAI 互換サーバー（Ollama 等）」参照）。
+
 画面構成は LM Studio のバージョンで変わります。ここでは新しい UI（「Bionic」系。
 サイドバーが Settings / Integrations / Devices / Local Models に分かれているもの）を
 前提にします。旧 UI では「Developer」タブに同等の設定があります。
@@ -110,6 +115,9 @@ python -m venv .venv
    入手は左メニュー **Local Models → Explore** から検索してダウンロード。
    ダウンロード済みは **Local Models → Library** で確認できます。
 3. **テキスト LLM は Context Length を 32768 以上にしてロードする**（重要）:
+   - 「Context Length を 32768 以上に」という必要性はどのサーバーでも共通（超えると
+     HTTP 400）。以下の操作は LM Studio 固有。他サーバーは各自の方法（Ollama は
+     `num_ctx` 等）で同じ設定をする。自動検出が効かない点は末尾の小見出し参照。
    - LM Studio はモデル読み込み時に Context Length を指定しないと小さい既定値で
      読み込む。そのままだと議事録生成が **HTTP 400（context length 不足）で失敗**する。
    - モデルの読み込み設定 → **Context Length** を `32768` 以上にしてロードする。
@@ -131,12 +139,24 @@ python -m venv .venv
 5. `config.toml` に書くモデル ID を確認する:
    - **Local Models → Library** に表示されるモデルキー（例: `qwen2.5-7b-instruct`）を
      そのまま `model` / `vlm_model` に書く。
-   - または `curl http://localhost:1234/v1/models` が返す `id` を見る。
+   - または `curl <base_url>/models`（LM Studio 既定は
+     `http://localhost:1234/v1/models`）が返す `id` を見る。
    - Just-in-time loading を OFF にする場合は、使うモデルを先に
      **Local Models → Loaded Instances** でロードしておく。
 
-> Ollama を使う場合: `ollama serve` が動いていれば `http://localhost:11434/v1` で
-> OpenAI 互換 API が使えます。`config.toml` の `base_url` を変更してください。
+### 他の OpenAI 互換サーバー（Ollama 等）
+
+本ツールは OpenAI 互換の `chat/completions` を使うので、LM Studio 以外のサーバーでも
+動きます。
+
+- `config.toml` の `[llm] base_url` をそのサーバーに合わせる。Ollama は `ollama serve`
+  を起動して `http://localhost:11434/v1`。
+- モデル ID は `curl <base_url>/models` の `id` で確認し、`model` / `vlm_model` に書く。
+- **コンテキスト長の自動検出は LM Studio 専用**（`/api/v0/models` 拡張を読む）。他
+  サーバーでは効かないので、`config.toml` の `[llm] context_tokens` に実値を書くか、
+  `chunk_trigger_chars` / `chunk_size_chars` を小さくして分割生成に寄せる
+  （→ [`models.md`](models.md)「コンテキスト長の設定（重要）」）。
+- Context Length 自体の設定方法は各サーバー依存（Ollama は `num_ctx` / Modelfile 等）。
 
 ## 4. 設定ファイル
 
@@ -207,11 +227,11 @@ python src/meeting_minutes/gui.py              # GUI
 | 症状 | 対処 |
 | --- | --- |
 | `ffmpeg が見つかりません` | §1 の OS 別インストールを参照（`brew` / `winget` / `apt` など）。venv を抜けても PATH は必要。 |
-| `ローカル LLM サーバーに接続できません` | Settings → Local Model API の「Local API server」が **Running** か、`base_url` が合っているか確認。 |
-| `model_not_found` / モデル未ロード | 「Just-in-time model loading」を ON にするか、Loaded Instances で該当モデルをロード。`config.toml` の名前が Library のモデルキーと一致しているか確認。 |
+| `ローカル LLM サーバーに接続できません` | Settings → Local Model API の「Local API server」が **Running** か、`base_url` が合っているか確認（メニュー名は LM Studio。他サーバーは起動状態と `base_url` を各自の方法で確認）。 |
+| `model_not_found` / モデル未ロード | 「Just-in-time model loading」を ON にするか、Loaded Instances で該当モデルをロード。`config.toml` の名前が Library のモデルキーと一致しているか確認（LM Studio の場合。他サーバーはモデルのロード方法・ID を各自で）。 |
 | `詳細: timed out`（議事録生成の途中で失敗） | サーバーは動いていて応答生成が長いだけ。特に議事録の最終統合は出力が長くタイムアウトしやすい。`config.toml` の `[llm] timeout` を増やす（既定600秒。大きいモデルはさらに）。 |
-| 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models.md`](models.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状。 |
-| 議事録生成が極端に遅い／「思考で max_tokens を使い切った」エラー／部分要約が空 | 使用中の LLM が推論（thinking）モデルの可能性。LM Studio で reasoning を OFF にするか、非推論の **Instruct 系モデル**に変更する（→ [`models.md`](models.md)）。`max_tokens` を増やしても速度問題は残る。 |
+| 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models.md`](models.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状（LM Studio の場合。他サーバーは各自の方法で。自動検出は LM Studio 専用なので `[llm] context_tokens` を手動設定）。 |
+| 議事録生成が極端に遅い／「思考で max_tokens を使い切った」エラー／部分要約が空 | 使用中の LLM が推論（thinking）モデルの可能性。LM Studio で reasoning を OFF にするか、非推論の **Instruct 系モデル**に変更する（→ [`models.md`](models.md)）。`max_tokens` を増やしても速度問題は残る（reasoning の OFF は LM Studio の場合。他サーバーは各自の reasoning 設定、または非推論モデルへ）。 |
 | 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |
 | mlx で進捗バーが動かない | 仕様。mlx-whisper は結果を一括で返すため、完了まで 0 のまま。GUI のログに「mlx-whisper で文字起こし中」と出ていれば動作中。 |
