@@ -324,9 +324,10 @@ _STRUCTURE_PROMPT = """次の会議の内容（全文またはその要約）を
 _REQUIRED_PLACEHOLDERS = ("{title}", "{datetime_hint}", "{duration_hint}")
 
 _STRUCTURE_FILENAME = "structure_used.txt"
-# 中間生成物（自動生成した型・チャンク要約）を out_dir 直下から隔離するサブフォルダ。
-# pipeline.py が eager mkdir する。表示・FS join ともここから derive する。
-_STRUCTURE_DIR = "minutes"
+# 中間生成物（自動生成した型・チャンク要約）の作業用サブフォルダ。out_dir 直下の
+# minutes.md（成果物）と名前がぶつからないよう work/ に置く。pipeline.py が eager
+# mkdir する。表示・FS join ともここから derive する。
+_WORK_DIR = "work"
 
 
 def _structure_system_prompt() -> str:
@@ -503,7 +504,7 @@ def _resolve_auto_structure(
     """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。
 
     失敗して内蔵にフォールバックする場合、同じ out_dir に前回実行時の
-    minutes/structure_used.txt が残っていると「今回使った型」と誤認される（気に入ったら
+    work/structure_used.txt が残っていると「今回使った型」と誤認される（気に入ったら
     templates/ にコピーする運用で無関係な型をコピーしてしまう）。消しておく。
     """
     generated = _generate_structure(
@@ -511,11 +512,11 @@ def _resolve_auto_structure(
         minutes_system=minutes_system, ctx=ctx,
         on_progress=on_progress, cancel_event=cancel_event, language=language,
     )
-    struct_relpath = f"{_STRUCTURE_DIR}/{_STRUCTURE_FILENAME}"  # 表示用（/ 区切り）
+    struct_relpath = f"{_WORK_DIR}/{_STRUCTURE_FILENAME}"  # 表示用（/ 区切り）
     if generated is None:
         if out_dir is not None:
             try:
-                dst = Path(out_dir) / _STRUCTURE_DIR / _STRUCTURE_FILENAME
+                dst = Path(out_dir) / _WORK_DIR / _STRUCTURE_FILENAME
                 dst.unlink(missing_ok=True)
             except OSError as exc:
                 if on_progress:
@@ -527,7 +528,7 @@ def _resolve_auto_structure(
         return fallback_structure
     if out_dir is not None:
         try:
-            dst = Path(out_dir) / _STRUCTURE_DIR / _STRUCTURE_FILENAME
+            dst = Path(out_dir) / _WORK_DIR / _STRUCTURE_FILENAME
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_text(generated + "\n", encoding="utf-8")
         except OSError as exc:
@@ -552,12 +553,12 @@ class MinutesMeta:
     duration_hint: str = "（不明）"
 
 
-# minutes/minutes_partials.json のフォーマット版。チャンク境界のシグネチャを持つ。
+# work/minutes_partials.json のフォーマット版。チャンク境界のシグネチャを持つ。
 _PARTIALS_FORMAT = 2
 
 
 def _partials_path(out_dir: Path) -> Path:
-    return out_dir / _STRUCTURE_DIR / "minutes_partials.json"
+    return out_dir / _WORK_DIR / "minutes_partials.json"
 
 
 def _load_partials(
@@ -655,7 +656,7 @@ def _summarize_chunks(
 
     partials に既に入っている分（再開時の再利用、あるいは「おまかせ」モードで
     型生成の材料として先に走らせた分）はスキップする。すべて済んでいれば何もしない。
-    1 つ終えるたびに out_path があれば minutes/minutes_partials.json を書き直す。
+    1 つ終えるたびに out_path があれば work/minutes_partials.json を書き直す。
     max_tokens は呼び出し側の予算計算（fit_chunk_size）と同じ値を渡すこと。
     """
     for i in range(len(partials) + 1, len(chunks) + 1):
@@ -731,7 +732,7 @@ def generate_minutes(
     cancel_event: セットされていれば、チャンク要約の合間（長い文字起こしの場合）で
         中断する。短いパス（1 回の chat 呼び出し）は呼び出し中に反応できない。
     out_dir: 指定すると、長い文字起こしのチャンク要約を1つ終えるたびに
-        `minutes/minutes_partials.json` として書き出す。タイムアウトや中断のあとの
+        `work/minutes_partials.json` として書き出す。タイムアウトや中断のあとの
         再実行では、reuse=True ならここから再開し、終わっているチャンクを
         summarize し直さない。
     reuse: False なら out_dir に部分要約が残っていても無視して最初から。
@@ -746,7 +747,7 @@ def generate_minutes(
         LLM に 1 回だけ生成させ、それをテンプレートとして使う（template_path より優先）。
         トークン予算に注意し、全文が軽い予算に収まればそのまま、収まらなければ既存の
         チャンク要約を材料にする（新たな全文読み込みパスは増やさない）。生成した型は
-        out_dir/minutes/structure_used.txt に保存する。生成に失敗（例外・空・必須プレースホルダー
+        out_dir/work/structure_used.txt に保存する。生成に失敗（例外・空・必須プレースホルダー
         欠落）したら内蔵テンプレートにフォールバックし警告する。
     """
     check_cancel(cancel_event)
