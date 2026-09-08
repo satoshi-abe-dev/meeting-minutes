@@ -6,9 +6,15 @@
 
 ## 文字起こし
 
-`model` はサイズ名で書く（`large-v3-turbo` / `large-v3` / `medium` / `small`）。
-実体への変換はバックエンド（下記）が行う（`mlx` は `mlx-community/whisper-<size>` に、
-`faster-whisper` はそのまま）。フル HF リポジトリ名を書けばそのまま使う。
+文字起こしは **OpenAI Whisper**（オープンソースの音声認識モデル）を使う。`config.toml`
+の `[transcribe] model` には Whisper の **サイズ名**を書く: `tiny` / `base` / `small` /
+`medium` / `large-v3` / `large-v3-turbo`（`large-v3-turbo` は `large-v3` の高速版）。
+
+サイズ名は各バックエンド（下記）が HuggingFace から取得する。`mlx` はサイズ名を
+`mlx-community/whisper-<size>` に読み替える。`faster-whisper` はサイズ名をそのまま
+`faster_whisper` ライブラリに渡し、ライブラリが CTranslate2 変換版のリポジトリを
+解決する。`/` を含むフル HF リポジトリ名やローカルのモデルディレクトリのパスを
+書けばそのまま使う。
 
 | モデル | 目安 | 用途 |
 | --- | --- | --- |
@@ -35,6 +41,9 @@ faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "aut
 - `scripts/setup.sh`（内部で `python src/meeting_minutes/download_transcribe_model.py`）が
   セットアップ時に既定モデルを取得する。取得済みなら何もしない（冪等）。取得は必須で、
   失敗すると setup.sh はエラー終了する。
+- `download_transcribe_model.py` は `config.toml`（無ければ `config.example.toml`）の
+  `[transcribe] backend` / `model` を見て、その組み合わせのモデルを取得する。既定から
+  変えたら再実行して取り直すこと（→ [`setup-mac.md`](setup-mac.md) §4）。
 - アプリ実行時（`cli.py` / `gui.py`）はオフライン強制のため、モデルが未取得でも
   自動ダウンロードされない。未取得のまま文字起こしを始めると「文字起こしモデル
   （…）がローカルにありません」で停止する。`bash scripts/setup.sh` か

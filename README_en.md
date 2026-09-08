@@ -28,7 +28,7 @@ English | [日本語](README_ja.md)
 
 ---
 
-## The problem
+## Background
 
 Every meeting, someone rewatches the recording and writes the minutes by hand. People want to automate this, but there are settings where existing cloud transcription/summarization services are not an option:
 

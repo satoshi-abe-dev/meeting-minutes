@@ -119,6 +119,13 @@ model = "large-v3-turbo"  # 既定。精度優先なら "large-v3"、軽さ優�
 > テキスト LLM は §3 のとおり **Context Length を 32768 以上**にしてロード済みか確認する
 > （未設定だと議事録生成が HTTP 400 で失敗する）。
 
+> `python src/meeting_minutes/download_transcribe_model.py` は `config.toml`（無ければ
+> `config.example.toml`）の `[transcribe] backend` / `model` を見て、その組み合わせの
+> Whisper モデルを取得する。§2 の `setup.sh` は §4 の前に走るので既定
+> （`large-v3-turbo`）は取得済み。**§4 で `model` / `backend` を既定から変えたら
+> `python src/meeting_minutes/download_transcribe_model.py` を再実行**して取り直す
+> （アプリ実行時は自動ダウンロードしない）。
+
 ## 5. 動作確認
 
 短い動画（スライド提示のある 1〜2 分程度）で試します。
