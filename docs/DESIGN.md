@@ -218,6 +218,23 @@ LLM に提案させる 3 つ目の選択肢。`config.toml` の `[output] auto_s
   含めた予算を確認し、超える分は `_fit_merged_transcript` で末尾を切り詰める。
 - 構造生成（重い LLM 呼び出し）の直後にも `check_cancel` を入れる。
 
+**議事録は `minutes.md` と `minutes.docx` の両方を常に出力する（2026-09、Issue #13）:**
+Word で開きたい・そのまま配布したいという要望。GUI に選択機能は付けず、常時両方
+出す（利用者が迷わない）。変換は新規モジュール `model/docx_export.py`。
+
+- **`pandoc` 等の外部バイナリは使わない**。`python-docx`（Pure Python。連れてくる
+  `lxml` は全 OS プリビルド wheel、`typing_extensions` も）だけを依存に足す。CI は
+  3 OS とも `pip install` で完結し、システム依存は増えない。
+- **汎用 Markdown パーサーは入れない**。議事録が実際に取る Markdown サブセット
+  （ATX 見出し / `- `・`* ` の箇条書き（ネスト）/ GFM パイプ表 / フェンス /
+  `**bold**`・`` `code` ``）だけを行ベースの小さな state machine で変換する。
+  「おまかせ」やカスタムテンプレートで構成が変わっても壊れないよう、**未知の行は
+  素の段落として落とす**。変換自体は例外を投げない。
+- **`.md` が主成果物**。`pipeline.py` は `save_minutes` の直後に `save_minutes_docx`
+  を `try/except` で呼び、変換・書き出しが失敗しても警告（`pmsg.warn_docx_failed`）
+  を出して続行する。`.docx` は `output/<動画名>/minutes.docx`（中間物ではないので
+  `minutes/` 配下ではなくルート）。
+
 ---
 
 ## 6. 文字起こしバックエンド（faster-whisper / mlx）

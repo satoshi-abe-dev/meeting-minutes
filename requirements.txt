@@ -10,6 +10,9 @@ mlx-whisper>=0.4.0 ; sys_platform == "darwin" and platform_machine == "arm64"
 # ローカル LLM / VLM サーバー（LM Studio 等）への OpenAI 互換 HTTP 呼び出し
 httpx>=0.27.0
 
+# 議事録の .docx（Word）版出力。Pure Python（連れてくる lxml は全 OS プリビルド wheel）。
+python-docx>=1.1.0
+
 # ---
 # ffmpeg は Python パッケージではなくシステム依存。
 #   brew install ffmpeg

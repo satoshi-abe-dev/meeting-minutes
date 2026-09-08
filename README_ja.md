@@ -60,7 +60,8 @@ output/<動画名>/
 │   └─ structure_used.txt     「おまかせ」で自動生成した見出し構成（気に入ったら templates/ にコピー。下記）
 ├─ logs/
 │   └─ gui.log                GUI のログ欄の書き出し（画面表示と同じ内容。追記）
-└─ minutes.md                 議事録（決定事項・宿題/担当・期限などの型で整理）
+├─ minutes.md                 議事録（決定事項・宿題/担当・期限などの型で整理）
+└─ minutes.docx               同じ議事録の Word 版（minutes.md から自動生成）
 ```
 
 本プロジェクトは、Claude Code の複数セッション（実装担当・レビュー担当）を
@@ -208,7 +209,7 @@ LLM がタイムアウト・切断したときの自動リトライは未対応�
 ## 仕組み
 
 ```
-動画 ─▶ 音声抽出 ─▶ 文字起こし ─▶ フレーム抽出 ─▶ フレーム解析(VLM) ─▶ 議事録生成(LLM) ─▶ minutes.md
+動画 ─▶ 音声抽出 ─▶ 文字起こし ─▶ フレーム抽出 ─▶ フレーム解析(VLM) ─▶ 議事録生成(LLM) ─▶ minutes.md + minutes.docx
        (ffmpeg)       (Whisper)       (ffmpeg)        (localhost)         (localhost)
 ```
 

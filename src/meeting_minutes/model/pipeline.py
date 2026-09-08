@@ -18,6 +18,7 @@ from pathlib import Path
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, format_elapsed, normalize_language, t
 
 from . import audio as _audio
+from . import docx_export as _docx_export
 from . import ffmpeg_utils as _ffmpeg_utils
 from . import frames as _frames
 from . import minutes as _minutes
@@ -58,6 +59,7 @@ class Deps:
     save_frame_notes: Callable = _vision.save_frame_notes
     generate_minutes: Callable = _minutes.generate_minutes
     save_minutes: Callable = _minutes.save_minutes
+    save_minutes_docx: Callable = _docx_export.save_minutes_docx
     make_client: Callable[[Config], LLMClient] = _default_make_client
     probe_duration: Callable = _ffmpeg_utils.probe_duration
 
@@ -74,6 +76,7 @@ class PipelineResult:
     n_segments: int
     n_frames: int
     warnings: list[str] = field(default_factory=list)
+    minutes_docx_path: Path | None = None
 
 
 def _noop(stage: str, current: int, total: int, message: str) -> None:
@@ -137,6 +140,7 @@ def run(
     with contextlib.suppress(AttributeError):
         client.language = language
     minutes_path: Path | None = None
+    minutes_docx_path: Path | None = None
     frame_notes_path: Path | None = None
     try:
         # 0) 起動前チェック（重い処理の前に LLM サーバーとモデルを確認） --------
@@ -302,6 +306,17 @@ def run(
         minutes_path = deps.save_minutes(markdown, out_dir)
         # 完了メッセージ（所要時間つき）は generate_minutes 自身が _mp 経由で
         # 既に通知済みなので、ここで重ねて出さない。
+
+        # .docx（Word）版も同じ内容で書き出す。副次成果物なので、変換や書き出しが
+        # 失敗しても警告を出して続行する（minutes.md が主成果物なので落とさない）。
+        try:
+            minutes_docx_path = deps.save_minutes_docx(markdown, out_dir)
+            progress(
+                "minutes", 1, 1,
+                t("pmsg.docx_saved", language, path=minutes_docx_path),
+            )
+        except Exception as exc:
+            warnings.append(t("pmsg.warn_docx_failed", language, exc=exc))
     finally:
         close = getattr(client, "close", None)
         if callable(close):
@@ -319,4 +334,5 @@ def run(
         n_segments=len(segments),
         n_frames=len(frames),
         warnings=warnings,
+        minutes_docx_path=minutes_docx_path,
     )
