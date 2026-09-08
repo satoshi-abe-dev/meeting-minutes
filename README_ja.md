@@ -138,9 +138,11 @@ python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・�
 
 | モード | 説明 |
 | --- | --- |
-| 内蔵（既定） | 会議の内容に関わらず常に同じ見出し（決定事項・宿題・議事の要点 …）。`templates/minutes_template_example.txt` と同一 |
+| 内蔵（既定） | 会議の内容に関わらず常に同じ見出し（決定事項・宿題・議事の要点 …）。[`templates/minutes_template_example.txt`](templates/minutes_template_example.txt) と同一 |
 | ファイルを選択 | お客様ごとの規定様式など、用意した外部ファイルの構造を使う |
 | おまかせ | 動画の内容に合わせて見出し構成を LLM に毎回提案させる（例: 団体旅行の説明会 → 「スケジュール」「持ち物」「集合場所・時間」「注意事項」） |
+
+**内蔵の見出し構成は実行前に確認できます** ― [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt) を開くと、内蔵と同一の雛形（見出しと各項目の指示文）がそのまま読めます。
 
 - `config.toml` で既定を決める（優先順位 **`auto_structure=true` > `template_path` > 内蔵**）
 - GUI の「議事録フォーマット」のラジオボタンから **その回だけ** 切り替えられる

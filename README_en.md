@@ -128,9 +128,11 @@ The **structure** of the minutes (headings and items) can be chosen in three way
 
 | Mode | Description |
 | --- | --- |
-| Built-in (default) | Always the same headings regardless of meeting content (decisions / action items / discussion highlights, etc.). Identical to `templates/minutes_template_example.txt` |
+| Built-in (default) | Always the same headings regardless of meeting content (decisions / action items / discussion highlights, etc.). Identical to [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt) |
 | Choose a file | Uses the structure of an external file you prepared, e.g. a client's prescribed format |
 | Auto | Has the LLM propose the heading structure each time to match the video content (e.g. a group-tour briefing → "Schedule", "What to bring", "Meeting place / time", "Notes") |
+
+**You can preview the built-in heading structure before running** — open [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt); it is identical to the built-in template (headings plus the per-section instructions).
 
 - Set the default in `config.toml` (priority: **`auto_structure=true` > `template_path` > built-in**)
 - The GUI's "Minutes format" radio buttons switch it **for that run only** (the three options are mutually exclusive; even with `auto_structure=true` in `config.toml`, choosing "Built-in" or "Choose a file" in the GUI wins)

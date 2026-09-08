@@ -68,12 +68,15 @@ _STRINGS: dict[str, dict[str, str]] = {
             "議事の要点など）を使う既定のフォーマットです。内容に応じて動的に変わる"
             "ことはありません。お客様ごとの様式に合わせたい場合は、テンプレートファイルを"
             "用意してこのメニューから選んでください。"
+            "見出し構成は templates/minutes_template_example.txt で確認できます（内蔵と同一）。"
         ),
         "en": (
             '"Built-in" always uses the same headings and structure (decisions, '
             "action items, discussion points, etc.) regardless of the meeting "
             "content. It does not change dynamically. To match a client's own "
-            "format, prepare a template file and choose it from this menu."
+            "format, prepare a template file and choose it from this menu. "
+            "You can see the heading structure in "
+            "templates/minutes_template_example.txt (identical to the built-in one)."
         ),
     },
     "tooltip.auto": {
