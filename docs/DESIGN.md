@@ -89,7 +89,7 @@ STT や生成 AI に録音を送れない現場。ここでは「精度が少し
   「思考で max_tokens を使い切った。増やすか reasoning を下げて」という明示エラーに。
 - チャンク要約の `max_tokens` を固定 1500 → `config.llm.max_tokens` に。
 - `minutes._load_partials` は本文が空のエントリを無効化（壊れた
-  `minutes/minutes_partials.json` を再実行時に自動で作り直す）。
+  `work/minutes_partials.json` を再実行時に自動で作り直す）。
 - 既定 `max_tokens` を 4096 → 8192 に。
 
 ただし根本原因は「重い推論モデルを議事録生成に使っている」ことなので、
@@ -148,7 +148,7 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 - 取れないときのため `[llm] context_tokens` で実値を直接指定もできる。
 実測に基づくテストを `test_minutes.py` / `test_llm_client.py` に追加。
 
-**チャンク要約は1つ終えるたびに `minutes/minutes_partials.json` へ保存する:** 実際に、
+**チャンク要約は1つ終えるたびに `work/minutes_partials.json` へ保存する:** 実際に、
 チャンク要約が2つとも終わったあとの最終統合（出力トークン数が多い）だけがタイムアウト
 する事例があった。チャンク要約自体は無事終わっているのに、`generate_minutes()` は
 1回の呼び出しなので失敗すれば全部やり直しだった。`_save_partials()` で完了ぶんを
@@ -157,7 +157,7 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 この永続化自体が無効になるだけで、動作は変わらない。
 
 **保存ファイルにチャンク境界のシグネチャを持たせる（2026-09、Codex レビュー指摘）:**
-`minutes/minutes_partials.json` は `chunk_size_chars` と分割入力のセグメント総数を一緒に
+`work/minutes_partials.json` は `chunk_size_chars` と分割入力のセグメント総数を一緒に
 保存する（`format: 2`）。再開時にこれが現在の設定と一致しなければキャッシュを
 破棄して最初から要約し直す。これが無いと、Context Length 対策で
 `chunk_size_chars` を下げて再開したとき、旧境界の部分要約が新しいチャンク列に
@@ -206,12 +206,12 @@ LLM に提案させる 3 つ目の選択肢。`config.toml` の `[output] auto_s
   チャンク要約を再利用**（`_summarize_chunks` は最大 1 周。新たな全文読み込みパスは
   足さない）。長い material は `_fit_structure_material` で構造生成予算に切り詰めてから渡す。
 - **生成物はプレースホルダーをリテラルのまま出力させる**（プロンプトで明示）。
-  `output/<動画名>/minutes/structure_used.txt` に保存し、そのまま `templates/` にコピーして
+  `output/<動画名>/work/structure_used.txt` に保存し、そのまま `templates/` にコピーして
   固定テンプレート化できる。
 - **フォールバックは常に内蔵**（`_MINUTES_STRUCTURE`。ファイル指定時も内蔵）。失敗条件:
   LLM 例外／空応答／必須プレースホルダー（`{title}` `{datetime_hint}` `{duration_hint}`）
   欠落／構造単体で統合予算を超える（`_structure_fits_minutes_skeleton`。分割に
-  切り替えても救えないため棄却）。失敗時は `minutes/structure_used.txt` を残さない（前回実行の
+  切り替えても救えないため棄却）。失敗時は `work/structure_used.txt` を残さない（前回実行の
   残骸も消す）。
 - 構造を差し替えた **後** に予算（`one_pass` / `frames_text` / `size_chars`）を
   `_minutes_budget` で計算し直す。統合直前には実際の `merged_transcript` ＋ frames を
@@ -493,7 +493,7 @@ Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の�
   当初は「VLM が落ちた直後は作り直したいことが多い」という判断で再利用しない設計に
   していたが、60枚全部を毎回やり直すコストの方が大きいと分かり、他の中間ファイルと
   同じ「1単位ごとに永続化して再開」方式に揃えた。
-- `minutes/minutes_partials.json`（チャンク要約、5章参照）があれば、終わっているチャンクは
+- `work/minutes_partials.json`（チャンク要約、5章参照）があれば、終わっているチャンクは
   要約し直さない。
 
 最初からやり直したいときは CLI `--fresh` / GUI のチェックボックスで `reuse=False`
@@ -548,7 +548,7 @@ Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の�
 `transcript/transcript.json` / `frames/frames.json` に加え、**フレーム解析の途中経過
 （`frames/frame_notes.json`）も1枚ごとに保存済み**なので、次回実行時（9.5 の再開機構）は
 解析済みのフレームからやり直さない。同様に議事録のチャンク要約
-（`minutes/minutes_partials.json`）も終えた分から再開する。
+（`work/minutes_partials.json`）も終えた分から再開する。
 
 ---
 

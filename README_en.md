@@ -56,7 +56,7 @@ output/<video name>/
 │   ├─ *.jpg                  Extracted frames
 │   ├─ frames.json            Index of extracted frames (used for resume)
 │   └─ frame_notes.json       Per-frame analysis results (used for resume)
-├─ minutes/
+├─ work/
 │   ├─ minutes_partials.json  Chunk summaries of the minutes (for long transcripts; used for resume)
 │   └─ structure_used.txt     Auto-generated heading structure from "Auto" mode (copy into templates/ if you like it; see below)
 ├─ logs/
@@ -160,13 +160,13 @@ The starter is [`templates/minutes_template_example.txt`](templates/minutes_temp
 Set `[output] auto_structure = true` in `config.toml`, or choose "Auto" in the GUI.
 
 - Using the transcript (chunk summaries for long meetings) as material, the LLM generates **only the heading structure that fits that meeting**, once. It does this within the token budget and **does not crowd the context used to generate the minutes body** (it reuses the existing split summaries and does not read the full text twice)
-- The generated structure is saved to **`minutes/structure_used.txt`** in the output folder, with `{title}` and the like left as placeholders
-- If generation fails (LLM error, missing placeholder, a structure too large to fit the merge, etc.), it **falls back to built-in with a warning** (`minutes/structure_used.txt` is not kept)
+- The generated structure is saved to **`work/structure_used.txt`** in the output folder, with `{title}` and the like left as placeholders
+- If generation fails (LLM error, missing placeholder, a structure too large to fit the merge, etc.), it **falls back to built-in with a warning** (`work/structure_used.txt` is not kept)
 
 **Turn a structure you like into a fixed template** (faster by not having the LLM generate it every time, and the results do not drift):
 
 ```sh
-cp output/<video name>/minutes/structure_used.txt templates/<client name>.txt
+cp output/<video name>/work/structure_used.txt templates/<client name>.txt
 ```
 
 Then set `[output] template_path = "templates/<client name>.txt"` in `config.toml` (or "Choose a file" in the GUI) to pin that structure from then on.
@@ -204,7 +204,7 @@ video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame a
 
 - **A single seam (`pipeline.run` + `Deps`)** — separates the UI from the real processing. You can test "stage ordering / progress / output paths" without calling ffmpeg or an LLM.
 - **LLM/VLM abstracted behind an OpenAI-compatible API** — swappable between LM Studio / Ollama / others just by changing `base_url`. No dependency on the `openai` package; calls `httpx` directly.
-- **Map-reduce for long transcripts** — a one-hour meeting does not fit in the context window, so it switches to a two-stage chunk-summarize → merge. Summaries are written incrementally to `minutes/minutes_partials.json`, so a re-run does not redo the finished parts.
+- **Map-reduce for long transcripts** — a one-hour meeting does not fit in the context window, so it switches to a two-stage chunk-summarize → merge. Summaries are written incrementally to `work/minutes_partials.json`, so a re-run does not redo the finished parts.
 - **Per-stage elapsed time shown in the log** — the completion message for audio extraction, transcription, frame extraction, frame analysis, chunk summaries, and the minutes merge each append "elapsed X".
 - **Frame analysis is also checkpointed per frame** — `frames/frame_notes.json` is rewritten after each frame finishes, so a mid-way failure does not redo already-analyzed frames.
 - **"Waiting for a response" shown during LLM calls** — for stages where the wait is noticeable other than transcription (frame analysis, minutes generation), it is shown together with the model name.

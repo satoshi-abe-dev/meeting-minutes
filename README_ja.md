@@ -55,7 +55,7 @@ output/<動画名>/
 │   ├─ *.jpg                  抽出フレーム
 │   ├─ frames.json            抽出フレームの索引（途中再開に使う）
 │   └─ frame_notes.json       フレームごとの解析結果（途中再開に使う）
-├─ minutes/
+├─ work/
 │   ├─ minutes_partials.json  議事録のチャンク要約（長い文字起こしの場合。途中再開に使う）
 │   └─ structure_used.txt     「おまかせ」で自動生成した見出し構成（気に入ったら templates/ にコピー。下記）
 ├─ logs/
@@ -175,14 +175,14 @@ python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・�
   LLM が 1 回生成する。トークン予算に収まる範囲で行い、**議事録本文の生成に使う
   コンテキストは圧迫しない**（既存の分割要約を再利用し、全文を二度読ませない）
 - 生成された構成は `{title}` 等をプレースホルダーのまま残した形で、出力フォルダーの
-  **`minutes/structure_used.txt`** に保存される
+  **`work/structure_used.txt`** に保存される
 - 生成に失敗した場合（LLM エラー・プレースホルダー欠落・構成が大きすぎて統合に
-  収まらない等）は **内蔵にフォールバックし警告**する（`minutes/structure_used.txt` は残さない）
+  収まらない等）は **内蔵にフォールバックし警告**する（`work/structure_used.txt` は残さない）
 
 **気に入った構成を固定テンプレートにする**（毎回 LLM に生成させない分だけ速く、結果もぶれない）:
 
 ```sh
-cp output/<動画名>/minutes/structure_used.txt templates/<客先名>.txt
+cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 ```
 
 として `config.toml` の `[output] template_path = "templates/<客先名>.txt"`（または GUI で
@@ -225,7 +225,7 @@ LLM がタイムアウト・切断したときの自動リトライは未対応�
 - **LLM/VLM を OpenAI 互換 API で抽象化** — `base_url` の差し替えだけで LM Studio /
   Ollama / 他に交換可能。`openai` パッケージには依存せず `httpx` 直叩き。
 - **長い文字起こしの map-reduce** — 1 時間の会議はコンテキストに収まらないので、
-  チャンク要約 → 統合の 2 段に切り替える。要約は `minutes/minutes_partials.json` に逐次保存し、
+  チャンク要約 → 統合の 2 段に切り替える。要約は `work/minutes_partials.json` に逐次保存し、
   再実行時は終わった分をやり直さない。
 - **各工程の所要時間をログに表示** — 音声抽出・文字起こし・フレーム抽出・フレーム解析・
   チャンク要約・議事録統合の各完了メッセージに「所要 X」を添える。
