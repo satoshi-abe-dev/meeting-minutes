@@ -52,7 +52,7 @@ context_tokens = 0
 # --------------------------------------
 [transcribe]
 
-# モデルのサイズ名。large-v3-turbo / large-v3 / medium / small など。
+# 文字起こしモデルのサイズ名。large-v3-turbo / large-v3 / medium / small など。
 # 既定の large-v3-turbo は large-v3 とほぼ同精度で速い。
 # バックエンドごとに実体へ変換する（faster-whisper はそのまま、mlx は
 # mlx-community/whisper-<size> に変換）。フル HF リポジトリ名を書けばそのまま使う。
