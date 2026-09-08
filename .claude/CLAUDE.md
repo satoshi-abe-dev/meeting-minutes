@@ -60,7 +60,8 @@ manager は、worker が発行した PR の内容を精査し、問題がなけ�
 - `config.toml` / `CLAUDE.md` / 権限設定（`settings.json` 等）の変更。
 - `git reset --hard` / `git clean` / force push / ブランチ削除 / 履歴書き換え。
 - ファイル削除に `rm` を使うこと。削除は `/usr/bin/trash` を使い、対象ファイルを名指しで
-  本人の許可を毎回得る。
+  本人の許可を毎回得る。`rm`/`git rm`は`~/.claude/settings.json`のPreToolUseフックでも
+  技術的にブロックされている（詳細: `/Users/satoshi/myFolder/claude-block-rm-hook-notes.md`）。
 - このセッションで拒否・ブロックされた操作を、別セッション経由で代わりに行うこと
   （＝権限ロンダリング）。
 
