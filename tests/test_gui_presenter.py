@@ -131,7 +131,7 @@ def test_config_summary_backend_note_auto_is_readable(monkeypatch):
         "meeting_minutes.presenter.main.resolve_backend", lambda tr: "mlx"
     )
     view, _ = _make()
-    assert "backend=auto（この環境では mlx を使用）" in view.config_summary
+    assert "backend=auto（自動選択: mlx）" in view.config_summary
     assert "→" not in view.config_summary
 
 
@@ -143,7 +143,7 @@ def test_config_summary_backend_note_explicit_is_plain(monkeypatch):
     cfg.transcribe.backend = "faster-whisper"
     view, _ = _make(cfg)
     assert "backend=faster-whisper" in view.config_summary
-    assert "この環境では" not in view.config_summary
+    assert "自動選択" not in view.config_summary
 
 
 @pytest.mark.parametrize(

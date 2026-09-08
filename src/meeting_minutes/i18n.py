@@ -128,8 +128,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     # backend=auto（や未知の値）を、この環境の実際のバックエンドへ読み替えたとき。
     "cfg.backend_resolved": {
-        "ja": "backend={configured}（この環境では {actual} を使用）",
-        "en": "backend={configured} (using {actual} here)",
+        "ja": "backend={configured}（自動選択: {actual}）",
+        "en": "backend={configured} (auto-selected: {actual})",
     },
     "cfg.vlm": {"ja": "VLM: {model}", "en": "VLM: {model}"},
     "cfg.llm": {"ja": "LLM: {model}", "en": "LLM: {model}"},
