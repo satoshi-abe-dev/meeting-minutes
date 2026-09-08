@@ -70,7 +70,11 @@ This project was developed by running multiple Claude Code sessions (an implemen
 
 ## Demo
 
-![Screenshot of the GUI running](docs/screenshots/gui.png)
+![Screenshot of the GUI running (English)](docs/screenshots/gui_en.png)
+
+Japanese GUI (default, no `--lang` flag):
+
+![GUI 実行中のスクリーンショット（日本語版）](docs/screenshots/gui_ja.png)
 
 Pick a video and click "Create minutes", then watch transcription → frame analysis →
 minutes generation proceed with a progress bar and a log. Custom templates
