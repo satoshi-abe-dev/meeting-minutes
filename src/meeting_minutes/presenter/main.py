@@ -109,9 +109,14 @@ class MainPresenter:
         llm = self.config_obj.llm
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
-        backend_note = f"backend={tr.backend}" + (
-            f" → {backend}" if tr.backend != backend else ""
-        )
+        # backend=auto（や未知の値）は resolve_backend が実際の値へ読み替える。
+        # 「auto を mlx と読み替えた」ことが伝わる文言にする（明示指定時は素の表示）。
+        if tr.backend == backend:
+            backend_note = self._t("cfg.backend_explicit", backend=tr.backend)
+        else:
+            backend_note = self._t(
+                "cfg.backend_resolved", configured=tr.backend, actual=backend
+            )
         # 実際に使う順番（文字起こし → VLM → LLM）で縦に並べる。
         return "\n".join(
             (

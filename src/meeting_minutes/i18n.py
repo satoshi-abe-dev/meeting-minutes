@@ -118,8 +118,18 @@ _STRINGS: dict[str, dict[str, str]] = {
     "filetype.all": {"ja": "すべてのファイル", "en": "All files"},
     # --- 設定サマリ（presenter が組み立て、view に表示）----------------
     "cfg.transcribe": {
-        "ja": "文字起こし: {model}（{note}）",
-        "en": "Transcription: {model} ({note})",
+        "ja": "文字起こし: {model} / {note}",
+        "en": "Transcription: {model} / {note}",
+    },
+    # backend が明示指定（mlx / faster-whisper）で、実際に使う値と一致するとき。
+    "cfg.backend_explicit": {
+        "ja": "backend={backend}",
+        "en": "backend={backend}",
+    },
+    # backend=auto（や未知の値）を、この環境の実際のバックエンドへ読み替えたとき。
+    "cfg.backend_resolved": {
+        "ja": "backend={configured}（この環境では {actual} を使用）",
+        "en": "backend={configured} (using {actual} here)",
     },
     "cfg.vlm": {"ja": "VLM: {model}", "en": "VLM: {model}"},
     "cfg.llm": {"ja": "LLM: {model}", "en": "LLM: {model}"},
