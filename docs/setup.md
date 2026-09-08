@@ -177,8 +177,8 @@ copy config.example.toml config.toml
 ```toml
 [llm]
 base_url = "http://localhost:1234/v1"
-model = "<LM Studio でロードしたテキスト LLM の ID>"
-vlm_model = "<LM Studio でロードした VLM の ID>"
+vlm_model = "<フレーム解析に使う VLM の ID>"
+model = "<議事録生成に使うテキスト LLM の ID>"
 
 [transcribe]
 backend = "auto"          # Apple Silicon なら mlx（GPU）。"faster-whisper" に固定も可
