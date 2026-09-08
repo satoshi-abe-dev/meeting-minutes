@@ -46,7 +46,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "button.run": {"ja": "議事録を作成", "en": "Create minutes"},
     "button.stop": {"ja": "中断", "en": "Stop"},
     # 進捗ラベルの起動直後の表示（実行が始まると工程名＋進捗に差し替わる）。
-    "label.waiting": {"ja": "ログ", "en": "Log"},
+    "label.waiting": {"ja": "準備完了", "en": "Ready"},
     "button.open_minutes": {"ja": "議事録を開く", "en": "Open minutes"},
     "button.open_folder": {"ja": "出力フォルダーを開く", "en": "Open output folder"},
     "info.privacy": {
