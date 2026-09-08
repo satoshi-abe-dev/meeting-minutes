@@ -103,6 +103,14 @@ def _make(cfg=None, run_pipeline=None, language="ja"):
     return view, presenter
 
 
+@pytest.fixture(autouse=True)
+def _redirect_output(tmp_path, monkeypatch):
+    """`_start()` は output/<動画名>/ を作り gui.log を書く。実リポジトリの output/ を
+    汚さないよう、出力ルートをテストごとの tmp_path 配下へ寄せる。"""
+    monkeypatch.setattr("meeting_minutes.model.config.REPO_ROOT", tmp_path)
+    return tmp_path
+
+
 # --- 初期化 ---------------------------------------------------------
 
 def test_init_registers_handlers_and_pushes_initial_state():
@@ -206,6 +214,47 @@ def test_start_without_video_does_nothing():
     view.handlers["start"]()
     assert presenter._worker is None
     assert view.log == []
+
+
+# --- gui.log への書き出し（Issue #98）--------------------------------
+
+def test_start_computes_log_path_and_writes_file(tmp_path):
+    view, presenter = _make()
+    _start_with_video(view, presenter, "builtin")
+
+    expected = tmp_path / "output" / "m" / "gui.log"
+    assert presenter._log_path == expected
+    assert expected.is_file()
+    # 画面のログ欄と同じ内容がファイルにも入っている
+    written = expected.read_text(encoding="utf-8")
+    for line in view.log:
+        assert line in written
+
+
+def test_gui_log_is_appended_not_overwritten(tmp_path):
+    view, presenter = _make()
+    _start_with_video(view, presenter, "builtin")
+    log_path = presenter._log_path
+    presenter._poll_events()  # ワーカー完了イベントを処理して _worker を None に戻す
+    first = log_path.read_text(encoding="utf-8")
+
+    # 同じ動画をもう一度実行しても過去分が残る
+    view.handlers["start"]()
+    if presenter._worker:
+        presenter._worker.join(timeout=2)
+    second = log_path.read_text(encoding="utf-8")
+
+    assert second.startswith(first)
+    assert len(second) > len(first)
+    assert second.count("開始: m.mp4") == 2
+
+
+def test_log_write_failure_does_not_break_gui(tmp_path):
+    view, presenter = _make()
+    # ディレクトリを log_path に据えると open(..., "a") が IsADirectoryError（OSError）
+    presenter._log_path = tmp_path
+    presenter._log("画面には出る")
+    assert "画面には出る" in view.log  # 例外は握りつぶされ、表示は行われる
 
 
 # --- 進捗率計算（_STAGE_ORDER / _STAGE_WEIGHT）--------------------

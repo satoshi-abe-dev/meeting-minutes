@@ -63,6 +63,8 @@ class MainPresenter:
         self._worker: threading.Thread | None = None
         self._reuse: bool = True
         self._cancel_event: threading.Event | None = None
+        # 実行開始時に output/<動画名>/gui.log を指す。画面のログ欄と同じ内容を追記する。
+        self._log_path: Path | None = None
 
         self.view.set_on_choose_video(self._choose_file)
         self.view.set_on_pick_template(self._pick_template_file)
@@ -90,6 +92,17 @@ class MainPresenter:
 
     def _t(self, key: str, *, default: str | None = None, **kwargs: object) -> str:
         return t(key, self.language, default=default, **kwargs)
+
+    def _log(self, text: str) -> None:
+        """画面のログ欄に出しつつ、実行中なら output/<動画名>/gui.log にも追記する。
+        View（画面表示）は変更しない。ファイル書き込みの失敗は GUI 動作に影響させない。"""
+        self.view.append_log(text)
+        if self._log_path is not None:
+            try:
+                with open(self._log_path, "a", encoding="utf-8") as f:
+                    f.write(text + "\n")
+            except OSError:
+                pass  # ログファイル書き込み失敗は握りつぶす（画面表示は済んでいる）
 
     # --- 設定表示 -------------------------------------------------
     def _config_summary(self) -> str:
@@ -144,6 +157,15 @@ class MainPresenter:
                 self._t("dialog.format_error.message"),
             )
             return
+
+        # この回のログ書き出し先。pipeline.py の out_dir 算出と同じ式。
+        out_dir = self.config_obj.output_root / self.video_path.stem
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            self._log_path = out_dir / "gui.log"
+        except OSError:
+            self._log_path = None  # 作れなくても GUI は動かす
+
         self.view.set_start_enabled(False)
         self.view.set_stop_enabled(True)
         self.view.set_open_minutes_enabled(False)
@@ -165,10 +187,10 @@ class MainPresenter:
         else:
             fmt_desc = self._t("log.format_desc.builtin")
         suffix = "" if self._reuse else self._t("log.start_suffix_fresh")
-        self.view.append_log(
+        self._log(
             self._t("log.start", name=self.video_path.name, suffix=suffix)
         )
-        self.view.append_log(self._t("log.format", desc=fmt_desc))
+        self._log(self._t("log.format", desc=fmt_desc))
 
         self._worker = threading.Thread(target=self._work, daemon=True)
         self._worker.start()
@@ -179,7 +201,7 @@ class MainPresenter:
             return
         self._cancel_event.set()
         self.view.set_stop_enabled(False)  # 二重クリック防止
-        self.view.append_log(self._t("log.stop_requested"))
+        self._log(self._t("log.stop_requested"))
 
     def _work(self) -> None:
         def on_progress(stage: str, current: int, total: int, message: str) -> None:
@@ -245,7 +267,7 @@ class MainPresenter:
         )
         self.view.set_stage_text(f"{label} {counter}")
         if message:
-            self.view.append_log(f"[{label}] {message}")
+            self._log(f"[{label}] {message}")
 
     def _on_success(self, result) -> None:
         self._worker = None
@@ -253,15 +275,15 @@ class MainPresenter:
         self.minutes_path = result.minutes_path
         self.view.set_progress(1000)
         self.view.set_stage_text(self._t("stage_text.done"))
-        self.view.append_log("")
-        self.view.append_log(self._t("log.minutes_path", path=result.minutes_path))
-        self.view.append_log(
+        self._log("")
+        self._log(self._t("log.minutes_path", path=result.minutes_path))
+        self._log(
             self._t(
                 "log.counts", segments=result.n_segments, frames=result.n_frames
             )
         )
         for w in result.warnings:
-            self.view.append_log(self._t("log.warning", msg=w))
+            self._log(self._t("log.warning", msg=w))
         self.view.set_open_minutes_enabled(True)
         self.view.set_open_folder_enabled(True)
         self.view.set_start_enabled(True)
@@ -271,19 +293,19 @@ class MainPresenter:
     def _on_error(self, exc: Exception, tb: str) -> None:
         self._worker = None
         self.view.set_stage_text(self._t("stage_text.error"))
-        self.view.append_log("")
-        self.view.append_log(self._t("log.failure", exc=exc))
+        self._log("")
+        self._log(self._t("log.failure", exc=exc))
         self.view.set_start_enabled(True)
         self.view.set_stop_enabled(False)
         self._cancel_event = None
         self.view.show_error(self._t("dialog.error.title"), str(exc))
         # 詳細はログにだけ残す
-        self.view.append_log(tb)
+        self._log(tb)
 
     def _on_cancelled(self) -> None:
         self._worker = None
         self.view.set_stage_text(self._t("stage_text.cancelled"))
-        self.view.append_log(self._t("log.cancelled"))
+        self._log(self._t("log.cancelled"))
         self.view.set_start_enabled(True)
         self.view.set_stop_enabled(False)
         self._cancel_event = None
