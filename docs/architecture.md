@@ -23,7 +23,7 @@
   │        └─ reuse=True なら残っているフレームだけ解析（1枚単位で再開）
   │
   └─(5) minutes.generate_minutes   文字起こし＋フレーム要点 → 議事録 Markdown
-           ├─ 長文はチャンク要約ごとに minutes_partials.json へ逐次保存
+           ├─ 長文はチャンク要約ごとに minutes/minutes_partials.json へ逐次保存
            │    → reuse=True なら残っている分は要約し直さない（1チャンク単位で再開）
            └─ save_minutes → minutes.md
 ```
@@ -31,7 +31,7 @@
 `pipeline.run()` がこの順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の
 管理を担当する。GUI・CLI・テストはすべて `run()` を呼ぶだけ。`run(..., reuse=True)`
 （既定）は前回の中間生成物（transcript/transcript.json / frames/frames.json / frames/frame_notes.json /
-minutes_partials.json）を再利用し、終わっている分をやり直さない（`--fresh` / GUI の
+minutes/minutes_partials.json）を再利用し、終わっている分をやり直さない（`--fresh` / GUI の
 チェックで無効化）。進捗の `stage` は
 `preflight → audio → transcribe → frames → vision → minutes → done`。
 各工程・各チャンク・各フレームの完了メッセージには「所要 X」の実測時間が、

@@ -105,7 +105,7 @@ def _make(cfg=None, run_pipeline=None, language="ja"):
 
 @pytest.fixture(autouse=True)
 def _redirect_output(tmp_path, monkeypatch):
-    """`_start()` は output/<動画名>/ を作り gui.log を書く。実リポジトリの output/ を
+    """`_start()` は output/<動画名>/logs/ を作り gui.log を書く。実リポジトリの output/ を
     汚さないよう、出力ルートをテストごとの tmp_path 配下へ寄せる。"""
     monkeypatch.setattr("meeting_minutes.model.config.REPO_ROOT", tmp_path)
     return tmp_path
@@ -243,7 +243,7 @@ def test_start_computes_log_path_and_writes_file(tmp_path):
     view, presenter = _make()
     _start_with_video(view, presenter, "builtin")
 
-    expected = tmp_path / "output" / "m" / "gui.log"
+    expected = tmp_path / "output" / "m" / "logs" / "gui.log"
     assert presenter._log_path == expected
     assert expected.is_file()
     # 画面のログ欄と同じ内容がファイルにも入っている
@@ -293,7 +293,7 @@ def test_log_path_uses_resolved_video_stem_for_symlink(tmp_path):
     if presenter._worker:
         presenter._worker.join(timeout=2)
 
-    assert presenter._log_path == tmp_path / "output" / "real_video" / "gui.log"
+    assert presenter._log_path == tmp_path / "output" / "real_video" / "logs" / "gui.log"
 
 
 # --- 進捗率計算（_STAGE_ORDER / _STAGE_WEIGHT）--------------------

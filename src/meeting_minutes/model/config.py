@@ -97,7 +97,7 @@ class OutputConfig:
     template_path: str = ""
     # 「おまかせ」モード: 動画の内容に合わせて議事録の見出し構成を LLM に自動生成させる。
     # True なら template_path より優先（優先順位: auto > file > builtin）。生成された構成は
-    # output/<動画名>/structure_used.txt に保存され、気に入れば templates/ にコピーして
+    # output/<動画名>/minutes/structure_used.txt に保存され、気に入れば templates/ にコピーして
     # 固定テンプレートとして使い回せる。生成に失敗したら内蔵にフォールバックし警告する。
     auto_structure: bool = False
 

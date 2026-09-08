@@ -80,7 +80,7 @@ max_tokens = 8192
 chunk_trigger_chars = 20000
 
 # 分割モードのときの 1 チャンクの文字数。この値を変えて途中再開すると、保存済みの
-# 部分要約（minutes_partials.json）はチャンク境界が合わなくなるため破棄され、
+# 部分要約（minutes/minutes_partials.json）はチャンク境界が合わなくなるため破棄され、
 # 最初から要約し直される（内容の重複・欠落を避けるため）。
 chunk_size_chars = 12000
 
@@ -105,7 +105,7 @@ template_path = ""
 
 # 「おまかせ」モード: 動画の内容に合わせて議事録の見出し構成を LLM に自動生成させる。
 # true にすると template_path より優先（優先順位: auto > file > builtin）。
-# 生成された構成は output/<動画名>/structure_used.txt に保存される。気に入れば
+# 生成された構成は output/<動画名>/minutes/structure_used.txt に保存される。気に入れば
 # templates/ にコピーして、以後は template_path で固定テンプレートとして使い回せる。
 # 生成に失敗（LLM エラー・プレースホルダー欠落など）したら内蔵にフォールバックし警告する。
 auto_structure = false

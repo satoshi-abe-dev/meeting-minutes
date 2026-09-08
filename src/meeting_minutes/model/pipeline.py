@@ -125,9 +125,11 @@ def run(
     warnings: list[str] = []
 
     out_dir = config.output_root / video_path.stem
-    # 音声ファイルと文字起こしは1つのフォルダーにまとめる。フレーム画像は frames/。
+    # 中間生成物は種類ごとにサブフォルダへ。frames 画像は frames/、音声・文字起こしは
+    # transcript/、議事録の型・チャンク要約は minutes/（gui.log は GUI 側で logs/ に作る）。
     transcript_dir = out_dir / "transcript"
     (out_dir / "frames").mkdir(parents=True, exist_ok=True)
+    (out_dir / "minutes").mkdir(parents=True, exist_ok=True)
     transcript_dir.mkdir(parents=True, exist_ok=True)
 
     # LLM サーバーを一度作り、以降ずっと使う。接続エラーヒントも language に従わせる。
