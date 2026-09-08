@@ -280,7 +280,7 @@ grep で確認する手順を徹底している。
 ## 問い合わせ
 
 質問・不具合報告は [GitHub Issues](https://github.com/satoshi-abe-dev/meeting-minutes/issues) へ。
-セキュリティに関する報告は [SECURITY.md](SECURITY.md) を参照。
+セキュリティに関する報告は [SECURITY.md](.github/SECURITY.md) を参照。
 
 ## ライセンス
 

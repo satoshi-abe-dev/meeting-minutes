@@ -241,7 +241,7 @@ Because this project handles real meeting data, the practice of grepping tracked
 ## Contact
 
 For questions and bug reports, please use [GitHub Issues](https://github.com/satoshi-abe-dev/meeting-minutes/issues).
-For security reports, see [SECURITY.md](SECURITY.md).
+For security reports, see [SECURITY.md](.github/SECURITY.md).
 
 ## License
 
