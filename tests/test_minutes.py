@@ -291,7 +291,7 @@ def test_generate_minutes_persists_partials_on_cancel(tmp_path, chunking_config)
             on_progress=on_progress, cancel_event=cancel_event, out_dir=tmp_path,
         )
 
-    saved = json.loads((tmp_path / "minutes_partials.json").read_text(encoding="utf-8"))
+    saved = json.loads((tmp_path / "minutes" / "minutes_partials.json").read_text(encoding="utf-8"))
     assert saved["format"] == 2
     assert saved["chunk_size_chars"] == chunking_config.chunk_size_chars
     assert saved["num_segments"] == len(long_segs)
@@ -376,7 +376,8 @@ def test_generate_minutes_discards_partials_when_chunk_size_changed(tmp_path):
 
 def test_generate_minutes_discards_legacy_list_format_partials(tmp_path, chunking_config):
     """メタ情報の無い旧形式（JSON 配列）の部分要約は境界を検証できないので使わない。"""
-    (tmp_path / "minutes_partials.json").write_text(
+    (tmp_path / "minutes").mkdir()
+    (tmp_path / "minutes" / "minutes_partials.json").write_text(
         json.dumps(["### 部分 1\n旧形式の要約"]), encoding="utf-8"
     )
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
@@ -677,7 +678,7 @@ def test_auto_structure_single_pass_uses_full_transcript_and_saves(tmp_path):
     assert "## 宿題・アクションアイテム" not in minutes_user
 
     # 保存された型はプレースホルダーがリテラルのまま（そのまま templates/ に置ける）
-    saved = (tmp_path / "structure_used.txt").read_text(encoding="utf-8")
+    saved = (tmp_path / "minutes" / "structure_used.txt").read_text(encoding="utf-8")
     assert "{title}" in saved
     assert "{datetime_hint}" in saved
     assert "{duration_hint}" in saved
@@ -705,7 +706,7 @@ def test_auto_structure_large_transcript_reuses_chunk_summaries(tmp_path, chunki
     assert len(client.chunk_calls()) == n_chunks
     # 最終統合に生成された型
     assert "## 次アクション" in client.calls[-1]["user"]
-    assert (tmp_path / "structure_used.txt").is_file()
+    assert (tmp_path / "minutes" / "structure_used.txt").is_file()
 
 
 def test_auto_structure_fallback_on_missing_placeholder(tmp_path):
@@ -722,7 +723,7 @@ def test_auto_structure_fallback_on_missing_placeholder(tmp_path):
 
     assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # 内蔵テンプレート
     assert any("プレースホルダー" in m and "内蔵" in m for m in msgs)
-    assert not (tmp_path / "structure_used.txt").exists()  # 失敗時は保存しない
+    assert not (tmp_path / "minutes" / "structure_used.txt").exists()  # 失敗時は保存しない
 
 
 def test_auto_structure_fallback_on_llm_error(tmp_path):
@@ -737,7 +738,7 @@ def test_auto_structure_fallback_on_llm_error(tmp_path):
 
     assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]
     assert any("自動生成に失敗" in m for m in msgs)
-    assert not (tmp_path / "structure_used.txt").exists()
+    assert not (tmp_path / "minutes" / "structure_used.txt").exists()
 
 
 def test_auto_structure_prompt_instructs_literal_placeholders():
@@ -791,7 +792,7 @@ def test_auto_structure_failure_falls_back_to_builtin_not_file_template(tmp_path
     minutes_user = client.calls[-1]["user"]
     assert "## 宿題・アクションアイテム" in minutes_user  # 内蔵テンプレート
     assert "客先様式だけ" not in minutes_user  # ファイルテンプレートにはフォールバックしない
-    assert not (tmp_path / "structure_used.txt").exists()
+    assert not (tmp_path / "minutes" / "structure_used.txt").exists()
 
 
 def test_auto_structure_recomputes_budget_after_generation(tmp_path):
@@ -817,7 +818,7 @@ def test_auto_structure_recomputes_budget_after_generation(tmp_path):
 
     # 型生成は1回、棄却はされず（保存あり）、一発生成を諦めて分割へ切り替わる
     assert len(client.struct_calls()) == 1
-    assert (tmp_path / "structure_used.txt").is_file()
+    assert (tmp_path / "minutes" / "structure_used.txt").is_file()
     assert len(client.chunk_calls()) >= 1
 
 
@@ -844,7 +845,7 @@ def test_auto_structure_rejects_structure_too_large_for_merge(tmp_path):
     )
 
     assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # 内蔵テンプレート
-    assert not (tmp_path / "structure_used.txt").exists()  # 棄却したので保存しない
+    assert not (tmp_path / "minutes" / "structure_used.txt").exists()  # 棄却したので保存しない
     assert any("大きすぎ" in m for m in msgs)
 
 
@@ -860,7 +861,7 @@ def test_auto_structure_no_size_reject_when_ctx_unknown(tmp_path):
         out_dir=tmp_path, auto_structure=True,  # context_tokens 指定なし
     )
     # サイズ理由での棄却はされず、生成された型が使われて保存される
-    assert (tmp_path / "structure_used.txt").is_file()
+    assert (tmp_path / "minutes" / "structure_used.txt").is_file()
     assert "## 見出し" in client.calls[-1]["user"]
 
 
@@ -957,7 +958,8 @@ def test_generate_minutes_truncates_oversized_merged_transcript(tmp_path):
 def test_auto_structure_failure_removes_stale_structure_file(tmp_path):
     """Codex 指摘: おまかせ失敗で内蔵にフォールバックするとき、前回実行の
     structure_used.txt が残っていたら削除する（今回使っていない型の誤コピー防止）。"""
-    stale = tmp_path / "structure_used.txt"
+    stale = tmp_path / "minutes" / "structure_used.txt"
+    stale.parent.mkdir()
     stale.write_text("# 前回のおまかせ結果（今回とは無関係）\n", encoding="utf-8")
 
     client = RoutingFakeClient(structure="型らしきもの（プレースホルダー無し）")  # 生成失敗

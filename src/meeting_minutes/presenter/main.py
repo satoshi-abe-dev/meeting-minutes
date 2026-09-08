@@ -63,7 +63,7 @@ class MainPresenter:
         self._worker: threading.Thread | None = None
         self._reuse: bool = True
         self._cancel_event: threading.Event | None = None
-        # 実行開始時に output/<動画名>/gui.log を指す。画面のログ欄と同じ内容を追記する。
+        # 実行開始時に output/<動画名>/logs/gui.log を指す。画面のログ欄と同じ内容を追記する。
         self._log_path: Path | None = None
 
         self.view.set_on_choose_video(self._choose_file)
@@ -94,7 +94,7 @@ class MainPresenter:
         return t(key, self.language, default=default, **kwargs)
 
     def _log(self, text: str) -> None:
-        """画面のログ欄に出しつつ、実行中なら output/<動画名>/gui.log にも追記する。
+        """画面のログ欄に出しつつ、実行中なら output/<動画名>/logs/gui.log にも追記する。
         View（画面表示）は変更しない。ファイル書き込みの失敗は GUI 動作に影響させない。"""
         self.view.append_log(text)
         if self._log_path is not None:
@@ -165,13 +165,14 @@ class MainPresenter:
 
         # この回のログ書き出し先。pipeline.run() は video_path を
         # expanduser().resolve() してから out_dir を決めるので、こちらも同じ正規化を
-        # 通す（シンボリックリンク等でリンク名と実体名が違うと、gui.log と
+        # 通す（シンボリックリンク等でリンク名と実体名が違うと、logs/gui.log と
         # transcript/ ・ minutes.md が別フォルダに分かれてしまうのを防ぐ）。
         resolved_video = self.video_path.expanduser().resolve()
         out_dir = self.config_obj.output_root / resolved_video.stem
         try:
-            out_dir.mkdir(parents=True, exist_ok=True)
-            self._log_path = out_dir / "gui.log"
+            log_dir = out_dir / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            self._log_path = log_dir / "gui.log"
         except OSError:
             self._log_path = None  # 作れなくても GUI は動かす
 

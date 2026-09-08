@@ -80,7 +80,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": (
             "「おまかせ」は、動画の内容に合わせて議事録の見出し構成を毎回 AI に"
             "提案させます（例: 団体旅行の説明会なら「スケジュール」「持ち物」"
-            "「注意事項」など）。生成された構成は出力フォルダーの structure_used.txt に"
+            "「注意事項」など）。生成された構成は出力フォルダーの minutes/structure_used.txt に"
             "保存され、気に入ればテンプレートファイルとして保存して、以後は"
             "「ファイルを選択」で固定できます。生成に失敗した場合は自動的に"
             "「内蔵」で作成します。"
@@ -89,7 +89,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             '"Auto" asks the AI to propose the minutes\' heading structure to '
             'match each video\'s content (e.g. for a group-tour briefing: '
             '"Schedule", "What to bring", "Notes"). The generated structure is '
-            "saved as structure_used.txt in the output folder; if you like it, "
+            "saved as minutes/structure_used.txt in the output folder; if you like it, "
             'save it as a template file and pin it via "Choose a file". If '
             'generation fails, "Built-in" is used automatically.'
         ),
