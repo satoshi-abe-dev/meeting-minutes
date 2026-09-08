@@ -129,13 +129,27 @@ The **structure** of the minutes (headings and items) can be chosen in three way
 | Mode | Description |
 | --- | --- |
 | Built-in (default) | Always the same headings regardless of meeting content (decisions / action items / discussion highlights, etc.). Identical to [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt) |
-| Choose a file | Uses the structure of an external file you prepared, e.g. a client's prescribed format |
 | Auto | Has the LLM propose the heading structure each time to match the video content (e.g. a group-tour briefing → "Schedule", "What to bring", "Meeting place / time", "Notes") |
-
-**You can preview the built-in heading structure before running** — open [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt); it is identical to the built-in template (headings plus the per-section instructions).
+| Choose a file | Uses the structure of an external file you prepared, e.g. a client's prescribed format |
 
 - Set the default in `config.toml` (priority: **`auto_structure=true` > `template_path` > built-in**)
 - The GUI's "Minutes format" radio buttons switch it **for that run only** (the three options are mutually exclusive; even with `auto_structure=true` in `config.toml`, choosing "Built-in" or "Choose a file" in the GUI wins)
+
+#### Auto (auto-generate to match the video)
+
+Set `[output] auto_structure = true` in `config.toml`, or choose "Auto" in the GUI.
+
+- Using the transcript (chunk summaries for long meetings) as material, the LLM generates **only the heading structure that fits that meeting**, once. It does this within the token budget and **does not crowd the context used to generate the minutes body** (it reuses the existing split summaries and does not read the full text twice)
+- The generated structure is saved to **`work/structure_used.txt`** in the output folder, with `{title}` and the like left as placeholders
+- If generation fails (LLM error, missing placeholder, a structure too large to fit the merge, etc.), it **falls back to built-in with a warning** (`work/structure_used.txt` is not kept)
+
+**Turn a structure you like into a fixed template** (faster by not having the LLM generate it every time, and the results do not drift):
+
+```sh
+cp output/<video name>/work/structure_used.txt templates/<client name>.txt
+```
+
+Then set `[output] template_path = "templates/<client name>.txt"` in `config.toml` (or "Choose a file" in the GUI) to pin that structure from then on.
 
 #### Choose a file (custom template)
 
@@ -156,22 +170,6 @@ Placeholders you can use in a template:
 | `{frames}` | The frame analysis result (with timestamps. **Optional**. Independently of `{transcript}`, only the one you omitted is filled in) |
 
 The starter is [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt) (identical to built-in). Copying it and rewriting the headings is the quick path.
-
-#### Auto (auto-generate to match the video)
-
-Set `[output] auto_structure = true` in `config.toml`, or choose "Auto" in the GUI.
-
-- Using the transcript (chunk summaries for long meetings) as material, the LLM generates **only the heading structure that fits that meeting**, once. It does this within the token budget and **does not crowd the context used to generate the minutes body** (it reuses the existing split summaries and does not read the full text twice)
-- The generated structure is saved to **`work/structure_used.txt`** in the output folder, with `{title}` and the like left as placeholders
-- If generation fails (LLM error, missing placeholder, a structure too large to fit the merge, etc.), it **falls back to built-in with a warning** (`work/structure_used.txt` is not kept)
-
-**Turn a structure you like into a fixed template** (faster by not having the LLM generate it every time, and the results do not drift):
-
-```sh
-cp output/<video name>/work/structure_used.txt templates/<client name>.txt
-```
-
-Then set `[output] template_path = "templates/<client name>.txt"` in `config.toml` (or "Choose a file" in the GUI) to pin that structure from then on.
 
 ## Known limitations and next steps
 
