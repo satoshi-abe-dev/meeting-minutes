@@ -6,15 +6,8 @@
 
 ## 文字起こし
 
-2 つのバックエンドがある。`config.toml` の `[transcribe] backend` で選ぶ。
-
-| backend | 実行先 | 速度 | 備考 |
-| --- | --- | --- | --- |
-| `mlx` | Apple Silicon の GPU | 速い | Mac 専用（`mlx-whisper`）。既定の `auto` は Apple Silicon でこれを選ぶ |
-| `faster-whisper` | CPU（Mac の場合） | 遅い | どの OS でも動く。`auto` のフォールバック |
-
 `model` はサイズ名で書く（`large-v3-turbo` / `large-v3` / `medium` / `small`）。
-バックエンドが実体へ変換する（`mlx` は `mlx-community/whisper-<size>` に、
+実体への変換はバックエンド（下記）が行う（`mlx` は `mlx-community/whisper-<size>` に、
 `faster-whisper` はそのまま）。フル HF リポジトリ名を書けばそのまま使う。
 
 | モデル | 目安 | 用途 |
@@ -24,6 +17,13 @@
 | `medium` | 約 1.5GB | 速度と精度のバランス。 |
 | `small` / `base` | 数百 MB | 下書き・動作確認・非力なマシン。 |
 | 4bit 量子化（`mlx-community/whisper-large-v3-mlx-4bit` 等） | 約 0.5GB | 初回DLを軽くしたいとき。日本語精度はわずかに落ちる可能性。 |
+
+バックエンドは 2 つ。`config.toml` の `[transcribe] backend` で選ぶ（既定 `auto`）。
+
+| backend | 実行先 | 速度 | 備考 |
+| --- | --- | --- | --- |
+| `mlx` | Apple Silicon の GPU | 速い | Mac 専用（`mlx-whisper`）。既定の `auto` は Apple Silicon でこれを選ぶ |
+| `faster-whisper` | CPU（Mac の場合） | 遅い | どの OS でも動く。`auto` のフォールバック |
 
 faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "auto"` で任せる。
 これらは `mlx` バックエンドでは無視される。
