@@ -28,22 +28,18 @@ English | [日本語](README_ja.md)
 
 ---
 
-## The problem
+## Background
 
-Every meeting, someone rewatches the recording and writes the minutes by hand. People want to automate this, but there are settings where existing cloud transcription/summarization services are not an option:
+Meeting minutes are a natural fit for AI automation. But meeting audio and shared screens often carry customer data or non-public business and HR information, and under NDAs, data-protection law, GDPR, or internal policy, that recording cannot be sent to a cloud transcription/summarization service.
 
-- Meetings contain **customer information, non-public business information, HR information, or personal data**
-- NDAs, data-protection law, GDPR, internal policy, or industry regulation mean the **recording cannot be sent to an external service**
-- "Convenient, but the data leaves the building" tools do not pass procurement review in the first place
-
-## What this is
+## Overview
 
 A CLI / GUI tool that takes a single video file and runs the following **entirely locally** to generate minutes.
 
 1. Extract audio from the video (ffmpeg)
-2. Transcribe with timestamps (faster-whisper; local and offline)
-3. Extract frames of screen shares / slides and summarize their content (local VLM)
-4. Generate minutes from the transcript + frame notes (local LLM)
+2. Transcribe with timestamps (Whisper)
+3. Extract frames of screen shares / slides and summarize their content (VLM)
+4. Generate minutes from the transcript + frame notes (LLM)
 
 - There is no code that connects to an external domain. The only thing it talks to is a **local LLM server you run yourself** (e.g. [LM Studio](https://lmstudio.ai/)) over `localhost`
 - Once the models are downloaded, it **runs to completion even with Wi-Fi turned off** (→ [`docs/privacy.md`](docs/privacy.md))
@@ -193,7 +189,7 @@ Automatic retry when the LLM times out or drops the connection is not implemente
 
 ```
 video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame analysis(VLM) ─▶ minutes generation(LLM) ─▶ minutes.md
-        (ffmpeg)        (faster-whisper)  (ffmpeg)         (localhost)             (localhost)
+        (ffmpeg)        (Whisper)         (ffmpeg)         (localhost)             (localhost)
 ```
 
 - `pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all just call `run()`**

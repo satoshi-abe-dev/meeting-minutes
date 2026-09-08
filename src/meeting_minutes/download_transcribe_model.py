@@ -1,4 +1,4 @@
-"""文字起こしモデルを事前にダウンロードする。
+"""文字起こしモデルをローカルに取得する（アプリ実行時はこれが唯一の取得口）。
 
 セットアップ（scripts/setup.sh）から呼ばれる。**アプリ実行時（cli.py / gui.py）は
 オフライン強制のため Whisper モデルを自動ダウンロードしない**ので、事前取得は必須。
@@ -61,7 +61,7 @@ def download_transcribe_model(config) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="文字起こしモデルを事前ダウンロードする"
+        description="文字起こしモデルをローカルに取得する（唯一の取得口。実行時は自動DLしない）"
     )
     parser.add_argument(
         "--config",
