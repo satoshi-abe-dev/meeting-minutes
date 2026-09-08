@@ -16,6 +16,11 @@ English | [日本語](README_ja.md)
 > - **Proposing "Auto" mode** — having the LLM suggest a heading structure per video,
 >   which can be pinned as a template once you like it
 > - **The overall GUI design**
+> - **The "Stop" button requirement** — the need to safely interrupt processing that
+>   can take tens of minutes
+> - **The intermediate-file reuse requirement** — saving transcription, frame
+>   extraction, frame analysis, and minutes summarization separately, so a failure or
+>   interruption never means starting over from scratch
 >
 > Implementation was carried out by multiple Claude Code sessions. The roles and
 > review criteria are documented in
