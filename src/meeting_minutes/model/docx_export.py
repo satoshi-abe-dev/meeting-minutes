@@ -8,7 +8,10 @@ state machine で変換する。想定外の行は素の段落として落とし
 対応する記法:
     - ATX 見出し `#`〜`######`            → Word の Heading 1..6
     - 箇条書き `- ` / `* ` / `+ `（先頭スペースでネスト）→ List Bullet / 2 / 3
-    - 番号リスト `1. ` / `1) `            → List Number / 2 / 3
+    - 番号リスト `1. ` / `1) `            → 元の番号を保持した素の段落
+      （Word の自動連番 List Number は使わない。numbering インスタンスを共有する
+       ため、見出しで区切られた 2 つ目の番号リストが前の続き番号になり、開始番号も
+       失われる。議事録は番号リストをほぼ使わないのでこの割り切りで十分）
     - GFM パイプ表（`| … |` 行 ＋ `| --- |` 区切り行）→ 表（ヘッダ行のセルを太字）
     - フェンスドコードブロック ``` … ```  → 等幅（Consolas）の段落
     - 空行 → 段落の区切り / その他の行 → 素の段落
@@ -27,7 +30,7 @@ if TYPE_CHECKING:  # 重い依存。実行時は関数内 import する。
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _BULLET_RE = re.compile(r"^(\s*)[-*+]\s+(.*)$")
-_NUMBER_RE = re.compile(r"^(\s*)\d+[.)]\s+(.*)$")
+_NUMBER_RE = re.compile(r"^\s*(\d+[.)])\s+(.*)$")
 _TABLE_SEP_CELL_RE = re.compile(r"^\s*:?-+:?\s*$")
 # `**bold**`（1 文字以上）または `` `code` ``（1 文字以上、バッククォートを含まない）。
 _INLINE_RE = re.compile(r"(\*\*.+?\*\*|`[^`]+`)")
@@ -177,9 +180,11 @@ def markdown_to_docx(markdown: str) -> Document:
 
             m = _NUMBER_RE.match(line)
             if m:
-                depth = min(len(m.group(1)) // 2, _MAX_LIST_DEPTH - 1)
-                style = "List Number" if depth == 0 else f"List Number {depth + 1}"
-                _add_runs(doc.add_paragraph(style=style), m.group(2).strip())
+                # 元 Markdown の番号（`1.` / `3)` 等）をリテラルで保持した素の段落。
+                # Word の自動連番（List Number）は使わない（docstring 参照）。
+                p = doc.add_paragraph()
+                p.add_run(m.group(1) + " ")
+                _add_runs(p, m.group(2).strip())
                 i += 1
                 continue
 

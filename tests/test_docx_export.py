@@ -101,6 +101,25 @@ def test_code_fence_is_monospace(tmp_path):
     assert para.runs[0].font.name == "Consolas"
 
 
+def test_separate_number_lists_keep_their_own_start(tmp_path):
+    """見出しで区切られた独立した番号リストが2つあっても、2つ目が前の続き番号
+    （4, 5, …）にならず、それぞれ `1.` から始まる（Word の共有 numbering 問題）。"""
+    md = (
+        "## アジェンダ\n\n1. 予算\n2. 人員\n\n"
+        "## アクションアイテム\n\n1. 見積り\n2. 稟議\n"
+    )
+    doc = markdown_to_docx(md)
+    numbered = [p.text for p in doc.paragraphs if p.text[:2] in ("1.", "2.")]
+    assert numbered == ["1. 予算", "2. 人員", "1. 見積り", "2. 稟議"]
+
+
+def test_number_list_preserves_nonstandard_start(tmp_path):
+    """`3.` 始まりのような開始番号もリテラルで保持される。"""
+    doc = markdown_to_docx("3. 三番目\n4. 四番目\n")
+    texts = [p.text for p in doc.paragraphs if p.text.strip()]
+    assert texts == ["3. 三番目", "4. 四番目"]
+
+
 def test_unknown_lines_do_not_crash(tmp_path):
     weird = "> 引用っぽい行\n<html>tag</html>\n| 崩れた | 表\nplain text\n####### too deep"
     doc = markdown_to_docx(weird)  # 例外を投げない
