@@ -62,12 +62,6 @@ output/<video name>/
 
 This project was developed by running multiple Claude Code sessions (an implementer and a reviewer) in coordination, with a defined division of roles and review process (→ [Development process](#development-process-ai-assisted-collaboration)).
 
-## Demo
-
-<!-- TODO(phase 2): Process a non-confidential video, add a GUI screenshot and examples/<name>/minutes.md, and link them from here. Do not include information about real meetings that are being processed. -->
-
-_Coming soon. Minutes and screenshots generated from a non-confidential sample video will be added shortly._
-
 ## Setup (macOS / Apple Silicon)
 
 ```bash
