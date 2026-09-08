@@ -7,8 +7,11 @@
 `config.backend` が "auto" のときは Apple Silicon かつ mlx-whisper が入っていれば
 mlx、そうでなければ faster-whisper を使う。
 
-初回実行時のみ、指定モデルを Hugging Face からダウンロードする
-（以後はローカルキャッシュを使い、オフラインで動作する）。
+モデルは **セットアップ時に `scripts/setup.sh`（→ `meeting_minutes.prefetch`）で
+事前取得しておく前提**。アプリ実行時はここで Hugging Face へ取りに行かない
+（`cli.py` / `gui.py` が `HF_HUB_OFFLINE` を立て、さらにこのモジュールが
+ローカルキャッシュの有無を明示チェックする）。未取得なら自動ダウンロードせず
+`ModelNotAvailableError` で停止する。
 """
 
 from __future__ import annotations
@@ -29,6 +32,15 @@ from .config import TranscribeConfig
 
 # 進捗コールバック: (完了セグメント数, おおよその総数, 直近テキスト)
 ProgressFn = Callable[[int, int, str], None]
+
+
+class ModelNotAvailableError(Exception):
+    """文字起こしモデルがローカルに無く、実行時は自動ダウンロードしない方針のため停止した。
+
+    メッセージは i18n 済み（`pmsg.stt_model_missing`）で、そのまま画面／ログに 1 行で
+    出せる。CLI（`cli.py`）・GUI（`presenter/main.py`）はどちらも例外を捕捉して
+    `str(exc)` を表示するので、追加のハンドリングは要らない。
+    """
 
 
 @dataclass
@@ -104,6 +116,22 @@ def _mlx_model_cached(repo: str) -> bool:
         return False
 
 
+def _faster_whisper_model_cached(config: TranscribeConfig) -> bool:
+    """faster-whisper モデルがローカルキャッシュに揃っているか（best-effort）。
+
+    `download_model(..., local_files_only=True)` はキャッシュ or ローカルパスを
+    解決するだけで、モデルを RAM に読み込まない。未取得なら例外になる。
+    `_mlx_model_cached` の faster-whisper 版。
+    """
+    try:
+        from faster_whisper import download_model
+
+        download_model(config.model, local_files_only=True)
+        return True
+    except Exception:
+        return False
+
+
 # --- 公開エントリ ------------------------------------------------------
 
 def transcribe_wav(
@@ -165,11 +193,20 @@ def _transcribe_faster_whisper(
             t("pmsg.stt_preparing", language),
         )
 
+    # 事前取得（scripts/setup.sh）されていなければ、ここで HF に取りに行かず停止する。
+    if not _faster_whisper_model_cached(config):
+        raise ModelNotAvailableError(
+            t("pmsg.stt_model_missing", language, repo=config.model)
+        )
+
     device = config.device or "auto"
     model = WhisperModel(
         config.model,
         device=device,
         compute_type=config.compute_type,
+        # 環境変数（HF_HUB_OFFLINE）に依存しない実行時ガード。上のプリフライトを
+        # すり抜けても、ここで自動ダウンロードは起きない。
+        local_files_only=True,
     )
 
     stt_lang = config.language.strip() or None  # 文字起こし対象の言語（表示言語とは別）
@@ -210,12 +247,19 @@ def _transcribe_mlx(
     import mlx_whisper
 
     repo = _mlx_model_repo(config.model)
+
+    # 中断が最優先。モデル確認より先に見る。
+    check_cancel(cancel_event)
+
+    # 事前取得（scripts/setup.sh）されていなければ、ここで HF に取りに行かず停止する。
+    # mlx_whisper.transcribe には local_files_only 相当の引数が無いので、明示チェックする。
+    if not _mlx_model_cached(repo):
+        raise ModelNotAvailableError(
+            t("pmsg.stt_model_missing", language, repo=repo)
+        )
+
     if on_progress is not None:
-        if _mlx_model_cached(repo):
-            msg = t("pmsg.stt_mlx_running", language)
-        else:
-            msg = t("pmsg.stt_mlx_downloading", language, repo=repo)
-        on_progress(0, total_hint or 0, msg)
+        on_progress(0, total_hint or 0, t("pmsg.stt_mlx_running", language))
 
     # mlx-whisper はブロッキングの一括呼び出しなので、呼び出し中は中断に反応
     # できない。呼び出し前にだけチェックする。

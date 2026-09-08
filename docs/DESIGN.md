@@ -248,16 +248,33 @@ mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含�
 セグメントを変換しながら `on_progress` を回す（進捗バーは 0 → 100 に飛ぶ）。
 逐次表示が要るなら音声を自前でチャンク分割する必要があり、それは今回のスコープ外。
 
-**モデル取得を利用者に意識させない:** Whisper モデル（既定 `large-v3-turbo`、約 1.6GB）は
-リポジトリに含めず HuggingFace の共有キャッシュ（`~/.cache/huggingface/hub/`）に入る。
-利用者ごとに 1 台につき一度だけダウンロードが要る。手間を増やさないため、
-`scripts/setup.sh` が venv 作成・依存導入に続けて `python src/meeting_minutes/prefetch.py`（→
-`meeting_minutes.prefetch`）を呼び、**セットアップの 1 コマンドの中で**モデルまで
-取得する。`prefetch` は `resolve_backend()` の結果に合うモデルだけを落とし、取得済みなら
-何もしない（冪等）。setup.sh を通さず直接動かした場合の保険として、
-`_transcribe_*` は本体処理の前に「未取得なら初回ダウンロード」の 1 行を `on_progress`
-で出す（mlx は `snapshot_download(..., local_files_only=True)` でキャッシュ有無を
-best-effort 判定）。LM Studio 側の LLM/VLM は別管理なので prefetch の対象外。
+**モデルは事前取得必須、実行時はオフライン強制:** Whisper モデル（既定
+`large-v3-turbo`、約 1.6GB）はリポジトリに含めず HuggingFace の共有キャッシュ
+（`~/.cache/huggingface/hub/`）に入る。取得は **セットアップ時の 1 回だけ**。
+`scripts/setup.sh` が venv 作成・依存導入に続けて `python src/meeting_minutes/prefetch.py`
+（→ `meeting_minutes.prefetch`）を呼ぶ。`prefetch` は `resolve_backend()` の結果に
+合うモデルだけを落とし、取得済みなら何もしない（冪等）。**取得は必須で、失敗したら
+`set -e` でセットアップ自体を失敗終了させる**（旧: 失敗を握りつぶし「初回実行時に
+自動DL」と案内していた）。
+
+アプリ実行時（`cli.py` / `gui.py`）は一切外部通信させない。二段構え:
+
+1. **環境変数** — エントリポイントが HuggingFace 系ライブラリの import より前に
+   `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` を `setdefault` する。`__init__.py`
+   ではなく `cli.py` / `gui.py` に置く（`prefetch.py` が同じパッケージを import
+   するため、`__init__.py` に置くと prefetch 自身までオフラインになりモデルを
+   取得できなくなる）。`setdefault` なので社内ミラー等で明示的に `0` を指定した
+   利用者の意図は尊重する。
+2. **環境変数に依存しない実行時ガード** — `_transcribe_faster_whisper` は
+   `WhisperModel(..., local_files_only=True)` を無条件で渡し、事前に
+   `_faster_whisper_model_cached()`（`download_model(..., local_files_only=True)`）で
+   キャッシュ有無を確認する。`_transcribe_mlx` は `mlx_whisper.transcribe` に
+   相当引数が無いので `_mlx_model_cached()`（`snapshot_download(..., local_files_only=True)`）
+   で明示チェックする。いずれも未取得なら自動ダウンロードせず
+   `ModelNotAvailableError`（i18n 済みメッセージ）で停止する。CLI・GUI とも例外を
+   捕捉して `str(exc)` を 1 行で表示するので、スタックトレースは画面に出ない。
+
+LM Studio 側の LLM/VLM は別管理なので prefetch・オフライン強制いずれの対象外。
 
 **空耳の繰り返し（repetition loop）対策:** 実際に起きた不具合。歌や BGM を含む区間で、
 faster-whisper・mlx-whisper 共通の既定 `condition_on_previous_text=True`（直前の窓の

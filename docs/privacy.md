@@ -9,18 +9,23 @@
 | --- | --- | --- |
 | 動画ファイル | ローカル（ffmpeg） | なし |
 | 抽出音声 wav | ローカル（一時ファイル、`output/<動画名>/audio.wav`） | なし |
-| 文字起こし | ローカル（mlx-whisper / faster-whisper。モデルは初回のみ HuggingFace から DL、以後オフライン） | モデル重みの取得のみ（会議データは送らない） |
+| 文字起こし | ローカル（mlx-whisper / faster-whisper。モデルは**セットアップ時に取得済み**の前提。実行時はオフライン強制） | なし（実行時。モデル取得はセットアップ時のみ） |
 | 抽出フレーム画像 | ローカル（ffmpeg） | なし |
 | フレーム解析・議事録生成 | **手元で動かすローカル LLM サーバー**（LM Studio 等）へ `localhost` で送信 | なし（PC 内で完結） |
 
 実行時に外部ドメインへ HTTP リクエストを送るコードはありません。接続先は
 `config.toml` の `[llm] base_url` のみで、既定値は `http://localhost:1234/v1` です。
 
-唯一の例外は **セットアップ時のモデル取得**です。`scripts/setup.sh`（内部の
-`python src/meeting_minutes/prefetch.py`）と、モデル未取得のままの初回文字起こしが、HuggingFace から
-Whisper モデルの重みをダウンロードします。会議の音声・映像・テキストは送りません。
-一度取得すればオフラインで動きます。エアギャップ環境では `HF_HOME` を社内ミラーに
-向けるか、キャッシュを配布物に含めてください。
+唯一の外部通信は **セットアップ時のモデル取得**です。`scripts/setup.sh`（内部の
+`python src/meeting_minutes/prefetch.py`）が HuggingFace から Whisper モデルの重みを
+ダウンロードします。会議の音声・映像・テキストは送りません。
+
+アプリ本体（`cli.py` / `gui.py`）は実行時に外部通信しません。エントリポイントで
+`HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` を立てて HuggingFace 系ライブラリの通信を
+止め、さらに文字起こし側でローカルキャッシュの有無を明示チェックします。モデルが
+未取得なら**自動ダウンロードせずエラーで停止**します（「先に `bash scripts/setup.sh`
+を実行してください」）。エアギャップ環境では `HF_HOME` を社内ミラーに向けるか、
+キャッシュを配布物に含め、セットアップ時にモデルが揃った状態にしてください。
 
 ## オフラインで動くことの確認
 

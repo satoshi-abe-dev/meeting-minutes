@@ -89,7 +89,8 @@ cp config.example.toml config.toml
 ```
 
 - `scripts/setup.sh` が仮想環境（`.venv`）作成・依存インストール・文字起こしモデル取得
-  （初回のみ、以降オフライン）を 1 コマンドで行う
+  を 1 コマンドで行う。モデル取得はこのセットアップ時のみ（**アプリ実行は完全オフライン**。
+  `cli.py` / `gui.py` が `HF_HUB_OFFLINE` を立て、モデル未取得なら自動DLせずエラーで停止）
 - 別途 **LM Studio** を起動する（Settings → Local Models → Local Model API で
   「Local API server」を ON。「Just-in-time model loading」も ON 推奨）
 - 議事録生成の LLM は **推論（thinking）をしない／オフにできる Instruct 系モデル** を選ぶ

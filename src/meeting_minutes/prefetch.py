@@ -1,7 +1,8 @@
 """文字起こしモデルを事前にダウンロードする。
 
-セットアップ（scripts/setup.sh）から呼ばれ、初回の文字起こし実行で
-フリーズしたように見えるのを防ぐ。手動でも実行できる:
+セットアップ（scripts/setup.sh）から呼ばれる。**アプリ実行時（cli.py / gui.py）は
+オフライン強制のため Whisper モデルを自動ダウンロードしない**ので、事前取得は必須。
+手動でも実行できる:
 
     python src/meeting_minutes/prefetch.py
     python src/meeting_minutes/prefetch.py --config config.toml
@@ -11,6 +12,9 @@
 LM Studio の LLM / VLM は対象外（LM Studio 側で各自ダウンロードする）。
 モデルは HuggingFace の共有キャッシュ（~/.cache/huggingface/hub/、HF_HOME で変更可）に入り、
 以後はオフラインで使える。取得済みなら何もせず終了する（冪等）。
+
+このスクリプトは cli.py / gui.py と違い HF_HUB_OFFLINE を立てない（ここは取得する側）。
+別プロセス・別エントリポイントなので、それらの設定の影響も受けない。
 """
 
 from __future__ import annotations
@@ -78,7 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"モデルの取得に失敗しました: {exc}\n"
             "ネットワーク接続と HF_HOME を確認し、`python src/meeting_minutes/prefetch.py` を"
-            "後で再実行してください。未取得でも初回の文字起こし時に自動ダウンロードされます。",
+            "再実行してください。アプリ実行時は自動ダウンロードしないため、"
+            "モデルが無いと文字起こしは実行できません。",
             file=sys.stderr,
         )
         return 1

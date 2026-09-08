@@ -25,7 +25,9 @@ bash scripts/setup.sh
      faster-whisper だけになる。
 3. `python src/meeting_minutes/prefetch.py` で **文字起こしモデルを事前ダウンロード**
    （`~/.cache/huggingface/hub/` に約 1.6GB、初回のみ。以降オフライン）。
-   ダウンロードに失敗しても止まらず、初回の文字起こし実行時に自動取得される。
+   **この取得は必須**。失敗すると `scripts/setup.sh` はエラー終了する。アプリ実行時
+   （`cli.py` / `gui.py`）は `HF_HUB_OFFLINE` で外部通信を止めるので、モデルが
+   未取得でも自動ダウンロードはされず、文字起こしがエラーで停止する。
 
 `config.toml` の `[transcribe] backend` は既定 `auto`（Apple Silicon なら mlx、
 他は faster-whisper）。`mlx` / `faster-whisper` に固定もできる。既定モデルは
@@ -36,15 +38,17 @@ bash scripts/setup.sh
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python src/meeting_minutes/prefetch.py            # モデル取得（任意。省略しても初回実行時に自動DL）
+python src/meeting_minutes/prefetch.py            # モデル取得（必須。アプリ実行時は自動DLしない）
 ```
 
 ### モデルの置き場所と配布
 
 モデルは **利用者のホームの共有キャッシュ**（`~/.cache/huggingface/hub/`、`HF_HOME`
 で変更可）に入る。リポジトリには含めないので、**各利用者の初回セットアップ時に一度だけ
-ダウンロード**が発生する（`scripts/setup.sh` がそれを済ませる）。エアギャップ環境では
-`HF_HOME` を社内ミラー/共有ストレージに向けるか、キャッシュを配布イメージに含める。
+ダウンロード**が発生する（`scripts/setup.sh` がそれを済ませる）。アプリ実行時は
+オフライン強制なので、このセットアップ時の取得が唯一のダウンロード機会。エアギャップ
+環境では `HF_HOME` を社内ミラー/共有ストレージに向けるか、キャッシュを配布イメージに
+含めたうえで、セットアップ時にモデルが揃っている状態にしておく。
 
 ## 3. ローカル LLM サーバー（LM Studio）
 
@@ -126,5 +130,6 @@ python src/meeting_minutes/gui.py
 | 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |
 | mlx で進捗バーが動かない | 仕様。mlx-whisper は結果を一括で返すため、完了まで 0 のまま。GUI のログに「mlx-whisper で文字起こし中」と出ていれば動作中。 |
-| モデルのダウンロードに失敗する | ネット接続と `HF_HOME` を確認し `python src/meeting_minutes/prefetch.py` を再実行。未取得でも初回の文字起こし時に自動DLされる。 |
+| モデルのダウンロードに失敗する | ネット接続と `HF_HOME` を確認し `python src/meeting_minutes/prefetch.py` を再実行。アプリ実行時は自動DLしないので、ここで取り切る必要がある。 |
+| 実行時に「文字起こしモデル（…）がローカルにありません」 | 事前取得が済んでいない。`bash scripts/setup.sh` か `python src/meeting_minutes/prefetch.py` を実行。`config.toml` の `[transcribe] model` / `backend` を途中で変えた場合も、その組み合わせのモデルを取り直す。 |
 | フレームが多すぎる／少なすぎる | `[frames] interval_sec`・`scene_threshold`・`max_frames` を調整。 |

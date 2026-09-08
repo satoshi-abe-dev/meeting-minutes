@@ -16,6 +16,7 @@ from meeting_minutes.model import transcribe
 from meeting_minutes.model.cancel import PipelineCancelled
 from meeting_minutes.model.config import TranscribeConfig
 from meeting_minutes.model.transcribe import (
+    ModelNotAvailableError,
     Segment,
     _mlx_model_repo,
     _transcribe_faster_whisper,
@@ -24,6 +25,16 @@ from meeting_minutes.model.transcribe import (
     resolve_backend,
     save_transcript,
 )
+
+
+@pytest.fixture(autouse=True)
+def _models_available(monkeypatch):
+    """既定では「モデルは取得済み」として扱う。未取得時の挙動を見るテストは
+    個別に False へ上書きする。実際の HF キャッシュ／ネットワークには触れない。"""
+    monkeypatch.setattr(transcribe, "_mlx_model_cached", lambda repo: True)
+    monkeypatch.setattr(
+        transcribe, "_faster_whisper_model_cached", lambda config: True
+    )
 
 # --- _mlx_model_repo ---------------------------------------------------
 
@@ -151,10 +162,13 @@ def _fake_faster_whisper_module(captured: dict):
     mod = types.ModuleType("faster_whisper")
 
     class WhisperModel:
-        def __init__(self, model, device=None, compute_type=None):
+        def __init__(
+            self, model, device=None, compute_type=None, local_files_only=None
+        ):
             captured["model"] = model
             captured["device"] = device
             captured["compute_type"] = compute_type
+            captured["local_files_only"] = local_files_only
 
         def transcribe(
             self, path, language=None, vad_filter=None, condition_on_previous_text=None
@@ -188,9 +202,47 @@ def test_transcribe_faster_whisper_streams_segments(monkeypatch):
     assert captured["model"] == "small"
     assert captured["vad_filter"] is True
     assert captured["condition_on_previous_text"] is False
+    # 環境変数に依存しない実行時ガード（自動ダウンロード禁止）
+    assert captured["local_files_only"] is True
     # 先頭は「モデル準備中」の通知（current=0）、その後セグメント確定ごとに逐次通知
     assert progress[0][0] == 0
     assert [p[0] for p in progress[1:]] == [1, 2, 3]
+
+
+def test_transcribe_faster_whisper_missing_model_raises(monkeypatch):
+    # 事前取得されていない → 自動 DL せず ModelNotAvailableError で停止
+    monkeypatch.setattr(
+        transcribe, "_faster_whisper_model_cached", lambda config: False
+    )
+    captured: dict = {}
+    monkeypatch.setitem(
+        sys.modules, "faster_whisper", _fake_faster_whisper_module(captured)
+    )
+    with pytest.raises(ModelNotAvailableError) as ei:
+        _transcribe_faster_whisper("/tmp/a.wav", TranscribeConfig(model="small"))
+    assert "small" in str(ei.value)
+    assert "setup.sh" in str(ei.value)
+    # WhisperModel の生成まで到達していない
+    assert "model" not in captured
+
+
+def test_transcribe_mlx_missing_model_raises(monkeypatch):
+    monkeypatch.setattr(transcribe, "_mlx_model_cached", lambda repo: False)
+    called = {"n": 0}
+
+    def transcribe_fn(*a, **k):
+        called["n"] += 1
+        return {"segments": []}
+
+    mod = types.ModuleType("mlx_whisper")
+    mod.transcribe = transcribe_fn
+    monkeypatch.setitem(sys.modules, "mlx_whisper", mod)
+
+    with pytest.raises(ModelNotAvailableError) as ei:
+        _transcribe_mlx("/tmp/a.wav", TranscribeConfig(model="large-v3"))
+    # サイズ名がリポジトリへ変換されてメッセージに載る
+    assert "mlx-community/whisper-large-v3-mlx" in str(ei.value)
+    assert called["n"] == 0  # 文字起こしは走らない
 
 
 def test_transcribe_faster_whisper_message_translated_when_language_en(monkeypatch):
