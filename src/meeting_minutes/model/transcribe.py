@@ -106,7 +106,15 @@ def _mlx_model_repo(name: str) -> str:
 
 
 def _mlx_model_cached(repo: str) -> bool:
-    """mlx モデルが HuggingFace キャッシュに揃っているか（best-effort）。"""
+    """mlx モデルが利用可能か（best-effort）。
+
+    `repo` が実在するローカルディレクトリなら「在り」とみなす（`_mlx_model_repo` が
+    `"/" 入り`・未知名を素通しする設計に合わせる。エアギャップ配布でモデル一式を
+    同梱し `config.model` にそのパスを書くユースケースがある）。それ以外は
+    HuggingFace 共有キャッシュを見る。
+    """
+    if Path(repo).is_dir():
+        return True
     try:
         from huggingface_hub import snapshot_download
 
@@ -117,12 +125,16 @@ def _mlx_model_cached(repo: str) -> bool:
 
 
 def _faster_whisper_model_cached(config: TranscribeConfig) -> bool:
-    """faster-whisper モデルがローカルキャッシュに揃っているか（best-effort）。
+    """faster-whisper モデルが利用可能か（best-effort）。`_mlx_model_cached` の
+    faster-whisper 版。
 
-    `download_model(..., local_files_only=True)` はキャッシュ or ローカルパスを
-    解決するだけで、モデルを RAM に読み込まない。未取得なら例外になる。
-    `_mlx_model_cached` の faster-whisper 版。
+    `config.model` が実在するローカルディレクトリなら「在り」とみなす（`config.model`
+    はサイズ名だけでなくローカルのモデルパスも取れる。docs 参照）。それ以外は
+    `download_model(..., local_files_only=True)` でキャッシュを解決する（モデルを
+    RAM に読み込まず、未取得なら例外）。
     """
+    if Path(config.model).is_dir():
+        return True
     try:
         from faster_whisper import download_model
 

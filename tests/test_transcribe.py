@@ -26,6 +26,10 @@ from meeting_minutes.model.transcribe import (
     save_transcript,
 )
 
+# fixture がスタブする前の本物（ローカルディレクトリ判定を実際に効かせたいテスト用）
+_REAL_MLX_MODEL_CACHED = transcribe._mlx_model_cached
+_REAL_FW_MODEL_CACHED = transcribe._faster_whisper_model_cached
+
 
 @pytest.fixture(autouse=True)
 def _models_available(monkeypatch):
@@ -243,6 +247,32 @@ def test_transcribe_mlx_missing_model_raises(monkeypatch):
     # サイズ名がリポジトリへ変換されてメッセージに載る
     assert "mlx-community/whisper-large-v3-mlx" in str(ei.value)
     assert called["n"] == 0  # 文字起こしは走らない
+
+
+def test_faster_whisper_local_model_dir_reaches_body(monkeypatch, tmp_path):
+    # config.model がローカルのモデルディレクトリのとき、HF 解決をスキップして
+    # 本体に到達する（エアギャップ配布でモデルを同梱するユースケース）。
+    monkeypatch.setattr(transcribe, "_faster_whisper_model_cached", _REAL_FW_MODEL_CACHED)
+    captured: dict = {}
+    monkeypatch.setitem(
+        sys.modules, "faster_whisper", _fake_faster_whisper_module(captured)
+    )
+    cfg = TranscribeConfig(backend="faster-whisper", model=str(tmp_path))
+    segs = _transcribe_faster_whisper("/tmp/a.wav", cfg, total_hint=3)
+    assert [s.text for s in segs] == ["a", "b", "c"]
+    assert captured["model"] == str(tmp_path)
+    assert captured["local_files_only"] is True
+
+
+def test_mlx_local_model_dir_reaches_body(monkeypatch, tmp_path):
+    monkeypatch.setattr(transcribe, "_mlx_model_cached", _REAL_MLX_MODEL_CACHED)
+    captured: dict = {}
+    monkeypatch.setitem(sys.modules, "mlx_whisper", _fake_mlx_module(captured))
+    cfg = TranscribeConfig(backend="mlx", model=str(tmp_path), language="ja")
+    segs = _transcribe_mlx("/tmp/a.wav", cfg, total_hint=10)
+    assert [s.text for s in segs] == ["こんにちは", "本題です"]
+    # ローカルパスは _mlx_model_repo で素通しされ、そのまま path_or_hf_repo に渡る
+    assert captured["repo"] == str(tmp_path)
 
 
 def test_transcribe_faster_whisper_message_translated_when_language_en(monkeypatch):

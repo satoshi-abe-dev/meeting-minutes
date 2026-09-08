@@ -273,6 +273,9 @@ mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含�
    で明示チェックする。いずれも未取得なら自動ダウンロードせず
    `ModelNotAvailableError`（i18n 済みメッセージ）で停止する。CLI・GUI とも例外を
    捕捉して `str(exc)` を 1 行で表示するので、スタックトレースは画面に出ない。
+   なお `config.model` はサイズ名／HF repo id だけでなく**ローカルのモデル
+   ディレクトリのパス**も取れる（エアギャップ配布向け）。両ガードは先頭で
+   `Path(...).is_dir()` を見て、実在するディレクトリなら HF 解決をスキップする。
 
 LM Studio 側の LLM/VLM は別管理なので prefetch・オフライン強制いずれの対象外。
 
