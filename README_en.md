@@ -2,7 +2,7 @@
 
 English | [日本語](README_ja.md)
 
-**Turn a recording of a meeting into minutes (Markdown). Everything runs on your own PC; audio, transcription, and summarization are never sent anywhere external.**
+**Turn a recording of a meeting into minutes (Word and Markdown). Everything runs on your own PC; audio, transcription, and summarization are never sent anywhere external.**
 
 <!-- badges: CI badges planned for phase 2 -->
 
