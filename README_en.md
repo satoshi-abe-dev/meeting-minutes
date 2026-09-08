@@ -30,11 +30,7 @@ English | [日本語](README_ja.md)
 
 ## Background
 
-Every meeting, someone rewatches the recording and writes the minutes by hand. People want to automate this, but there are settings where existing cloud transcription/summarization services are not an option:
-
-- Meetings contain **customer information, non-public business information, HR information, or personal data**
-- NDAs, data-protection law, GDPR, internal policy, or industry regulation mean the **recording cannot be sent to an external service**
-- "Convenient, but the data leaves the building" tools do not pass procurement review in the first place
+Meeting minutes are a natural fit for AI automation. But meeting audio and shared screens often carry customer data or non-public business and HR information, and under NDAs, data-protection law, GDPR, or internal policy, that recording cannot be sent to a cloud transcription/summarization service.
 
 ## What this is
 
