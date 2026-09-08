@@ -57,13 +57,28 @@ python src/meeting_minutes/prefetch.py            # モデル取得（必須。�
 前提にします。旧 UI では「Developer」タブに同等の設定があります。
 
 1. [LM Studio](https://lmstudio.ai/) をインストールして起動。
-2. モデルを 2 つ用意する（推奨は [`models.md`](models.md)）:
+2. モデルを 2 つ用意する（詳しい選び方は [`models.md`](models.md)）:
    - テキスト LLM（議事録生成用）
-   - VLM（vision 対応。フレーム解析用）
+   - VLM（フレーム解析用。vision / 画像対応のモデル。LM Studio の **Explore** で
+     vision（画像対応）バッジが付くもの、または名前に `-vl` / `vision` を含むものを選ぶ）
+
+   **迷ったら**: 16GB Mac ならテキスト LLM `qwen2.5-7b-instruct` ＋ VLM
+   `qwen2-vl-2b-instruct`、24GB 以上なら VLM を `qwen2-vl-7b-instruct` に。
+   メモリ別の一覧は [`models.md`](models.md) の「メモリ別のおすすめ構成」。
 
    入手は左メニュー **Local Models → Explore** から検索してダウンロード。
    ダウンロード済みは **Local Models → Library** で確認できます。
-3. ローカル API サーバーを起動する:
+3. **テキスト LLM は Context Length を 32768 以上にしてロードする**（重要）:
+   - LM Studio はモデル読み込み時に Context Length を指定しないと小さい既定値で
+     読み込む。そのままだと議事録生成が **HTTP 400（context length 不足）で失敗**する。
+   - モデルの読み込み設定 → **Context Length** を `32768` 以上にしてロードする。
+     すでにロード済みなら一度 Eject して設定し直す。
+   - **Just-in-time model loading** を使う場合も、そのモデルの読み込み設定
+     （デフォルトの Context Length）を 32768 以上にしておく（一度手動でロードして
+     設定するか、モデル設定の既定値を変更する）。
+   - 詳細と、それでも収まらない場合の `config.toml` 側の対処は
+     [`models.md`](models.md) の「コンテキスト長の設定（重要）」を参照。
+4. ローカル API サーバーを起動する:
    - **Settings**（設定画面）を開く → 左メニュー **Local Models → Local Model API**
    - **「Local API server」** を ON（表示が **Running** になる）
    - 同じ画面の **Base URL** が `http://localhost:1234/v1`。これを `config.toml` の
@@ -72,7 +87,7 @@ python src/meeting_minutes/prefetch.py            # モデル取得（必須。�
      モデルを LM Studio が自動でロードします。事前ロード不要になり、LLM と VLM を
      1 つずつ切り替えて使う（メモリ節約）運用と相性が良い。
    - ブラウザから叩くわけではないので **CORS は OFF のままで良い**。
-4. `config.toml` に書くモデル ID を確認する:
+5. `config.toml` に書くモデル ID を確認する:
    - **Local Models → Library** に表示されるモデルキー（例: `qwen2.5-7b-instruct`）を
      そのまま `model` / `vlm_model` に書く。
    - または `curl http://localhost:1234/v1/models` が返す `id` を見る。
@@ -101,6 +116,9 @@ backend = "auto"          # Apple Silicon なら mlx（GPU）。"faster-whisper"
 model = "large-v3-turbo"  # 既定。精度優先なら "large-v3"、軽さ優先なら "medium" / "small"
 ```
 
+> テキスト LLM は §3 のとおり **Context Length を 32768 以上**にしてロード済みか確認する
+> （未設定だと議事録生成が HTTP 400 で失敗する）。
+
 ## 5. 動作確認
 
 短い動画（スライド提示のある 1〜2 分程度）で試します。
@@ -126,6 +144,7 @@ python src/meeting_minutes/gui.py
 | `ローカル LLM サーバーに接続できません` | Settings → Local Model API の「Local API server」が **Running** か、`base_url` が合っているか確認。 |
 | `model_not_found` / モデル未ロード | 「Just-in-time model loading」を ON にするか、Loaded Instances で該当モデルをロード。`config.toml` の名前が Library のモデルキーと一致しているか確認。 |
 | `詳細: timed out`（議事録生成の途中で失敗） | サーバーは動いていて応答生成が長いだけ。特に議事録の最終統合は出力が長くタイムアウトしやすい。`config.toml` の `[llm] timeout` を増やす（既定600秒。大きいモデルはさらに）。 |
+| 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models.md`](models.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状。 |
 | 議事録生成が極端に遅い／「思考で max_tokens を使い切った」エラー／部分要約が空 | 使用中の LLM が推論（thinking）モデルの可能性。LM Studio で reasoning を OFF にするか、非推論の **Instruct 系モデル**に変更する（→ [`models.md`](models.md)）。`max_tokens` を増やしても速度問題は残る。 |
 | 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |
