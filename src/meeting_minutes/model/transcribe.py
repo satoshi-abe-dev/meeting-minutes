@@ -7,8 +7,8 @@
 `config.backend` が "auto" のときは Apple Silicon かつ mlx-whisper が入っていれば
 mlx、そうでなければ faster-whisper を使う。
 
-モデルは **セットアップ時に `scripts/setup.sh`（→ `meeting_minutes.prefetch`）で
-事前取得しておく前提**。アプリ実行時はここで Hugging Face へ取りに行かない
+モデルは **セットアップ時に `scripts/setup.sh`（→ `meeting_minutes.download_transcribe_model`）
+で事前取得しておく前提**。アプリ実行時はここで Hugging Face へ取りに行かない
 （`cli.py` / `gui.py` が `HF_HUB_OFFLINE` を立て、さらにこのモジュールが
 ローカルキャッシュの有無を明示チェックする）。未取得なら自動ダウンロードせず
 `ModelNotAvailableError` で停止する。

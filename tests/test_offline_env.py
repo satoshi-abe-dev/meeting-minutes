@@ -2,8 +2,8 @@
 前に実行時オフライン（HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE）を強制することの検証。
 
 モジュールを import するだけ（main() は呼ばない）で環境変数が立つ ＝ モジュール
-レベルで設定されている、を別プロセスで確認する。prefetch は対象外なので、
-そちら経由では立たないことも確認する。
+レベルで設定されている、を別プロセスで確認する。download_transcribe_model は
+対象外なので、そちら経由では立たないことも確認する。
 """
 
 from __future__ import annotations
@@ -64,9 +64,12 @@ def test_gui_import_forces_offline():
     assert _import_and_report("meeting_minutes.gui", stub_tk=True) == "1 1"
 
 
-def test_prefetch_import_does_not_force_offline():
-    # prefetch はモデルを取得する側。オフラインは立てない。
-    assert _import_and_report("meeting_minutes.prefetch") == "None None"
+def test_download_transcribe_model_import_does_not_force_offline():
+    # download_transcribe_model はモデルを取得する側。オフラインは立てない。
+    assert (
+        _import_and_report("meeting_minutes.download_transcribe_model")
+        == "None None"
+    )
 
 
 def test_entrypoint_respects_explicit_offline_opt_out():

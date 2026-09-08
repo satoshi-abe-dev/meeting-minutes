@@ -24,8 +24,8 @@ if __package__ in (None, ""):
 # アプリ実行中は一切、外部へ通信させない。HuggingFace 系ライブラリ
 # （huggingface_hub / faster_whisper / mlx_whisper）が最初に import される前に
 # オフラインを強制する。Whisper モデルはセットアップ時（scripts/setup.sh →
-# meeting_minutes.prefetch）に取得済みである前提。prefetch は別プロセス・別
-# エントリポイントなので、この設定の影響を受けない（モデル取得はできる）。
+# meeting_minutes.download_transcribe_model）に取得済みである前提。取得スクリプトは
+# 別プロセス・別エントリポイントなので、この設定の影響を受けない（モデル取得はできる）。
 # setdefault なので、利用者が社内ミラー等の都合で明示指定した値は尊重する。
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
