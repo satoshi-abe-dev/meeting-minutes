@@ -193,6 +193,41 @@ def test_transcribe_faster_whisper_streams_segments(monkeypatch):
     assert [p[0] for p in progress[1:]] == [1, 2, 3]
 
 
+def test_transcribe_faster_whisper_message_translated_when_language_en(monkeypatch):
+    captured: dict = {}
+    monkeypatch.setitem(
+        sys.modules, "faster_whisper", _fake_faster_whisper_module(captured)
+    )
+    progress: list[tuple] = []
+    cfg = TranscribeConfig(backend="faster-whisper", model="small", language="ja")
+    _transcribe_faster_whisper(
+        "/tmp/a.wav", cfg,
+        on_progress=lambda c, t, m: progress.append((c, t, m)),
+        total_hint=3,
+        language="en",
+    )
+    assert "Preparing the transcription model" in progress[0][2]
+    assert "準備中" not in progress[0][2]
+    # 文字起こし対象言語（config.language）は表示言語と独立
+    assert captured["language"] == "ja"
+
+
+def test_transcribe_mlx_message_translated_when_language_en(monkeypatch):
+    captured: dict = {}
+    monkeypatch.setitem(sys.modules, "mlx_whisper", _fake_mlx_module(captured))
+    progress: list[tuple] = []
+    cfg = TranscribeConfig(backend="mlx", model="large-v3", language="ja")
+    _transcribe_mlx(
+        "/tmp/a.wav", cfg,
+        on_progress=lambda c, t, m: progress.append((c, t, m)),
+        total_hint=10,
+        language="en",
+    )
+    assert "mlx-whisper" in progress[0][2]
+    assert "文字起こし中" not in progress[0][2]
+    assert captured["language"] == "ja"
+
+
 def test_save_then_load_transcript_roundtrip(tmp_path):
     segs = [Segment(0.0, 2.5, "こんにちは"), Segment(2.5, 5.0, "本題です")]
     save_transcript(segs, tmp_path)

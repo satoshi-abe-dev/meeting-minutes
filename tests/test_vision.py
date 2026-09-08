@@ -61,6 +61,20 @@ def test_describe_frames_reports_waiting_then_done_per_frame(tmp_path):
     assert events[1][0] == 1
 
 
+def test_describe_frames_messages_translated_when_language_en(tmp_path):
+    client = FakeVisionClient(replies=["A"])
+    events: list[tuple] = []
+    describe_frames(
+        _frames(1), client, tmp_path,
+        on_progress=lambda c, t, m: events.append((c, t, m)),
+        language="en",
+    )
+    assert "waiting for a response" in events[0][2]
+    assert "応答を待っています" not in events[0][2]
+    assert "elapsed" in events[1][2]
+    assert "所要" not in events[1][2]
+
+
 def test_describe_frames_cancel_stops_before_next_frame(tmp_path):
     client = FakeVisionClient()
     cancel_event = threading.Event()

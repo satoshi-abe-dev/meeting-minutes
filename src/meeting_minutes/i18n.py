@@ -197,7 +197,347 @@ _STRINGS: dict[str, dict[str, str]] = {
             'will be reused on the next run (with "Reuse existing data" checked).'
         ),
     },
+    # --- パイプライン内部の進捗メッセージ（model 層。on_progress の message 引数）---
+    # Issue #100: pipeline.py / minutes.py / vision.py / transcribe.py が
+    # on_progress へ渡す message は Issue #55 の対象外だった。GUI の --lang en では
+    # ここも英語にする（CLI は language 未指定＝ja のまま）。
+    "pmsg.pre_wait": {
+        "ja": "LLM サーバーの応答を待っています…（LLM: {model} / VLM: {vlm}）",
+        "en": "Waiting for the LLM server… (LLM: {model} / VLM: {vlm})",
+    },
+    "pmsg.pre_ok": {"ja": "LLM サーバー確認 OK", "en": "LLM server check OK"},
+    "pmsg.audio_extracting": {
+        "ja": "動画から音声を抽出中",
+        "en": "Extracting audio from the video",
+    },
+    "pmsg.warn_duration": {
+        "ja": "動画長の取得に失敗: {exc}",
+        "en": "Failed to get the video length: {exc}",
+    },
+    "pmsg.audio_done": {
+        "ja": "音声抽出が完了（所要 {elapsed}）",
+        "en": "Audio extraction done (elapsed {elapsed})",
+    },
+    "pmsg.transcribe_reuse": {
+        "ja": "既存の文字起こしを再利用（{n} 区間）",
+        "en": "Reusing the existing transcript ({n} segments)",
+    },
+    "pmsg.warn_transcript_reuse": {
+        "ja": "transcript.json の再利用に失敗、作り直します: {exc}",
+        "en": "Could not reuse transcript.json, regenerating: {exc}",
+    },
+    "pmsg.transcribe_start": {
+        "ja": "文字起こしを開始（モデル: {model} / backend={backend}）",
+        "en": "Starting transcription (model: {model} / backend={backend})",
+    },
+    "pmsg.transcribe_done": {
+        "ja": "文字起こし完了（{n} 区間、所要 {elapsed}）",
+        "en": "Transcription done ({n} segments, elapsed {elapsed})",
+    },
+    "pmsg.frames_reuse": {
+        "ja": "既存のフレームを再利用（{n} 枚）",
+        "en": "Reusing the existing frames ({n})",
+    },
+    "pmsg.warn_frames_reuse": {
+        "ja": "frames/frames.json の再利用に失敗、作り直します: {exc}",
+        "en": "Could not reuse frames/frames.json, regenerating: {exc}",
+    },
+    "pmsg.frames_extracting": {"ja": "フレームを抽出中", "en": "Extracting frames"},
+    "pmsg.frames_done": {
+        "ja": "フレーム抽出完了（{n} 枚、所要 {elapsed}）",
+        "en": "Frame extraction done ({n}, elapsed {elapsed})",
+    },
+    "pmsg.vision_analyzing": {
+        "ja": "フレームを解析中（モデル: {vlm}）",
+        "en": "Analyzing frames (model: {vlm})",
+    },
+    "pmsg.vision_done": {
+        "ja": "フレーム解析完了（所要 {elapsed}）",
+        "en": "Frame analysis done (elapsed {elapsed})",
+    },
+    "pmsg.done": {"ja": "完了: {path}", "en": "Done: {path}"},
+    "pmsg.err_video_not_found": {
+        "ja": "動画ファイルが見つかりません: {path}",
+        "en": "Video file not found: {path}",
+    },
+    # vision.py
+    "pmsg.vis_reuse": {
+        "ja": "既存のフレーム解析を再利用（{n}/{total}）",
+        "en": "Reusing the existing frame analysis ({n}/{total})",
+    },
+    "pmsg.vis_frame_analyzing": {
+        "ja": "{ts} のフレームを解析中…応答を待っています",
+        "en": "Analyzing the frame at {ts}… waiting for a response",
+    },
+    "pmsg.vis_frame_done": {
+        "ja": "{ts} のフレーム解析が完了（所要 {elapsed}）",
+        "en": "Frame at {ts} analyzed (elapsed {elapsed})",
+    },
+    # transcribe.py
+    "pmsg.stt_preparing": {
+        "ja": "文字起こしモデルを準備中（未取得なら初回ダウンロード）…",
+        "en": "Preparing the transcription model (first-time download if not present)…",
+    },
+    "pmsg.stt_mlx_running": {
+        "ja": "mlx-whisper で文字起こし中（完了まで進捗は動きません）",
+        "en": "Transcribing with mlx-whisper (progress will not move until it finishes)",
+    },
+    "pmsg.stt_mlx_downloading": {
+        "ja": (
+            "文字起こしモデル {repo} をダウンロード中（初回のみ、約1.6GB）…"
+            "その後 mlx-whisper で文字起こし"
+        ),
+        "en": (
+            "Downloading the transcription model {repo} (first time only, ~1.6GB)… "
+            "then transcribing with mlx-whisper"
+        ),
+    },
+    # minutes.py
+    "pmsg.warn_prefix": {"ja": "警告: {msg}", "en": "Warning: {msg}"},
+    "pmsg.tpl_unreadable": {
+        "ja": "テンプレート {p} を読めませんでした。内蔵テンプレートを使います: {exc}",
+        "en": "Could not read the template {p}; using the built-in one: {exc}",
+    },
+    "pmsg.tpl_empty": {
+        "ja": "テンプレート {p} が空です。内蔵テンプレートを使います",
+        "en": "The template {p} is empty; using the built-in one",
+    },
+    "pmsg.struct_generating": {
+        "ja": "議事録の型を自動生成中…応答を待っています（モデル: {model}）",
+        "en": (
+            "Auto-generating the minutes structure… waiting for a response "
+            "(model: {model})"
+        ),
+    },
+    "pmsg.struct_gen_failed": {
+        "ja": "警告: 議事録の型の自動生成に失敗しました（{exc}）。内蔵テンプレートを使います",
+        "en": (
+            "Warning: auto-generating the minutes structure failed ({exc}); "
+            "using the built-in template"
+        ),
+    },
+    "pmsg.struct_invalid": {
+        "ja": "警告: 自動生成された議事録の型が不正（{reason}）でした。内蔵テンプレートを使います",
+        "en": (
+            "Warning: the auto-generated minutes structure was invalid ({reason}); "
+            "using the built-in template"
+        ),
+    },
+    "pmsg.struct_reason_empty": {"ja": "空の応答", "en": "empty response"},
+    "pmsg.struct_reason_missing": {
+        "ja": "プレースホルダー欠落 {names}",
+        "en": "missing placeholders {names}",
+    },
+    "pmsg.struct_too_big": {
+        "ja": (
+            "警告: 自動生成された議事録の型が大きすぎます（文字起こしを抜いても"
+            "コンテキスト長に収まりません）。内蔵テンプレートを使います"
+        ),
+        "en": (
+            "Warning: the auto-generated minutes structure is too large (it does not "
+            "fit the context window even without the transcript); using the built-in "
+            "template"
+        ),
+    },
+    "pmsg.struct_rm_failed": {
+        "ja": "警告: 古い {name} を削除できませんでした（{exc}）",
+        "en": "Warning: could not delete the old {name} ({exc})",
+    },
+    "pmsg.struct_save_failed": {
+        "ja": "警告: {name} を保存できませんでした（{exc}）",
+        "en": "Warning: could not save {name} ({exc})",
+    },
+    "pmsg.struct_saved": {
+        "ja": "議事録の型を自動生成しました（{name} に保存）",
+        "en": "Auto-generated the minutes structure (saved to {name})",
+    },
+    "pmsg.chunk_wait": {
+        "ja": "部分要約 {i}/{n} の応答を待っています…（モデル: {model}）",
+        "en": "Partial summary {i}/{n}: waiting for a response… (model: {model})",
+    },
+    "pmsg.chunk_done": {
+        "ja": "部分要約 {i}/{n} 完了（所要 {elapsed}）",
+        "en": "Partial summary {i}/{n} done (elapsed {elapsed})",
+    },
+    "pmsg.partials_reuse": {
+        "ja": "既存の部分要約を再利用（{n}/{m}）",
+        "en": "Reusing the existing partial summaries ({n}/{m})",
+    },
+    "pmsg.partials_stale": {
+        "ja": (
+            "保存済みの部分要約は分割設定が変わっている（または旧形式）ため使わず、"
+            "最初から要約し直します"
+        ),
+        "en": (
+            "The saved partial summaries have a different chunking config (or an old "
+            "format), so they are not reused; re-summarizing from scratch"
+        ),
+    },
+    "pmsg.ctx_too_small": {
+        "ja": (
+            "警告: コンテキスト長（約 {ctx} トークン）が小さすぎます。"
+            "LM Studio の Context Length を増やすか、config.toml の "
+            "[llm] context_tokens / chunk_size_chars を見直してください"
+        ),
+        "en": (
+            "Warning: the context window (~{ctx} tokens) is too small. Increase "
+            "Context Length in LM Studio, or review [llm] context_tokens / "
+            "chunk_size_chars in config.toml"
+        ),
+    },
+    "pmsg.minutes_generating": {
+        "ja": "議事録を生成中…応答を待っています（モデル: {model}）",
+        "en": "Generating the minutes… waiting for a response (model: {model})",
+    },
+    "pmsg.minutes_generated": {
+        "ja": "議事録を生成しました（所要 {elapsed}）",
+        "en": "Minutes generated (elapsed {elapsed})",
+    },
+    "pmsg.switch_to_split": {
+        "ja": (
+            "一発生成はコンテキスト長（約 {ctx} トークン）に収まらないため"
+            "分割生成に切り替えます"
+        ),
+        "en": (
+            "Single-pass does not fit the context window (~{ctx} tokens); "
+            "switching to split generation"
+        ),
+    },
+    "pmsg.merging": {
+        "ja": "議事録に統合中…応答を待っています（モデル: {model}）",
+        "en": "Merging into the minutes… waiting for a response (model: {model})",
+    },
+    "pmsg.leaked_instructions": {
+        "ja": (
+            "警告: テンプレートの指示文（丸括弧の説明）が議事録にそのまま残っている"
+            "可能性があります（{n} 箇所。例: {head}）。"
+            "より大きいモデルを使う・テンプレートの丸括弧を減らすと改善することがあります"
+        ),
+        "en": (
+            "Warning: the template's instruction text (the parenthetical notes) may "
+            "have been left verbatim in the minutes ({n} place(s); e.g. {head}). "
+            "Using a larger model or reducing the parentheses in the template can help"
+        ),
+    },
+    "pmsg.merge_truncated": {
+        "ja": (
+            "警告: 部分要約が多く統合リクエストがコンテキスト長を超えるため、"
+            "統合入力の末尾を一部省略しました"
+        ),
+        "en": (
+            "Warning: there are many partial summaries and the merge request exceeds "
+            "the context window, so the tail of the merge input was truncated"
+        ),
+    },
+    # llm_client.py（接続エラー時のヒント。例外メッセージとしてエラーダイアログ・ログに出る）
+    "pmsg.llm_hint_conn": {
+        "ja": (
+            "ローカル LLM サーバーに接続できません。LM Studio を開き、"
+            "Settings → Local Models → Local Model API で『Local API server』を ON "
+            "（Running）にしてください。旧 UI では Developer タブの Local Server を Start。"
+            "（接続先: {base_url}）"
+        ),
+        "en": (
+            "Cannot connect to the local LLM server. Open LM Studio and turn on "
+            "\"Local API server\" (Running) under Settings → Local Models → Local "
+            "Model API. In the old UI, Start the Local Server on the Developer tab. "
+            "(endpoint: {base_url})"
+        ),
+    },
+    "pmsg.llm_hint_timeout": {
+        "ja": (
+            "【タイムアウト】ローカル LLM サーバーへのリクエストが {timeout:.0f} 秒以内に"
+            "終わらず、タイムアウトしました。サーバー自体は動いていて、応答の生成に時間が"
+            "かかっているだけの可能性が高いです"
+            "（大きいモデルほど、また出力トークン数が多いほど時間がかかります）。"
+            "config.toml の [llm] timeout を増やしてください（例: 600）。"
+        ),
+        "en": (
+            "[Timeout] The request to the local LLM server did not finish within "
+            "{timeout:.0f} s and timed out. The server is most likely up and just "
+            "taking a long time to generate a response (larger models and more "
+            "output tokens take longer). Increase [llm] timeout in config.toml "
+            "(e.g. 600)."
+        ),
+    },
+    "pmsg.llm_hint_model": {
+        "ja": (
+            "LM Studio でモデルがロードされていない可能性があります。"
+            "『Just-in-time model loading』を ON にするか、Loaded Instances で "
+            "対象モデルをロードしてください。config の model / vlm_model が Library の"
+            "モデルキー（`curl {base_url}/models` で確認可）と一致しているかも確認してください。"
+        ),
+        "en": (
+            "The model may not be loaded in LM Studio. Turn on \"Just-in-time model "
+            "loading\", or load the target model under Loaded Instances. Also check "
+            "that model / vlm_model in the config match the Library model keys "
+            "(check with `curl {base_url}/models`)."
+        ),
+    },
+    "pmsg.llm_hint_context": {
+        "ja": (
+            "プロンプトがモデルのコンテキスト長を超えています。LM Studio でこの LLM を"
+            "ロードするときに Context Length を 32768 以上に設定して読み込み直してください"
+            "（一度ロード済みなら Eject してから設定し直す）。詳しくは docs/models.md の"
+            "「コンテキスト長の設定」を参照。"
+            "コンテキスト長を大きくできない場合は、config.toml の "
+            "[llm] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
+            "1 回あたりのプロンプトが短くなります。"
+        ),
+        "en": (
+            "The prompt exceeds the model's context window. When loading this LLM in "
+            "LM Studio, set Context Length to 32768 or more and reload it (if already "
+            "loaded, Eject first and set it again). See \"Setting the context length\" "
+            "in docs/models.md. If you cannot increase it, lowering [llm] "
+            "chunk_trigger_chars / chunk_size_chars in config.toml switches to split "
+            "summarization and shortens each prompt."
+        ),
+    },
+    "pmsg.llm_hint_reasoning": {
+        "ja": (
+            "モデルが「思考」（reasoning）に max_tokens を使い切り、本文を1文字も"
+            "出力できませんでした（reasoning は {reasoning_len} 文字生成、本文は空、"
+            "finish_reason={finish_reason!r}）。Qwen3 系などの推論モデルは、入力が長い"
+            "ほど思考に多くのトークンを使います。config.toml の [llm] max_tokens を"
+            "増やすか、LM Studio 側でこのモデルの reasoning（思考の強さ）を下げてください。"
+        ),
+        "en": (
+            "The model used up max_tokens on \"reasoning\" and produced no body text "
+            "at all (reasoning generated {reasoning_len} chars, body empty, "
+            "finish_reason={finish_reason!r}). Reasoning models such as the Qwen3 "
+            "family spend more tokens on thinking as the input gets longer. Increase "
+            "[llm] max_tokens in config.toml, or lower this model's reasoning effort "
+            "in LM Studio."
+        ),
+    },
+    "pmsg.llm_err_http": {
+        "ja": "LLM サーバーがエラーを返しました (HTTP {status}): {body}",
+        "en": "The LLM server returned an error (HTTP {status}): {body}",
+    },
+    "pmsg.llm_err_unparsable": {
+        "ja": "LLM サーバーの応答を解釈できません: {body}",
+        "en": "Could not parse the LLM server's response: {body}",
+    },
+    "pmsg.llm_err_detail": {"ja": "\n詳細: {exc}", "en": "\nDetails: {exc}"},
+    "pmsg.llm_err_preflight": {
+        "ja": "起動前チェックに失敗しました（モデル {model}）。\n{detail}",
+        "en": "Preflight check failed (model {model}).\n{detail}",
+    },
 }
+
+
+def format_elapsed(seconds: float, language: str = DEFAULT_LANGUAGE) -> str:
+    """処理にかかった時間の表示用。旧: 各 model モジュールの `_format_elapsed`
+    （日本語ハードコード）を i18n 対応で一本化した。"""
+    if seconds < 60:
+        return f"{seconds:.1f}秒" if language != "en" else f"{seconds:.1f}s"
+    minutes, sec = divmod(round(seconds), 60)
+    if minutes < 60:
+        return (
+            f"{minutes}分{sec:02d}秒" if language != "en" else f"{minutes}m{sec:02d}s"
+        )
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}時間{minutes:02d}分" if language != "en" else f"{hours}h{minutes:02d}m"
 
 
 def t(key: str, language: str, *, default: str | None = None, **kwargs: object) -> str:

@@ -22,6 +22,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from meeting_minutes.i18n import DEFAULT_LANGUAGE, t
+
 from .cancel import check_cancel
 from .config import TranscribeConfig
 
@@ -111,6 +113,7 @@ def transcribe_wav(
     on_progress: ProgressFn | None = None,
     total_hint: int | None = None,
     cancel_event: threading.Event | None = None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[Segment]:
     """wav を文字起こしして Segment のリストを返す。
 
@@ -121,6 +124,8 @@ def transcribe_wav(
     cancel_event: セットされていれば中断する。faster-whisper はセグメントの
         合間で反応するが、mlx は 1 回のブロッキング呼び出しなので呼び出し前
         にしか反応できない（下記 _transcribe_mlx 参照）。
+    language: on_progress へ渡す進捗メッセージの言語（"ja" / "en"）。文字起こしの
+        言語そのものは config.language（別物）。
     """
     if resolve_backend(config) == "mlx":
         return _transcribe_mlx(
@@ -129,6 +134,7 @@ def transcribe_wav(
             on_progress=on_progress,
             total_hint=total_hint,
             cancel_event=cancel_event,
+            language=language,
         )
     return _transcribe_faster_whisper(
         wav_path,
@@ -136,6 +142,7 @@ def transcribe_wav(
         on_progress=on_progress,
         total_hint=total_hint,
         cancel_event=cancel_event,
+        language=language,
     )
 
 
@@ -146,6 +153,7 @@ def _transcribe_faster_whisper(
     on_progress: ProgressFn | None = None,
     total_hint: int | None = None,
     cancel_event: threading.Event | None = None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[Segment]:
     # 重い依存なので関数内 import（テストでスタブしやすくもなる）
     from faster_whisper import WhisperModel
@@ -154,7 +162,7 @@ def _transcribe_faster_whisper(
         on_progress(
             0,
             total_hint or 0,
-            "文字起こしモデルを準備中（未取得なら初回ダウンロード）…",
+            t("pmsg.stt_preparing", language),
         )
 
     device = config.device or "auto"
@@ -164,10 +172,10 @@ def _transcribe_faster_whisper(
         compute_type=config.compute_type,
     )
 
-    language = config.language.strip() or None
+    stt_lang = config.language.strip() or None  # 文字起こし対象の言語（表示言語とは別）
     raw_segments, _info = model.transcribe(
         str(wav_path),
-        language=language,
+        language=stt_lang,
         vad_filter=True,  # 無音区間を落として精度と速度を上げる
         # 直前の（誤った）出力を次の窓の文脈にしない。歌・BGM・雑音のある区間で
         # 同じ空耳フレーズを延々と繰り返す "repetition loop" 幻覚を防ぐ。
@@ -194,6 +202,7 @@ def _transcribe_mlx(
     on_progress: ProgressFn | None = None,
     total_hint: int | None = None,
     cancel_event: threading.Event | None = None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[Segment]:
     # mlx-whisper は結果を一括で返す（ジェネレータではない）ため、処理中の
     # 逐次進捗は出せない。開始時に 1 回説明を出し、完了後にセグメントを
@@ -203,23 +212,20 @@ def _transcribe_mlx(
     repo = _mlx_model_repo(config.model)
     if on_progress is not None:
         if _mlx_model_cached(repo):
-            msg = "mlx-whisper で文字起こし中（完了まで進捗は動きません）"
+            msg = t("pmsg.stt_mlx_running", language)
         else:
-            msg = (
-                f"文字起こしモデル {repo} をダウンロード中（初回のみ、約1.6GB）…"
-                "その後 mlx-whisper で文字起こし"
-            )
+            msg = t("pmsg.stt_mlx_downloading", language, repo=repo)
         on_progress(0, total_hint or 0, msg)
 
     # mlx-whisper はブロッキングの一括呼び出しなので、呼び出し中は中断に反応
     # できない。呼び出し前にだけチェックする。
     check_cancel(cancel_event)
 
-    language = config.language.strip() or None
+    stt_lang = config.language.strip() or None  # 文字起こし対象の言語（表示言語とは別）
     result = mlx_whisper.transcribe(
         str(wav_path),
         path_or_hf_repo=repo,
-        language=language,
+        language=stt_lang,
         word_timestamps=False,
         # 直前の（誤った）出力を次の窓の文脈にしない。歌・BGM・雑音のある区間で
         # 同じ空耳フレーズを延々と繰り返す "repetition loop" 幻覚を防ぐ。

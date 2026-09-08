@@ -98,6 +98,36 @@ def test_connection_error_still_gets_server_down_hint(monkeypatch):
     assert "Local API server" in str(ei.value)
 
 
+def test_error_hints_translated_when_language_en(monkeypatch):
+    c = LLMClient(LLMConfig(base_url="http://localhost:1234/v1"), language="en")
+
+    def raise_connect_error(*a, **k):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(c._client, "post", raise_connect_error)
+    with pytest.raises(LLMConnectionError) as ei:
+        c.chat("", "hi")
+    msg = str(ei.value)
+    assert "Cannot connect to the local LLM server" in msg
+    assert "Details:" in msg
+    assert "接続できません" not in msg
+
+
+def test_preflight_failure_message_translated_when_language_en(monkeypatch):
+    c = LLMClient(LLMConfig(base_url="http://localhost:1234/v1"), language="en")
+
+    def fake_chat(system, user, *, model=None, **kw):
+        raise LLMConnectionError("boom")
+
+    monkeypatch.setattr(c, "chat", fake_chat)
+    with pytest.raises(LLMConnectionError) as ei:
+        c.preflight(["bad-model"])
+    msg = str(ei.value)
+    assert "Preflight check failed" in msg
+    assert "bad-model" in msg
+    assert "起動前チェック" not in msg
+
+
 def test_empty_content_with_reasoning_raises_dedicated_hint(monkeypatch):
     """推論モデルが思考だけで max_tokens を使い切り、本文が空で返るケース。"""
     c = _client()

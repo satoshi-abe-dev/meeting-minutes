@@ -93,6 +93,21 @@ def test_generate_minutes_short_path_single_call():
     assert "表題スライド" in user
 
 
+def test_generate_minutes_short_path_messages_translated_when_language_en():
+    client = FakeClient(reply="# Minutes\n\n## Decisions\n- none\n")
+    progress: list[tuple] = []
+    generate_minutes(
+        _segments(5), [], client, LLMConfig(), MinutesMeta(title="Meeting"),
+        on_progress=lambda c, t, m: progress.append((c, t, m)),
+        language="en",
+    )
+    joined = "\n".join(m for _c, _t, m in progress)
+    assert "Generating the minutes" in joined
+    assert "Minutes generated" in joined
+    assert "議事録を生成" not in joined
+    assert "応答を待っています" not in joined
+
+
 def test_generate_minutes_single_pass_under_char_fallback_threshold():
     """context_tokens 不明時は文字数しきい値で判断。既定 20000 字未満は一発生成。"""
     client = FakeClient(reply="# 議事録\n\n本文\n")
@@ -192,6 +207,21 @@ def test_generate_minutes_long_path_maps_then_reduces(chunking_config):
     # チャンク要約(複数) + 最終統合(1) で 2 回以上呼ばれる
     assert len(client.calls) >= 2
     assert progress  # 進捗が通知されている
+
+
+def test_generate_minutes_long_path_messages_translated_when_language_en(chunking_config):
+    client = FakeClient(reply="partial or final")
+    long_segs = _segments(300, text="a long remark about the agenda " * 5)
+    progress: list[tuple] = []
+    generate_minutes(
+        long_segs, [], client, chunking_config, MinutesMeta(title="Long meeting"),
+        on_progress=lambda c, t, m: progress.append((c, t, m)),
+        language="en",
+    )
+    joined = "\n".join(m for _c, _t, m in progress)
+    assert "Partial summary" in joined
+    assert "部分要約" not in joined
+    assert "所要" not in joined
 
 
 def test_generate_minutes_cancel_stops_chunk_loop(chunking_config):
@@ -443,6 +473,15 @@ def test_load_minutes_structure_empty_file_falls_back_with_warning(tmp_path):
     warnings: list[str] = []
     assert load_minutes_structure(str(p), on_warning=warnings.append) is _MINUTES_STRUCTURE
     assert warnings and "空です" in warnings[0]
+
+
+def test_load_minutes_structure_warning_translated_when_language_en(tmp_path):
+    warnings: list[str] = []
+    load_minutes_structure(
+        str(tmp_path / "nope.txt"), on_warning=warnings.append, language="en"
+    )
+    assert warnings and "using the built-in one" in warnings[0]
+    assert "内蔵テンプレート" not in warnings[0]
 
 
 def test_fill_minutes_template_appends_input_section_when_missing():

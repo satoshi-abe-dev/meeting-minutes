@@ -13,6 +13,8 @@ import base64
 import mimetypes
 from pathlib import Path
 
+from meeting_minutes.i18n import DEFAULT_LANGUAGE, normalize_language, t
+
 from .config import LLMConfig
 
 
@@ -20,50 +22,12 @@ class LLMConnectionError(RuntimeError):
     """ローカル LLM サーバーに接続できない／エラー応答のときに送出する。"""
 
 
-_HINT = (
-    "ローカル LLM サーバーに接続できません。LM Studio を開き、"
-    "Settings → Local Models → Local Model API で『Local API server』を ON "
-    "（Running）にしてください。旧 UI では Developer タブの Local Server を Start。"
-    "（接続先: {base_url}）"
-)
-
-_TIMEOUT_HINT = (
-    "【タイムアウト】ローカル LLM サーバーへのリクエストが {timeout:.0f} 秒以内に"
-    "終わらず、タイムアウトしました。サーバー自体は動いていて、応答の生成に時間が"
-    "かかっているだけの可能性が高いです"
-    "（大きいモデルほど、また出力トークン数が多いほど時間がかかります）。"
-    "config.toml の [llm] timeout を増やしてください（例: 600）。"
-)
-
-_MODEL_HINT = (
-    "LM Studio でモデルがロードされていない可能性があります。"
-    "『Just-in-time model loading』を ON にするか、Loaded Instances で "
-    "対象モデルをロードしてください。config の model / vlm_model が Library の"
-    "モデルキー（`curl {base_url}/models` で確認可）と一致しているかも確認してください。"
-)
-
-_CONTEXT_HINT = (
-    "プロンプトがモデルのコンテキスト長を超えています。LM Studio でこの LLM を"
-    "ロードするときに Context Length を 32768 以上に設定して読み込み直してください"
-    "（一度ロード済みなら Eject してから設定し直す）。詳しくは docs/models.md の"
-    "「コンテキスト長の設定」を参照。"
-    "コンテキスト長を大きくできない場合は、config.toml の "
-    "[llm] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
-    "1 回あたりのプロンプトが短くなります。"
-)
-
-_REASONING_HINT = (
-    "モデルが「思考」（reasoning）に max_tokens を使い切り、本文を1文字も"
-    "出力できませんでした（reasoning は {reasoning_len} 文字生成、本文は空、"
-    "finish_reason={finish_reason!r}）。Qwen3 系などの推論モデルは、入力が長い"
-    "ほど思考に多くのトークンを使います。config.toml の [llm] max_tokens を"
-    "増やすか、LM Studio 側でこのモデルの reasoning（思考の強さ）を下げてください。"
-)
-
-
 class LLMClient:
-    def __init__(self, config: LLMConfig):
+    def __init__(self, config: LLMConfig, *, language: str = DEFAULT_LANGUAGE):
         self.config = config
+        # 例外メッセージ（接続エラー時のヒント）の言語。既定は "ja"。
+        # GUI が --lang en のとき pipeline.run() 側で "en" に差し替える。
+        self.language = normalize_language(language)
         # 関数内 import ではなくここで一度だけ（httpx は requirements 必須依存）
         import httpx
 
@@ -80,25 +44,30 @@ class LLMClient:
             resp = self._client.post("/chat/completions", json=payload)
         except self._httpx.TimeoutException as exc:
             # サーバーは動いているが、応答（多くは生成中）が timeout より長い場合。
-            # 「サーバーを起動して」の _HINT は的外れなので専用メッセージにする。
+            # 「サーバーを起動して」のヒントは的外れなので専用メッセージにする。
             raise LLMConnectionError(
-                _TIMEOUT_HINT.format(timeout=self.config.timeout) + f"\n詳細: {exc}"
+                t("pmsg.llm_hint_timeout", self.language, timeout=self.config.timeout)
+                + t("pmsg.llm_err_detail", self.language, exc=exc)
             ) from exc
         except self._httpx.RequestError as exc:
             raise LLMConnectionError(
-                _HINT.format(base_url=self.config.base_url) + f"\n詳細: {exc}"
+                t("pmsg.llm_hint_conn", self.language, base_url=self.config.base_url)
+                + t("pmsg.llm_err_detail", self.language, exc=exc)
             ) from exc
 
         if resp.status_code >= 400:
             body = resp.text[:500]
-            msg = (
-                f"LLM サーバーがエラーを返しました (HTTP {resp.status_code}): {body}"
+            msg = t(
+                "pmsg.llm_err_http", self.language,
+                status=resp.status_code, body=body,
             )
             low = body.lower()
             if "no models loaded" in low or "model_not_found" in low or (
                 resp.status_code == 400 and '"param": "model"' in low
             ):
-                msg += "\n" + _MODEL_HINT.format(base_url=self.config.base_url)
+                msg += "\n" + t(
+                    "pmsg.llm_hint_model", self.language, base_url=self.config.base_url
+                )
             elif (
                 "context length" in low
                 or "context window" in low
@@ -106,7 +75,7 @@ class LLMClient:
                 or "prompt is too long" in low
                 or "exceeds the context" in low
             ):
-                msg += "\n" + _CONTEXT_HINT
+                msg += "\n" + t("pmsg.llm_hint_context", self.language)
             raise LLMConnectionError(msg)
         try:
             data = resp.json()
@@ -115,7 +84,7 @@ class LLMClient:
             content = (message.get("content") or "").strip()
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise LLMConnectionError(
-                f"LLM サーバーの応答を解釈できません: {resp.text[:500]}"
+                t("pmsg.llm_err_unparsable", self.language, body=resp.text[:500])
             ) from exc
 
         if not content:
@@ -125,7 +94,8 @@ class LLMClient:
             reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
             if reasoning:
                 raise LLMConnectionError(
-                    _REASONING_HINT.format(
+                    t(
+                        "pmsg.llm_hint_reasoning", self.language,
                         reasoning_len=len(reasoning),
                         finish_reason=choice.get("finish_reason"),
                     )
@@ -248,7 +218,10 @@ class LLMClient:
                 self.chat("", "ping", model=model, max_tokens=1)
             except LLMConnectionError as exc:
                 raise LLMConnectionError(
-                    f"起動前チェックに失敗しました（モデル {model!r}）。\n{exc}"
+                    t(
+                        "pmsg.llm_err_preflight", self.language,
+                        model=repr(model), detail=exc,
+                    )
                 ) from exc
 
     def close(self) -> None:

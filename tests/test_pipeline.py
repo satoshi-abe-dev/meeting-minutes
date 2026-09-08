@@ -52,7 +52,8 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         return Path(out_wav)
 
     def transcribe_wav(
-        wav_path, tr_config, *, on_progress=None, total_hint=None, cancel_event=None
+        wav_path, tr_config, *, on_progress=None, total_hint=None, cancel_event=None,
+        language=None,
     ):
         recorder.append("transcribe_wav")
         segs = [Segment(0.0, 3.0, "こんにちは"), Segment(3.0, 6.0, "本題です")]
@@ -84,7 +85,8 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         return p
 
     def describe_frames(
-        frames, client_, out_dir, *, on_progress=None, cancel_event=None, reuse=None
+        frames, client_, out_dir, *, on_progress=None, cancel_event=None, reuse=None,
+        language=None,
     ):
         recorder.append("describe_frames")
         assert client_ is client
@@ -113,6 +115,7 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         context_tokens=None,
         template_path=None,
         auto_structure=False,
+        language=None,
     ):
         recorder.append("generate_minutes")
         assert client_ is client
@@ -210,6 +213,31 @@ def test_pipeline_messages_show_model_and_waiting(config, video):
     assert config.llm.vlm_model in vision_start
 
 
+def test_pipeline_messages_translated_when_language_en(config, video):
+    """language="en" のとき進捗メッセージが英語で出る（既定 ja は別テストで担保）。"""
+    events: list[tuple] = []
+    run(
+        video, config,
+        on_progress=lambda *a: events.append(a),
+        deps=_fake_deps([], FakeClient()),
+        language="en",
+    )
+    msgs = [msg for _stage, _cur, _tot, msg in events]
+    joined = "\n".join(msgs)
+    assert "Waiting for the LLM server" in joined
+    assert "Extracting audio from the video" in joined
+    assert any(m.startswith("Done: ") for m in msgs)
+    # 日本語の定型句が混ざっていないこと
+    assert "応答を待っています" not in joined
+    assert "音声を抽出" not in joined
+
+
+def test_pipeline_missing_video_raises_english_message(config, tmp_path):
+    with pytest.raises(FileNotFoundError) as ei:
+        run(tmp_path / "no-such.mp4", config, deps=Deps(), language="en")
+    assert "Video file not found" in str(ei.value)
+
+
 def test_pipeline_result_paths(config, video):
     recorder: list[str] = []
     client = FakeClient()
@@ -300,7 +328,8 @@ def test_pipeline_cancel_during_vision_stops_and_closes_client(config, video):
     cancel_event = threading.Event()
 
     def describe_frames(
-        frames, client_, out_dir, *, on_progress=None, cancel_event=None, reuse=None
+        frames, client_, out_dir, *, on_progress=None, cancel_event=None, reuse=None,
+        language=None,
     ):
         recorder.append("describe_frames")
         # VLM ステージに入った直後にユーザーが中断ボタンを押した状況を再現

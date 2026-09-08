@@ -13,6 +13,8 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from meeting_minutes.i18n import DEFAULT_LANGUAGE, format_elapsed, t
+
 from .cancel import check_cancel
 from .config import load_prompt
 from .frames import Frame
@@ -51,17 +53,6 @@ def _load_prompt_text() -> str:
         return _DEFAULT_PROMPT
 
 
-def _format_elapsed(seconds: float) -> str:
-    """処理にかかった時間の表示用（pipeline.py / minutes.py にも同名の複製がある）。"""
-    if seconds < 60:
-        return f"{seconds:.1f}秒"
-    minutes, sec = divmod(round(seconds), 60)
-    if minutes < 60:
-        return f"{minutes}分{sec:02d}秒"
-    hours, minutes = divmod(minutes, 60)
-    return f"{hours}時間{minutes:02d}分"
-
-
 def _load_frame_notes(out_dir: Path) -> list[FrameNote]:
     """save_frame_notes が書いた frames/frame_notes.json を読み戻す（再開用）。"""
     path = out_dir / "frames" / "frame_notes.json"
@@ -94,6 +85,7 @@ def describe_frames(
     on_progress: ProgressFn | None = None,
     cancel_event: threading.Event | None = None,
     reuse: bool = True,
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[FrameNote]:
     """全フレームを VLM にかけて FrameNote のリストを返す。
 
@@ -115,7 +107,7 @@ def describe_frames(
             if on_progress is not None:
                 on_progress(
                     len(notes), total,
-                    f"既存のフレーム解析を再利用（{len(notes)}/{total}）",
+                    t("pmsg.vis_reuse", language, n=len(notes), total=total),
                 )
 
     for i in range(len(notes) + 1, total + 1):
@@ -125,7 +117,7 @@ def describe_frames(
         if on_progress is not None:
             on_progress(
                 i - 1, total,
-                f"{_hhmmss(frame.timestamp)} のフレームを解析中…応答を待っています",
+                t("pmsg.vis_frame_analyzing", language, ts=_hhmmss(frame.timestamp)),
             )
         t0 = time.monotonic()
         try:
@@ -135,7 +127,7 @@ def describe_frames(
             raise
         except Exception as exc:
             desc = f"(解析失敗: {exc})"
-        elapsed = _format_elapsed(time.monotonic() - t0)
+        elapsed = format_elapsed(time.monotonic() - t0, language)
         notes.append(
             FrameNote(timestamp=frame.timestamp, path=rel, description=desc)
         )
@@ -143,7 +135,8 @@ def describe_frames(
         if on_progress is not None:
             on_progress(
                 i, total,
-                f"{_hhmmss(frame.timestamp)} のフレーム解析が完了（所要 {elapsed}）",
+                t("pmsg.vis_frame_done", language,
+                  ts=_hhmmss(frame.timestamp), elapsed=elapsed),
             )
 
     return notes
