@@ -54,13 +54,14 @@ base_url = "http://localhost:1234/v1"
 # 認証は不要だが OpenAI 互換クライアントが要求するのでダミー値を入れる。
 api_key = "local-no-key"
 
-# 議事録生成に使うテキスト LLM のモデル名（LM Studio でロード済みのもの）。
+# フレーム（画面共有・スライド）画像の解析に使う VLM のモデル名。
+# 議事録生成のテキスト LLM は下の model。
+vlm_model = "qwen2-vl-7b-instruct"
+
+# 議事録生成に使うテキスト LLM のモデル名（フレーム解析の VLM は上の vlm_model）。
 # ※ 推論（thinking）モデル（Qwen3 / DeepSeek-R1 等）は避けるか、reasoning をオフに
 #    して使うこと。そのままだと極端に遅く、本文が空で返ることがある（docs/models.md）。
 model = "qwen2.5-7b-instruct"
-
-# フレーム画像の解析に使う VLM のモデル名。
-vlm_model = "qwen2-vl-7b-instruct"
 
 # 1 リクエストのタイムアウト秒。大きめモデルは数分かかることがあり、特に
 # 議事録の最終統合（出力トークン数が多い）はタイムアウトしやすいので長めにする。
