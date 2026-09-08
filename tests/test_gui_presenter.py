@@ -125,6 +125,27 @@ def test_init_registers_handlers_and_pushes_initial_state():
     assert view.scheduled and view.scheduled[0][0] == 100  # ポーリング開始
 
 
+def test_config_summary_backend_note_auto_is_readable(monkeypatch):
+    # backend=auto は実際の値へ読み替えられる。「auto を mlx と読み替えた」と分かる文言。
+    monkeypatch.setattr(
+        "meeting_minutes.presenter.main.resolve_backend", lambda tr: "mlx"
+    )
+    view, _ = _make()
+    assert "backend=auto（自動選択: mlx）" in view.config_summary
+    assert "→" not in view.config_summary
+
+
+def test_config_summary_backend_note_explicit_is_plain(monkeypatch):
+    monkeypatch.setattr(
+        "meeting_minutes.presenter.main.resolve_backend", lambda tr: "faster-whisper"
+    )
+    cfg = _config()
+    cfg.transcribe.backend = "faster-whisper"
+    view, _ = _make(cfg)
+    assert "backend=faster-whisper" in view.config_summary
+    assert "自動選択" not in view.config_summary
+
+
 @pytest.mark.parametrize(
     "cfg, expected_mode",
     [

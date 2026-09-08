@@ -5,70 +5,94 @@
 #
 # 各値は環境変数でも上書きできる（MM_LLM_BASE_URL など。config.py 参照）。
 
+# --------------------------------------
 [llm]
+
 # ローカル LLM / VLM サーバーの OpenAI 互換エンドポイント。
 # LM Studio: Developer タブでローカルサーバーを起動すると既定でこの URL。
 # Ollama を使う場合: "http://localhost:11434/v1"
 base_url = "http://localhost:1234/v1"
+
 # 認証は不要だが OpenAI 互換クライアントが要求するのでダミー値を入れる。
 api_key = "local-no-key"
+
 # 議事録生成に使うテキスト LLM のモデル名（LM Studio でロード済みのもの）。
 # ※ 推論（thinking）モデル（Qwen3 / DeepSeek-R1 等）は避けるか、reasoning をオフに
 #    して使うこと。そのままだと極端に遅く、本文が空で返ることがある（docs/models.md）。
 model = "qwen2.5-7b-instruct"
+
 # フレーム画像の解析に使う VLM のモデル名。
 vlm_model = "qwen2-vl-7b-instruct"
+
 # 1 リクエストのタイムアウト秒。大きめモデルは数分かかることがあり、特に
 # 議事録の最終統合（出力トークン数が多い）はタイムアウトしやすいので長めにする。
 timeout = 600
+
 # 議事録生成・チャンク要約の応答トークン上限。Qwen3 系などの推論モデルは
 # 見えない"思考"にもここから消費するため、通常のモデルより多めにしてある。
 # 本文が空で返ってくる場合はまずこの値を増やす。
 max_tokens = 8192
+
 # 実コンテキスト長が自動取得できるとき（LM Studio）は、それに対する概算トークン数で
 # 一発生成 / 分割生成を判断する。以下の chunk_* は、自動取得できない基盤向けの
 # フォールバック（文字数しきい値）。chunk_trigger_chars を超えるとチャンク要約 →
 # 統合の分割モードに切り替える。既定 20000 / 12000。Context Length を 32768 以上に
 # できない環境ではさらに小さくする（例: 8000 / 6000）。→ docs/models.md「コンテキスト長の設定」
 chunk_trigger_chars = 20000
+
 # 分割モードのときの 1 チャンクの文字数。この値を変えて途中再開すると、保存済みの
 # 部分要約（minutes_partials.json）はチャンク境界が合わなくなるため破棄され、
 # 最初から要約し直される（内容の重複・欠落を避けるため）。
 chunk_size_chars = 12000
+
 # ロード中モデルの実コンテキスト長（トークン）。0 なら自動検出（LM Studio の
 # /api/v0/models）。自動検出できない基盤で 32k 以外を使う場合はここに実値を書く。
 context_tokens = 0
 
+# --------------------------------------
 [transcribe]
-# エンジン: "auto"（Apple Silicon なら mlx、他は faster-whisper）/ "mlx" / "faster-whisper"
-# mlx は Apple GPU を使うため Mac では大幅に速い。
-backend = "auto"
+
 # モデルのサイズ名。large-v3-turbo / large-v3 / medium / small など。
 # 既定の large-v3-turbo は large-v3 とほぼ同精度で速い。
 # バックエンドごとに実体へ変換する（faster-whisper はそのまま、mlx は
 # mlx-community/whisper-<size> に変換）。フル HF リポジトリ名を書けばそのまま使う。
 model = "large-v3-turbo"
+
+# backend: "auto"（Apple Silicon なら mlx、他は faster-whisper）/ "mlx" / "faster-whisper"
+# mlx は Apple GPU を使うため Mac では大幅に速い。
+backend = "auto"
+
 # 次の 2 つは faster-whisper のときだけ有効（mlx では無視される）。
 # compute_type: CPU なら "int8"。
 compute_type = "int8"
+
 # device: "cpu" / "auto"。
 device = "auto"
+
 # 会議の主言語。自動判定させるなら空文字 "" にする。
 language = "ja"
 
+# --------------------------------------
 [frames]
+
 # 一定間隔で 1 枚抜く秒数。
 interval_sec = 15
+
 # シーン変化検出の閾値（0.0〜1.0）。小さいほど敏感に切り替わりを拾う。
 scene_threshold = 0.3
+
 # VLM 呼び出し回数の歯止め。抽出枚数がこれを超えたら間引く。
 max_frames = 60
+
 # 近接フレームの最小間隔秒（シーン検出が連発したときの重複除去）。
 min_gap_sec = 4
 
+# --------------------------------------
 [output]
+
 # 生成物の出力先ルート。実際は output/<動画名>/ に書き出す。
 dir = "output"
+
 # 議事録の「構造」（見出し・項目）を差し替えるカスタムテンプレートのパス。空なら内蔵。
 # ここに設定すると毎回自動で使われる（テンプレートの指定方法はこれだけ）。
 # 存在しない・読めない・空の場合は内蔵にフォールバックし警告する。
@@ -77,6 +101,7 @@ dir = "output"
 # システムプロンプト（捏造しない等のルール）はテンプレートに関わらず常に適用される。
 # 雛形: templates/minutes_template_example.txt
 template_path = ""
+
 # 「おまかせ」モード: 動画の内容に合わせて議事録の見出し構成を LLM に自動生成させる。
 # true にすると template_path より優先（優先順位: auto > file > builtin）。
 # 生成された構成は output/<動画名>/structure_used.txt に保存される。気に入れば
@@ -84,9 +109,13 @@ template_path = ""
 # 生成に失敗（LLM エラー・プレースホルダー欠落など）したら内蔵にフォールバックし警告する。
 auto_structure = false
 
+# --------------------------------------
 [gui]
+
 # GUI の表示言語。"ja" / "en"。既定 "ja"。それ以外の値は "ja" として扱う。
 # 影響するのは GUI の画面文言だけ（文字起こし言語は [transcribe] language、
 # 議事録の中身は LLM 側の設定）。起動時に上書きするには:
 #   python src/meeting_minutes/gui.py --lang en
 language = "ja"
+
+# --------------------------------------
