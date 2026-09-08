@@ -277,6 +277,11 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
 実会議データを扱うプロジェクトの性質上、push・PR前に追跡ファイルへの機密混入を
 grep で確認する手順を徹底している。
 
+## 問い合わせ
+
+質問・不具合報告は [GitHub Issues](https://github.com/satoshi-abe-dev/meeting-minutes/issues) へ。
+セキュリティに関する報告は [SECURITY.md](SECURITY.md) を参照。
+
 ## ライセンス
 
 MIT License。全文は [LICENSE](LICENSE) を参照。
