@@ -32,7 +32,7 @@ English | [日本語](README_ja.md)
 
 Meeting minutes are a natural fit for AI automation. But meeting audio and shared screens often carry customer data or non-public business and HR information, and under NDAs, data-protection law, GDPR, or internal policy, that recording cannot be sent to a cloud transcription/summarization service.
 
-## What this is
+## Overview
 
 A CLI / GUI tool that takes a single video file and runs the following **entirely locally** to generate minutes.
 
