@@ -64,9 +64,11 @@ This project was developed by running multiple Claude Code sessions (an implemen
 
 ## Demo
 
-<!-- TODO(phase 2): Process a non-confidential video, add a GUI screenshot and examples/<name>/minutes.md, and link them from here. Do not include information about real meetings that are being processed. -->
+![Screenshot of the GUI running](docs/screenshots/gui.png)
 
-_Coming soon. Minutes and screenshots generated from a non-confidential sample video will be added shortly._
+Pick a video and click "Create minutes", then watch transcription → frame analysis →
+minutes generation proceed with a progress bar and a log. Custom templates
+("Choose a file") are supported too.
 
 ## Setup (macOS / Apple Silicon)
 
