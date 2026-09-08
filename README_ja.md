@@ -69,11 +69,12 @@ output/<動画名>/
 
 ## デモ
 
-![GUI 実行中のスクリーンショット（日本語版）](docs/screenshots/gui_ja.png)
-
-英語版 GUI（`--lang en` 起動）:
-
-![Screenshot of the GUI running (English)](docs/screenshots/gui_en.png)
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/gui_ja.png" alt="GUI 実行中のスクリーンショット（日本語版）"><br>日本語版</td>
+<td width="50%"><img src="docs/screenshots/gui_en.png" alt="Screenshot of the GUI running (English)"><br>英語版（<code>--lang en</code> 起動）</td>
+</tr>
+</table>
 
 動画を選び「議事録を作成」を押すと、進捗バーとログを見ながら
 文字起こし → フレーム解析 → 議事録生成が進む。カスタムテンプレート
