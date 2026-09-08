@@ -238,6 +238,11 @@ This project was implemented through collaborative development by multiple Claud
 
 Because this project handles real meeting data, the practice of grepping tracked files for leaked confidential data before every push / PR is strictly followed.
 
+## Contact
+
+For questions and bug reports, please use [GitHub Issues](https://github.com/satoshi-abe-dev/meeting-minutes/issues).
+For security reports, see [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for the full text.
