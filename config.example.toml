@@ -6,6 +6,44 @@
 # 各値は環境変数でも上書きできる（MM_LLM_BASE_URL など。config.py 参照）。
 
 # --------------------------------------
+[transcribe]
+
+# 文字起こしモデルのサイズ名。large-v3-turbo / large-v3 / medium / small など。
+# 既定の large-v3-turbo は large-v3 とほぼ同精度で速い。
+# バックエンドごとに実体へ変換する（faster-whisper はそのまま、mlx は
+# mlx-community/whisper-<size> に変換）。フル HF リポジトリ名を書けばそのまま使う。
+model = "large-v3-turbo"
+
+# backend: "auto"（Apple Silicon なら mlx、他は faster-whisper）/ "mlx" / "faster-whisper"
+# mlx は Apple GPU を使うため Mac では大幅に速い。
+backend = "auto"
+
+# 次の 2 つは faster-whisper のときだけ有効（mlx では無視される）。
+# compute_type: CPU なら "int8"。
+compute_type = "int8"
+
+# device: "cpu" / "auto"。
+device = "auto"
+
+# 会議の主言語。自動判定させるなら空文字 "" にする。
+language = "ja"
+
+# --------------------------------------
+[frames]
+
+# 一定間隔で 1 枚抜く秒数。
+interval_sec = 15
+
+# シーン変化検出の閾値（0.0〜1.0）。小さいほど敏感に切り替わりを拾う。
+scene_threshold = 0.3
+
+# VLM 呼び出し回数の歯止め。抽出枚数がこれを超えたら間引く。
+max_frames = 60
+
+# 近接フレームの最小間隔秒（シーン検出が連発したときの重複除去）。
+min_gap_sec = 4
+
+# --------------------------------------
 [llm]
 
 # ローカル LLM / VLM サーバーの OpenAI 互換エンドポイント。
@@ -48,44 +86,6 @@ chunk_size_chars = 12000
 # ロード中モデルの実コンテキスト長（トークン）。0 なら自動検出（LM Studio の
 # /api/v0/models）。自動検出できない基盤で 32k 以外を使う場合はここに実値を書く。
 context_tokens = 0
-
-# --------------------------------------
-[transcribe]
-
-# 文字起こしモデルのサイズ名。large-v3-turbo / large-v3 / medium / small など。
-# 既定の large-v3-turbo は large-v3 とほぼ同精度で速い。
-# バックエンドごとに実体へ変換する（faster-whisper はそのまま、mlx は
-# mlx-community/whisper-<size> に変換）。フル HF リポジトリ名を書けばそのまま使う。
-model = "large-v3-turbo"
-
-# backend: "auto"（Apple Silicon なら mlx、他は faster-whisper）/ "mlx" / "faster-whisper"
-# mlx は Apple GPU を使うため Mac では大幅に速い。
-backend = "auto"
-
-# 次の 2 つは faster-whisper のときだけ有効（mlx では無視される）。
-# compute_type: CPU なら "int8"。
-compute_type = "int8"
-
-# device: "cpu" / "auto"。
-device = "auto"
-
-# 会議の主言語。自動判定させるなら空文字 "" にする。
-language = "ja"
-
-# --------------------------------------
-[frames]
-
-# 一定間隔で 1 枚抜く秒数。
-interval_sec = 15
-
-# シーン変化検出の閾値（0.0〜1.0）。小さいほど敏感に切り替わりを拾う。
-scene_threshold = 0.3
-
-# VLM 呼び出し回数の歯止め。抽出枚数がこれを超えたら間引く。
-max_frames = 60
-
-# 近接フレームの最小間隔秒（シーン検出が連発したときの重複除去）。
-min_gap_sec = 4
 
 # --------------------------------------
 [output]
