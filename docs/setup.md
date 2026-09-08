@@ -76,6 +76,11 @@ python -m venv .venv
 > `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`
 > （`cmd.exe` なら `.venv\Scripts\activate.bat`、こちらは実行ポリシーの影響を受けない）。
 
+> **パスの読み替え規約**: 以降この手順で `python …` と書いた箇所は、venv を
+> **有効化していない場合**は venv 内の Python を明示すること。Windows は
+> `.venv\Scripts\python …`、macOS / Linux は `.venv/bin/python …`。素の `python`
+> はグローバル環境を使い、`ImportError: faster_whisper` などになる。
+
 ### モデルの置き場所と配布
 
 モデルは **利用者のホームの共有キャッシュ**（`~/.cache/huggingface/hub/`、Windows は
@@ -168,7 +173,8 @@ model = "large-v3-turbo"  # 既定。精度優先なら "large-v3"、軽さ優�
 > Whisper モデルを取得する。§2 の `setup.sh` は §4 の前に走るので既定
 > （`large-v3-turbo`）は取得済み。**§4 で `model` / `backend` を既定から変えたら
 > `python src/meeting_minutes/download_transcribe_model.py` を再実行**して取り直す
-> （アプリ実行時は自動ダウンロードしない）。
+> （アプリ実行時は自動ダウンロードしない）。venv 未有効化なら §2 の読み替え規約どおり
+> `.venv\Scripts\python …`（macOS / Linux は `.venv/bin/python …`）で叩く。
 
 ## 5. 動作確認
 
@@ -209,6 +215,6 @@ python src/meeting_minutes/gui.py              # GUI
 | 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |
 | mlx で進捗バーが動かない | 仕様。mlx-whisper は結果を一括で返すため、完了まで 0 のまま。GUI のログに「mlx-whisper で文字起こし中」と出ていれば動作中。 |
-| モデルのダウンロードに失敗する | ネット接続と `HF_HOME` を確認し `python src/meeting_minutes/download_transcribe_model.py` を再実行。アプリ実行時は自動DLしないので、ここで取り切る必要がある。 |
-| 実行時に「文字起こしモデル（…）がローカルにありません」 | 事前取得が済んでいない。`bash scripts/setup.sh` か `python src/meeting_minutes/download_transcribe_model.py` を実行。`config.toml` の `[transcribe] model` / `backend` を途中で変えた場合も、その組み合わせのモデルを取り直す。 |
+| モデルのダウンロードに失敗する | ネット接続と `HF_HOME` を確認し `python src/meeting_minutes/download_transcribe_model.py` を再実行（venv 未有効化なら §2 の読み替え規約どおり `.venv\Scripts\python …` / `.venv/bin/python …`）。アプリ実行時は自動DLしないので、ここで取り切る必要がある。 |
+| 実行時に「文字起こしモデル（…）がローカルにありません」 | 事前取得が済んでいない。`bash scripts/setup.sh`（macOS / Linux）か `python src/meeting_minutes/download_transcribe_model.py`（venv 未有効化なら §2 の読み替え規約どおり）を実行。`config.toml` の `[transcribe] model` / `backend` を途中で変えた場合も、その組み合わせのモデルを取り直す。 |
 | フレームが多すぎる／少なすぎる | `[frames] interval_sec`・`scene_threshold`・`max_frames` を調整。 |

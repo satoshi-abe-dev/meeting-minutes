@@ -47,7 +47,8 @@ faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "aut
 - アプリ実行時（`cli.py` / `gui.py`）はオフライン強制のため、モデルが未取得でも
   自動ダウンロードされない。未取得のまま文字起こしを始めると「文字起こしモデル
   （…）がローカルにありません」で停止する。`bash scripts/setup.sh` か
-  `python src/meeting_minutes/download_transcribe_model.py` で取得すること。
+  `python src/meeting_minutes/download_transcribe_model.py`（venv 内の Python で。
+  → [`setup.md`](setup.md) §2）で取得すること。
 - **利用者ごとに 1 台につき一度だけ**、セットアップ時にダウンロードが発生する。
 
 ## フレーム解析（VLM）
