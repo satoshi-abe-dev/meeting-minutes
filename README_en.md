@@ -61,8 +61,8 @@ output/<video name>/
 │   └─ structure_used.txt     Auto-generated heading structure from "Auto" mode (copy into templates/ if you like it; see below)
 ├─ logs/
 │   └─ gui.log                GUI log output (same content as the on-screen log; appended)
-├─ minutes.md                 The minutes (organized into decisions / action items+owners / due dates, etc.)
-└─ minutes.docx               The same minutes as a Word file (auto-generated from minutes.md)
+├─ minutes.docx               The minutes as a Word file (auto-generated from .md)
+└─ minutes.md                 The minutes (organized into decisions / action items+owners / due dates, etc.)
 ```
 
 This project was developed by running multiple Claude Code sessions (an implementer and a reviewer) in coordination, with a defined division of roles and review process (→ [Development process](#development-process-ai-assisted-collaboration)).
@@ -193,7 +193,7 @@ Automatic retry when the LLM times out or drops the connection is not implemente
 ## How it works
 
 ```
-video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame analysis(VLM) ─▶ minutes generation(LLM) ─▶ minutes.md + minutes.docx
+video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame analysis(VLM) ─▶ minutes generation(LLM) ─▶ minutes.docx + minutes.md
         (ffmpeg)        (Whisper)         (ffmpeg)         (localhost)             (localhost)
 ```
 
