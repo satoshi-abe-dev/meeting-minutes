@@ -226,7 +226,7 @@ This project was implemented by **two role-separated Claude Code sessions** (ind
   [normal flow]     owner -> worker -(PR)-> manager -(merge)-> main
 
   [pre-merge checks / manager]
-     * manager re-runs pytest and the confidential-data grep itself
+     * manager re-runs pytest and the confidential-data check itself
      * reviews the diff directly
      * independent review by OpenAI Codex (a different vendor)
 
@@ -241,11 +241,11 @@ This project was implemented by **two role-separated Claude Code sessions** (ind
 - **worker** — the session that handles implementation, tests, and git operations
 - **manager** — the session that reviews the PRs the worker opens and merges them to `main`. Merges only after checking for leaked confidential data (proper nouns from real meetings), the `.gitignore` exclusions, that the diff stays within the intended scope, and the absence of destructive operations
 - The division of roles, the prohibitions, and the review criteria are written out in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) (Claude Code loads it automatically at session start; the rest of `.claude/`, such as the operational session log, is private)
-- **the manager does not take the worker's self-report at face value** — for every PR the manager re-runs pytest and the confidential-data grep itself and reviews the diff directly before merging
+- **the manager does not take the worker's self-report at face value** — for every PR the manager re-runs pytest and the confidential-data check itself and reviews the diff directly before merging
 - **conversation context is not shared between sessions** — the manager does not see the worker's trial and error, and reviews only from the final diff and report
 - **the permission boundary actually held** — for operations that need the owner's direct confirmation, such as deleting tracked files, the worker did not act on a relay through the manager alone and has, in practice, held work pending the owner's confirmation
 - **an independent review by a model from a different vendor is also built in** — in addition to Claude's (the manager's) judgment, an independent code review by OpenAI Codex (`codex exec review`) was added to the pre-merge checks for every PR and is actually in use
-- **loop engineering was put into practice** — rather than a one-shot review, the design repeats implement → independent verification (pytest, confidential-data grep, diff review, Codex review) → send-back → fix → re-verify until every check is clear
+- **loop engineering was put into practice** — rather than a one-shot review, the design repeats implement → independent verification (pytest, confidential-data check, diff review, Codex review) → send-back → fix → re-verify until every check is clear
 - send-backs are specific — each is returned with the exact location, reproduction conditions, and a fix approach
 - Example: in Auto mode (Issue #34, PRs #19 / #35), more than six token-budget bugs were fixed over these round trips
 - Example: the problem where the settings frame was invisible on a real screen was solved over the four-stage round trip of PRs #33 → #40 → #41 → #42

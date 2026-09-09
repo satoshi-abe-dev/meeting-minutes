@@ -253,7 +253,7 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
   [通常フロー]   本人 → worker →（PR）→ manager →（マージ）→ main
 
   [マージ前チェック / manager]
-     ・pytest と機密 grep を manager 自身が再実行
+     ・pytest と機密混入チェックを manager 自身が再実行
      ・diff を直接確認
      ・Codex（別ベンダー）による独立レビュー
 
@@ -272,7 +272,7 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
 - 役割分担・禁止事項・レビュー基準は
   [`.claude/CLAUDE.md`](.claude/CLAUDE.md) に明文化（Claude Code がセッション開始時に
   自動で読み込む。実運用のセッションログなど他の `.claude/` 配下は非公開）
-- **manager は worker の自己申告を鵜呑みにしない** — 全 PR で pytest・機密 grep を
+- **manager は worker の自己申告を鵜呑みにしない** — 全 PR で pytest・機密混入チェックを
   manager 自身が再実行し、diff を直接確認した上でマージする
 - **セッション間で会話コンテキストは共有されない** — manager は worker の試行錯誤の
   過程を見ず、最終的な diff と報告のみからレビューする
@@ -282,7 +282,7 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
   OpenAI Codex（`codex exec review`）による独立コードレビューを全 PR のマージ前チェックに
   追加し、実際に運用している
 - **ループエンジニアリングを実践した** — 単発レビューで終わらせず、実装 → 独立検証
-  （pytest・機密 grep・diff 確認・Codex レビュー）→ 差し戻し → 修正 → 再検証を、
+  （pytest・機密混入チェック・diff 確認・Codex レビュー）→ 差し戻し → 修正 → 再検証を、
   全チェックがクリアになるまで繰り返す
 - 差し戻しは具体的に行う — 該当箇所・再現条件・対処方針を添えて返す
 - 例: おまかせモード（Issue #34、PR #19 / #35）でトークン予算まわりのバグを 6 件以上、
