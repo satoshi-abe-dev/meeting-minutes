@@ -250,7 +250,7 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
 プロセス）を協調させて実装した。
 
 ```
-  [通常フロー]   本人 ─→ worker ─(PR)→ manager ─(マージ)→ main
+  [通常フロー]   本人 → worker →（PR）→ manager →（マージ）→ main
 
   [マージ前チェック / manager]
      ・pytest と機密 grep を manager 自身が再実行
