@@ -93,14 +93,14 @@ python -m venv .venv
 
 ## 3. ローカル LLM サーバー（LM Studio）
 
-この節は **LM Studio 前提**の手順です。本ツールは OpenAI 互換 API クライアントなので、
-他の互換サーバー（Ollama など）でも動きます。その場合は各サーバーの起動方法に
-読み替え、`config.toml` の `[llm] base_url` をそのサーバーに合わせてください
+この節は **LM Studio 前提**の手順。本ツールは OpenAI 互換 API クライアントなので、
+他の互換サーバー（Ollama など）でも動く。その場合は各サーバーの起動方法に
+読み替え、`config.toml` の `[llm] base_url` をそのサーバーに合わせる
 （末尾の「### 他の OpenAI 互換サーバー（Ollama 等）」参照）。
 
-画面構成は LM Studio のバージョンで変わります。ここでは新しい UI（「Bionic」系。
+画面構成は LM Studio のバージョンで変わる。ここでは新しい UI（「Bionic」系。
 サイドバーが Settings / Integrations / Devices / Local Models に分かれているもの）を
-前提にします。旧 UI では「Developer」タブに同等の設定があります。
+前提にする。旧 UI では「Developer」タブに同等の設定がある。
 
 1. [LM Studio](https://lmstudio.ai/) をインストールして起動。
 2. モデルを 2 つ用意する（詳しい選び方は [`models.md`](models.md)）:
@@ -113,7 +113,7 @@ python -m venv .venv
    メモリ別の一覧は [`models.md`](models.md) の「メモリ別のおすすめ構成」。
 
    入手は左メニュー **Local Models → Explore** から検索してダウンロード。
-   ダウンロード済みは **Local Models → Library** で確認できます。
+   ダウンロード済みは **Local Models → Library** で確認できる。
 3. **テキスト LLM は Context Length を 32768 以上にしてロードする**（重要）:
    - 「Context Length を 32768 以上に」という必要性はどのサーバーでも共通（超えると
      HTTP 400）。以下の操作は LM Studio 固有。他サーバーは各自の方法（Ollama は
@@ -133,7 +133,7 @@ python -m venv .venv
    - 同じ画面の **Base URL** が `http://localhost:1234/v1`。これを `config.toml` の
      `base_url` に使う（ポートを変えたら合わせる）。
    - **「Just-in-time model loading」を ON** にしておくと、API リクエストで指定した
-     モデルを LM Studio が自動でロードします。事前ロード不要になり、LLM と VLM を
+     モデルを LM Studio が自動でロードする。事前ロード不要になり、LLM と VLM を
      1 つずつ切り替えて使う（メモリ節約）運用と相性が良い。
    - ブラウザから叩くわけではないので **CORS は OFF のままで良い**。
 5. `config.toml` に書くモデル ID を確認する:
@@ -147,7 +147,7 @@ python -m venv .venv
 ### 他の OpenAI 互換サーバー（Ollama 等）
 
 本ツールは OpenAI 互換の `chat/completions` を使うので、LM Studio 以外のサーバーでも
-動きます。
+動く。
 
 - `config.toml` の `[llm] base_url` をそのサーバーに合わせる。Ollama は `ollama serve`
   を起動して `http://localhost:11434/v1`。
@@ -198,7 +198,7 @@ model = "large-v3-turbo"  # 既定。精度優先なら "large-v3"、軽さ優�
 
 ## 5. 動作確認
 
-短い動画（スライド提示のある 1〜2 分程度）で試します。
+短い動画（スライド提示のある 1〜2 分程度）で試す。
 
 **macOS / Linux**（venv 有効化済み。未有効化なら `.venv/bin/python` を明示）:
 
@@ -214,13 +214,13 @@ python src/meeting_minutes/gui.py              # GUI
 .venv\Scripts\python src\meeting_minutes\gui.py
 ```
 
-`output/sample/minutes.md` が生成されれば成功です。venv を有効化しているか、
-上のように venv 内の Python を明示すれば、どの OS でも同じコマンド構成で動きます
-（Python はパス区切りに `/` も `\` も受けます。venv 未有効化のまま素の `python` で
-呼ぶとグローバル環境が使われ ImportError になります）。
+`output/sample/minutes.md` が生成されれば成功。venv を有効化しているか、
+上のように venv 内の Python を明示すれば、どの OS でも同じコマンド構成で動く
+（Python はパス区切りに `/` も `\` も受ける。venv 未有効化のまま素の `python` で
+呼ぶとグローバル環境が使われ ImportError になる）。
 
 > 開発者向けには `python -m meeting_minutes.cli sample.mp4` / `-m meeting_minutes.gui`
-> でも起動できます（その場合は `cd src` するか `PYTHONPATH=src` を設定してください）。
+> でも起動できる（その場合は `cd src` するか `PYTHONPATH=src` を設定する）。
 
 ## うまくいかないとき
 
