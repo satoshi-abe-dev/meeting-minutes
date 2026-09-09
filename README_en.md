@@ -171,20 +171,18 @@ Placeholders you can use in a template:
 
 The starter is [`templates/minutes_template_example.txt`](templates/minutes_template_example.txt) (identical to built-in). Copying it and rewriting the headings is the quick path.
 
-## Known limitations and next steps
+## Limitations and caveats
 
-| Limitation | Note |
+| Item | Note |
 | --- | --- |
-| When transcription is slow | With `backend=auto`, Apple Silicon uses GPU-backed mlx-whisper. Pinning `backend=faster-whisper` runs CPU-only on a Mac, where `large-v3` takes tens of minutes for a one-hour meeting. `medium` / `large-v3-turbo` cut that further |
-| Progress does not move under mlx | mlx-whisper returns its result in one go, so the progress bar stays at 0 during transcription and then jumps at the end (faster-whisper updates incrementally) |
-| Misrecognition of song / BGM sections | Endless repetition of the same phrase is handled with `condition_on_previous_text=False`. One-off mishearings are a general Whisper-family trait and can remain, so for meetings with a lot of singing or applause, eyeballing the transcript is recommended |
-| No speaker diarization | There is no "who spoke" label (everything is written as `参加者` / "participant") |
-| Reasoning models are ill-suited to minutes generation | Reasoning models such as Qwen3 / DeepSeek-R1 spend a lot of time and tokens on invisible "thinking" and are extremely slow / return empty bodies. **Use a non-reasoning Instruct model** (an empty response is surfaced as an error saying "used up max_tokens on thinking") |
-| Resume from mid-way | Transcription, frame extraction, **frame analysis (per frame)**, and **chunk summaries (per chunk)** reuse intermediate files and only re-run what was redone (disable with `--fresh` / the GUI checkbox). Before processing starts, connectivity to the LLM server is checked so it fails early |
-| Interruption is not fully immediate | The GUI "Stop" reacts at stage / frame / chunk boundaries. However, **during an mlx-whisper transcription call** and **during ffmpeg execution** it waits for that stage to finish |
-| Settings cannot be changed from the GUI | Edit `config.toml` directly |
-
-Automatic retry when the LLM times out or drops the connection is not implemented yet (re-run to recover for now).
+| Transcription speed depends on your environment | It varies a lot with machine performance and the model size / backend you pick. See [Configuration](#configuration) for how to choose |
+| Transcription accuracy has limits | Mishearings can remain in sections with a lot of singing / BGM / applause, so eyeballing the transcript is recommended for important meetings |
+| Progress-bar granularity depends on the backend | With a backend that does not return results incrementally, the progress bar looks stuck and then jumps to the end on completion |
+| No speaker labels | There is no "who spoke" label (everything is written as `参加者` / "participant") |
+| Minutes generation is for non-reasoning models | Reasoning ("thinking") models are extremely slow and can return an empty body. Use an Instruct model |
+| Interruption / resume is at stage boundaries | Intermediate files are reused so only the redone parts re-run (disable with `--fresh` / the GUI checkbox). A stop takes effect after the running stage finishes |
+| Settings are edited in the config file | They cannot be changed from the GUI |
+| No automatic retry when the LLM times out or drops | Re-run to recover for now |
 
 > 💡 **If you just want to run it, you can stop here.** The rest explains the
 > pipeline's internal design (the split via `pipeline.run` / `Deps`) and the
@@ -223,6 +221,18 @@ pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipp
 ## Development process (AI-assisted collaboration)
 
 This project was implemented by **two role-separated Claude Code sessions** (independent `claude` processes) working together.
+
+```
+  owner ──requirements / approval──▶ worker ──PR──▶ manager ──merge──▶ main
+                                     ▲              │
+                                     │              ├─ re-run pytest / confidential-data grep
+                                     └──send-back───┤
+                                       (fix)        └─ Codex (different vendor) independent review
+
+  * worker <-> manager do not share conversation context (the manager sees only the final diff and report)
+  * repeat implement -> verify -> send-back -> fix -> re-verify until every check is clear
+  * roles / prohibitions / review criteria are written out in .claude/CLAUDE.md
+```
 
 - **worker** — the session that handles implementation, tests, and git operations
 - **manager** — the session that reviews the PRs the worker opens and merges them to `main`. Merges only after checking for leaked confidential data (proper nouns from real meetings), the `.gitignore` exclusions, that the diff stays within the intended scope, and the absence of destructive operations
