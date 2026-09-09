@@ -250,15 +250,19 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
 プロセス）を協調させて実装した。
 
 ```
-  本人 ──要件・承認──▶ worker ──PR──▶ manager ──マージ──▶ main
-                       ▲              │
-                       │              ├─ pytest / 機密 grep を再実行
-                       └──差し戻し────┤
-                         （修正）     └─ Codex（別ベンダー）独立レビュー
+  [通常フロー]   本人 ─→ worker ─(PR)→ manager ─(マージ)→ main
 
-  ・worker ⇔ manager は会話コンテキスト非共有（manager は最終 diff と報告のみ見る）
-  ・全チェックがクリアするまで 実装→検証→差し戻し→修正→再検証 を繰り返す
-  ・役割・禁止事項・レビュー基準は .claude/CLAUDE.md に明文化
+  [マージ前チェック / manager]
+     ・pytest と機密 grep を manager 自身が再実行
+     ・diff を直接確認
+     ・Codex（別ベンダー）による独立レビュー
+
+  [差し戻しループ]
+     指摘あり → 差し戻し（該当箇所・再現条件・対処方針）
+             → worker 修正 → 再検証 → 全チェックがクリアするまで繰り返す
+
+  ※ worker と manager は会話コンテキストを共有しない
+    （manager は最終 diff と報告のみを見る）
 ```
 
 - **worker** — 実装・テスト・git 操作を担当するセッション
