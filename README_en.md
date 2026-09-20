@@ -30,7 +30,15 @@ English | [日本語](README_ja.md)
 
 ## Background
 
-Meeting minutes are a natural fit for AI automation. But meeting audio and shared screens often carry customer data or non-public business and HR information, and under NDAs, data-protection law, GDPR, or internal policy, that recording cannot be sent to a cloud transcription/summarization service.
+Meeting minutes are a natural fit for AI automation. But meeting audio and shared
+screens often carry customer data or non-public business and HR information, so
+many teams cannot send that recording to a cloud transcription/summarization
+service. Common constraints:
+
+- NDAs
+- Data-protection law
+- GDPR
+- Internal policy
 
 ## Overview
 
@@ -76,9 +84,9 @@ This project was developed by running multiple Claude Code sessions (an implemen
 </tr>
 </table>
 
-Pick a video and click "Create minutes", then watch transcription → frame analysis →
-minutes generation proceed with a progress bar and a log. Custom templates
-("Choose a file") are supported too.
+1. Pick a video and click "Create minutes"
+2. Watch transcription → frame analysis → minutes generation proceed, with a progress bar and a log
+3. Custom templates ("Choose a file") are supported too
 
 ## Setup
 

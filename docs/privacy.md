@@ -21,12 +21,15 @@
 `python src/meeting_minutes/download_transcribe_model.py`）が HuggingFace から Whisper
 モデルの重みをダウンロードする。会議の音声・映像・テキストは送らない。
 
-アプリ本体（`cli.py` / `gui.py`）は実行時に外部通信しない。エントリポイントで
-`HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` を立てて HuggingFace 系ライブラリの通信を
-止め、さらに文字起こし側でローカルキャッシュの有無を明示チェックする。モデルが
-未取得なら**自動ダウンロードせずエラーで停止**する（「先に `bash scripts/setup.sh`
-を実行してください」）。エアギャップ環境では `HF_HOME` を社内ミラーに向けるか、
-キャッシュを配布物に含め、セットアップ時にモデルが揃った状態にしておく。
+アプリ本体（`cli.py` / `gui.py`）は実行時に外部通信しない。
+
+- エントリポイントで `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` を立て、
+  HuggingFace 系ライブラリの通信を止める
+- 文字起こし側でローカルキャッシュの有無を明示チェックする
+- モデルが未取得なら**自動ダウンロードせずエラーで停止**する
+  （「先に `bash scripts/setup.sh` を実行してください」）
+- エアギャップ環境では `HF_HOME` を社内ミラーに向けるか、キャッシュを配布物に
+  含め、セットアップ時にモデルが揃った状態にしておく
 
 ## オフラインで動くことの確認
 
