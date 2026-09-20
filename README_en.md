@@ -75,7 +75,7 @@ output/<video name>/
 
 This project was developed by running multiple Claude Code sessions (an implementer and a reviewer) in coordination, with a defined division of roles and review process (→ [Development process](#development-process-ai-assisted-collaboration)).
 
-## Demo
+## GUI
 
 <table>
 <tr>
