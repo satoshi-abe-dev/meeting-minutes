@@ -1,13 +1,16 @@
 # セットアップ手順
 
-対応 OS: **macOS / Windows / Linux**。文字起こしは Apple Silicon の Mac では GPU 加速の
-mlx-whisper、それ以外（Windows / Linux / Intel Mac）では CPU の faster-whisper を使う
-（`config.toml` の `[transcribe] backend` は既定 `auto` で自動選択）。
+対応 OS: **macOS / Windows / Linux**。文字起こしのバックエンドは OS で自動的に決まる
+（`config.toml` の `[transcribe] backend` は既定 `auto`）:
 
-> 開発・実機検証は macOS 中心。Windows / Linux は依存関係（`requirements.txt` の環境
-> マーカーで mlx を自動スキップ）と CI（`ubuntu-latest` / `windows-latest` / `macos-latest`
-> の 3 OS マトリクスで全テスト pass）レベルでは対応済みだが、フルパイプラインの実機
-> 確認は未。
+- Apple Silicon の Mac — GPU 加速の mlx-whisper
+- それ以外（Windows / Linux / Intel Mac） — CPU の faster-whisper
+
+> 開発・実機検証は macOS 中心。Windows / Linux の対応状況:
+>
+> - 依存関係: `requirements.txt` の環境マーカーで mlx を自動スキップ
+> - CI: `ubuntu-latest` / `windows-latest` / `macos-latest` の 3 OS マトリクスで全テスト pass
+> - フルパイプラインの実機確認は未
 
 ## 1. ffmpeg
 
@@ -83,13 +86,15 @@ python -m venv .venv
 
 ### モデルの置き場所と配布
 
-モデルは **利用者のホームの共有キャッシュ**（`~/.cache/huggingface/hub/`、Windows は
-`%USERPROFILE%\.cache\huggingface\hub\`。`HF_HOME` で変更可）に入る。リポジトリには
-含めないので、**各利用者の初回セットアップ時に一度だけ
-ダウンロード**が発生する（`scripts/setup.sh` がそれを済ませる）。アプリ実行時は
-オフライン強制なので、このセットアップ時の取得が唯一のダウンロード機会。エアギャップ
-環境では `HF_HOME` を社内ミラー/共有ストレージに向けるか、キャッシュを配布イメージに
-含めたうえで、セットアップ時にモデルが揃っている状態にしておく。
+モデルの配布とキャッシュ:
+
+- モデルは **利用者のホームの共有キャッシュ**（`~/.cache/huggingface/hub/`、Windows は
+  `%USERPROFILE%\.cache\huggingface\hub\`。`HF_HOME` で変更可）に入る
+- リポジトリには含めないので、**各利用者の初回セットアップ時に一度だけダウンロード**が
+  発生する（`scripts/setup.sh` がそれを済ませる）
+- アプリ実行時はオフライン強制なので、このセットアップ時の取得が唯一のダウンロード機会
+- エアギャップ環境では `HF_HOME` を社内ミラー/共有ストレージに向けるか、キャッシュを
+  配布イメージに含めたうえで、セットアップ時にモデルが揃っている状態にしておく
 
 ## 3. ローカル LLM サーバー（LM Studio）
 
@@ -190,11 +195,14 @@ model = "large-v3-turbo"  # 既定。精度優先なら "large-v3"、軽さ優�
 
 > `python src/meeting_minutes/download_transcribe_model.py` は `config.toml`（無ければ
 > `config.example.toml`）の `[transcribe] backend` / `model` を見て、その組み合わせの
-> Whisper モデルを取得する。§2 の `setup.sh` は §4 の前に走るので既定
-> （`large-v3-turbo`）は取得済み。**§4 で `model` / `backend` を既定から変えたら
-> `python src/meeting_minutes/download_transcribe_model.py` を再実行**して取り直す
-> （アプリ実行時は自動ダウンロードしない）。venv 未有効化なら §2 の読み替え規約どおり
-> `.venv\Scripts\python …`（macOS / Linux は `.venv/bin/python …`）で叩く。
+> Whisper モデルを取得する。
+>
+> - §2 の `setup.sh` は §4 の前に走るので既定（`large-v3-turbo`）は取得済み
+> - **§4 で `model` / `backend` を既定から変えたら
+>   `python src/meeting_minutes/download_transcribe_model.py` を再実行**して取り直す
+>   （アプリ実行時は自動ダウンロードしない）
+> - venv 未有効化なら §2 の読み替え規約どおり `.venv\Scripts\python …`
+>   （macOS / Linux は `.venv/bin/python …`）で叩く
 
 ## 5. 動作確認
 

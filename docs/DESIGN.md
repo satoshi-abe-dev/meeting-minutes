@@ -14,8 +14,12 @@
 STT や生成 AI に録音を送れない現場。ここでは「精度が少し落ちても、外に出ないこと」が
 機能要件そのもの。
 
-**トレードオフ:** ローカル LLM は日本語要約の品質がクラウド最上位モデルに劣る。
-`large-v3` の文字起こしは Mac では CPU 実行で遅い。導入側にそれなりの RAM が要る。
+**トレードオフ:**
+
+- ローカル LLM は日本語要約の品質がクラウド最上位モデルに劣る
+- `large-v3` の文字起こしは Mac では CPU 実行で遅い
+- 導入側にそれなりの RAM が要る
+
 これらは「外部送信しない」と引き換えに受け入れる前提。
 
 ---
@@ -71,19 +75,25 @@ STT や生成 AI に録音を送れない現場。ここでは「精度が少し
 **不採用にした案:** `openai` パッケージ経由。動くが、この用途では依存とバージョン制約が
 増えるだけで得るものが少ない。
 
-**タイムアウトは「サーバーが死んでいる」と「応答が長い」を区別する:** 実際に、議事録の
-最終統合（部分要約より出力トークン数が多い）が既定タイムアウト180秒を超えて失敗する
-不具合があった。原因はサーバーの不調ではなく、単に大きいモデルの生成に時間がかかった
-だけ。`httpx.TimeoutException`（`RequestError` の一種）を先に catch し、「サーバーを
-起動してください」ではなく「`timeout` を増やしてください」という専用メッセージを返す
-ようにした。あわせて既定 `timeout` を 180 → 600 秒に引き上げた。
+**タイムアウトは「サーバーが死んでいる」と「応答が長い」を区別する:**
 
-**推論（reasoning）モデルは議事録生成に使わない（前提条件）:** `qwen/qwen3.8-27b`
-（Qwen3 系の推論モデル）で、チャンク要約が `### 部分 N` の見出しだけ・本文が空で
-保存される不具合が起きた。原因は、推論モデルが見えない思考を `message.reasoning_content`
-に出力し、`max_tokens` をそこで使い切って可視の `message.content` が空のまま
-`finish_reason=length` で返ってくること（HTTP は 200 なので気づきにくい）。実測で
-約5000文字のチャンクに思考4129文字、成功時 433 秒/チャンクと実用外だった。対応:
+- 不具合: 議事録の最終統合（部分要約より出力トークン数が多い）が既定タイムアウト
+  180秒を超えて失敗する
+- 原因: サーバーの不調ではなく、単に大きいモデルの生成に時間がかかっただけ
+- 対処: `httpx.TimeoutException`（`RequestError` の一種）を先に catch し、
+  「サーバーを起動してください」ではなく「`timeout` を増やしてください」という
+  専用メッセージを返すようにした。あわせて既定 `timeout` を 180 → 600 秒に引き上げた
+
+**推論（reasoning）モデルは議事録生成に使わない（前提条件）:**
+
+- 不具合: `qwen/qwen3.8-27b`（Qwen3 系の推論モデル）で、チャンク要約が
+  `### 部分 N` の見出しだけ・本文が空で保存される
+- 原因: 推論モデルが見えない思考を `message.reasoning_content` に出力し、
+  `max_tokens` をそこで使い切って可視の `message.content` が空のまま
+  `finish_reason=length` で返ってくる（HTTP は 200 なので気づきにくい）
+- 実測: 約5000文字のチャンクに思考4129文字、成功時 433 秒/チャンクと実用外
+
+対応:
 
 - `llm_client` で「`content` 空 かつ `reasoning_content` あり」を検知し、
   「思考で max_tokens を使い切った。増やすか reasoning を下げて」という明示エラーに。
@@ -121,11 +131,13 @@ STT や生成 AI に録音を送れない現場。ここでは「精度が少し
 **この前提は文書化と設定化が必要だった（2026-09、Issue #16）:** 「32k コンテキスト
 前提」とコード内コメントに書いただけで `docs/models.md` に設定手順が無く、LM Studio で
 Context Length を上げていないユーザーが一発生成時に HTTP 400（context length 不足）を
-踏んだ。対応: (1) `docs/models.md` に Context Length を 32768 以上にする手順を明記、
-(2) `llm_client` がこの 400 を検出して原因の分かる日本語ヒントに変換、
-(3) 閾値を `config.toml` の `[llm] chunk_trigger_chars` / `chunk_size_chars` で
-調整可能にし、小さいコンテキストのモデルでも下げて分割モードで回せるようにした
-（`minutes.py` の `_CHUNK_TRIGGER_CHARS` / `_CHUNK_SIZE_CHARS` はその既定値）。
+踏んだ。対応:
+
+- `docs/models.md` に Context Length を 32768 以上にする手順を明記
+- `llm_client` がこの 400 を検出して原因の分かる日本語ヒントに変換
+- 閾値を `config.toml` の `[llm] chunk_trigger_chars` / `chunk_size_chars` で
+  調整可能にし、小さいコンテキストのモデルでも下げて分割モードで回せるように
+  した（`minutes.py` の `_CHUNK_TRIGGER_CHARS` / `_CHUNK_SIZE_CHARS` はその既定値）
 
 **文字数しきい値そのものが甘かった（2026-09、Issue #18）:** Context Length を
 32768 に正しく設定しても、既定 `_CHUNK_TRIGGER_CHARS=40000` のままだと一発生成が
@@ -148,33 +160,45 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 - 取れないときのため `[llm] context_tokens` で実値を直接指定もできる。
 実測に基づくテストを `test_minutes.py` / `test_llm_client.py` に追加。
 
-**チャンク要約は1つ終えるたびに `work/minutes_partials.json` へ保存する:** 実際に、
-チャンク要約が2つとも終わったあとの最終統合（出力トークン数が多い）だけがタイムアウト
-する事例があった。チャンク要約自体は無事終わっているのに、`generate_minutes()` は
-1回の呼び出しなので失敗すれば全部やり直しだった。`_save_partials()` で完了ぶんを
-都度ディスクに書き、`reuse=True`（既定）での再実行時は `_load_partials()` で読み戻し、
-終わっているチャンクを要約し直さない。`out_dir` を渡さない呼び出し（テスト等）では
-この永続化自体が無効になるだけで、動作は変わらない。
+**チャンク要約は1つ終えるたびに `work/minutes_partials.json` へ保存する:**
+
+- 不具合: チャンク要約が2つとも終わったあとの最終統合（出力トークン数が多い）
+  だけがタイムアウトする事例があった
+- 問題点: チャンク要約自体は無事終わっているのに、`generate_minutes()` は
+  1回の呼び出しなので失敗すれば全部やり直しだった
+- 対処: `_save_partials()` で完了ぶんを都度ディスクに書き、`reuse=True`（既定）
+  での再実行時は `_load_partials()` で読み戻し、終わっているチャンクを
+  要約し直さない
+- `out_dir` を渡さない呼び出し（テスト等）では、この永続化自体が無効になるだけで
+  動作は変わらない
 
 **保存ファイルにチャンク境界のシグネチャを持たせる（2026-09、Codex レビュー指摘）:**
-`work/minutes_partials.json` は `chunk_size_chars` と分割入力のセグメント総数を一緒に
-保存する（`format: 2`）。再開時にこれが現在の設定と一致しなければキャッシュを
-破棄して最初から要約し直す。これが無いと、Context Length 対策で
-`chunk_size_chars` を下げて再開したとき、旧境界の部分要約が新しいチャンク列に
-件数だけで採用され、議事録の内容がエラーなく重複・欠落していた。メタ情報の無い
-旧形式（JSON 配列）も境界を検証できないため採用しない。
 
-**議事録の「構造」を外部テンプレートで差し替え可能に（2026-09、Issue #21）:** お客様
-ごとの規定様式に対応するため、`_MINUTES_TEMPLATE` を「構造（`_MINUTES_STRUCTURE`）」と
-「入力セクション（`_INPUT_TRANSCRIPT` / `_INPUT_FRAMES`）」に分割。`config.toml` の
-`[output] template_path` で構造を差し替える（`generate_minutes(template_path=...)` へは
-`pipeline` が config から渡す）。実行時の一時上書き経路は、当初 GUI ボタン
-＋ CLI `--template` で付け → 一度削除し → 最終的に GUI の「議事録フォーマット」
-ドロップダウン（`ttk.Combobox`）として復活させた。先頭固定項目が `config.toml` の設定
-（`内蔵（既定）` またはファイル名）、「ファイルを選択...」でその回だけ差し替え、先頭項目を
-選び直せば戻る。CLI 側の一時上書きは復活させていない（`config.toml` で足りる）。
-ユーザー向け用語は「内蔵（既定のフォーマット）」で統一し、ツールチップで「会議内容で
-動的に変わらない固定の構成」であることを補足する。要点:
+- `work/minutes_partials.json` は `chunk_size_chars` と分割入力のセグメント総数を
+  一緒に保存する（`format: 2`）
+- 再開時にこれが現在の設定と一致しなければキャッシュを破棄して最初から要約し直す
+- これが無いと、Context Length 対策で `chunk_size_chars` を下げて再開したとき、
+  旧境界の部分要約が新しいチャンク列に件数だけで採用され、議事録の内容が
+  エラーなく重複・欠落していた
+- メタ情報の無い旧形式（JSON 配列）も境界を検証できないため採用しない
+
+**議事録の「構造」を外部テンプレートで差し替え可能に（2026-09、Issue #21）:**
+
+- お客様ごとの規定様式に対応するため、`_MINUTES_TEMPLATE` を
+  「構造（`_MINUTES_STRUCTURE`）」と「入力セクション（`_INPUT_TRANSCRIPT` /
+  `_INPUT_FRAMES`）」に分割
+- `config.toml` の `[output] template_path` で構造を差し替える
+  （`generate_minutes(template_path=...)` へは `pipeline` が config から渡す）
+- 実行時の一時上書き経路は、当初 GUI ボタン＋ CLI `--template` で付け →
+  一度削除し → 最終的に GUI の「議事録フォーマット」ドロップダウン
+  （`ttk.Combobox`）として復活させた
+- 先頭固定項目が `config.toml` の設定（`内蔵（既定）` またはファイル名）、
+  「ファイルを選択...」でその回だけ差し替え、先頭項目を選び直せば戻る
+- CLI 側の一時上書きは復活させていない（`config.toml` で足りる）
+- ユーザー向け用語は「内蔵（既定のフォーマット）」で統一し、ツールチップで
+  「会議内容で動的に変わらない固定の構成」であることを補足する
+
+要点:
 
 - **システムプロンプト（`prompts/minutes_ja.txt` の捏造禁止等）はテンプレートに関わらず
   常に適用**。テンプレートは構造だけ。品質ルールを客先様式に巻き込ませない。
@@ -189,12 +213,15 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
   で警告（`load_minutes_structure`）。
 - 一発生成・分割生成の統合ステップの両方で同じ `structure` を使う。
 
-**GUI のフォーマット選択はラジオ 3 択に（2026-09、Issue #34 PR-B）:** 上記の
-`ttk.Combobox` は「選択済み項目がハイライトされたままで選び直しにくい」「幅が中身に
-合わない」問題があり、`ttk.Radiobutton` の排他 3 択（内蔵（既定）／ファイルを選択／
-おまかせ）に置き換えた。`_start()` で `output.auto_structure` と `output.template_path` を
-**毎回**ラジオの状態から設定する（`config.toml` で `auto_structure=true` でも GUI の
-明示選択が優先。3 ラジオが排他的に 1 状態を表す）。
+**GUI のフォーマット選択はラジオ 3 択に（2026-09、Issue #34 PR-B）:**
+
+- 課題: 上記の `ttk.Combobox` は「選択済み項目がハイライトされたままで選び直し
+  にくい」「幅が中身に合わない」問題があった
+- 対応: `ttk.Radiobutton` の排他 3 択（内蔵（既定）／ファイルを選択／おまかせ）
+  に置き換えた
+- `_start()` で `output.auto_structure` と `output.template_path` を**毎回**
+  ラジオの状態から設定する（`config.toml` で `auto_structure=true` でも GUI の
+  明示選択が優先。3 ラジオが排他的に 1 状態を表す）
 
 **「おまかせ」モード（2026-09、Issue #34）:** 動画の内容に合わせて見出し構成そのものを
 LLM に提案させる 3 つ目の選択肢。`config.toml` の `[output] auto_structure`（優先順位
@@ -239,10 +266,14 @@ Word で開きたい・そのまま配布したいという要望。GUI に選�
 
 ## 6. 文字起こしバックエンド（faster-whisper / mlx）
 
-**判断:** `transcribe.py` は 2 実装を持ち、`config.backend` で選ぶ。
-`transcribe_wav()` は薄いディスパッチャで、`resolve_backend()` の結果に応じて
-`_transcribe_faster_whisper()` か `_transcribe_mlx()` を呼ぶ。シグネチャは据え置き
-なので `pipeline.Deps` も既存テストも無変更。
+**判断:**
+
+- `transcribe.py` は 2 実装を持ち、`config.backend` で選ぶ
+- `transcribe_wav()` は薄いディスパッチャで、`resolve_backend()` の結果に応じて
+  `_transcribe_faster_whisper()` か `_transcribe_mlx()` を呼ぶ
+- シグネチャは据え置きなので `pipeline.Deps` も既存テストも無変更
+
+2 実装の違い:
 
 - **faster-whisper（CTranslate2）** — どの OS でも動く。日本語精度が実用的で
   `vad_filter` が使える。ただし **Apple Silicon の GPU を使えず Mac では CPU 実行**。
@@ -254,27 +285,35 @@ Word で開きたい・そのまま配布したいという要望。GUI に選�
 `platform.machine() == "arm64"` かつ `mlx_whisper` が import 可能なら `"mlx"`、
 それ以外は `"faster-whisper"`。明示指定（`"mlx"` / `"faster-whisper"`）はそのまま従う。
 
-**`model` の扱い:** ユーザーはサイズ名（`large-v3` / `large-v3-turbo` / `medium` /
-`small`）だけ指定する。各バックエンドが実体へ変換する（faster-whisper はそのまま、
-mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含む文字列は
-フル HF リポジトリ名として素通しする。LLM の `model` / `vlm_model` を 2 キーに
-分けたのと違い、ここは「1 論理名＋変換表」にした（ユーザーの選択肢を減らすため）。
+**`model` の扱い:**
 
-**mlx の割り切り:** mlx-whisper は結果を一括で返す（ジェネレータではない）ため、
-文字起こし中の逐次進捗が出せない。開始時に説明メッセージを 1 回出し、完了後に
-セグメントを変換しながら `on_progress` を回す（進捗バーは 0 → 100 に飛ぶ）。
-逐次表示が要るなら音声を自前でチャンク分割する必要があり、それは今回のスコープ外。
+- ユーザーはサイズ名（`large-v3` / `large-v3-turbo` / `medium` / `small`）だけ指定する
+- 各バックエンドが実体へ変換する（faster-whisper はそのまま、mlx は
+  `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）
+- `/` を含む文字列はフル HF リポジトリ名として素通しする
+- LLM の `model` / `vlm_model` を 2 キーに分けたのと違い、ここは
+  「1 論理名＋変換表」にした（ユーザーの選択肢を減らすため）
 
-**モデルは事前取得必須、実行時はオフライン強制:** Whisper モデル（既定
-`large-v3-turbo`、約 1.6GB）はリポジトリに含めず HuggingFace の共有キャッシュ
-（`~/.cache/huggingface/hub/`）に入る。取得は **セットアップ時の 1 回だけ**。
-`scripts/setup.sh` が venv 作成・依存導入に続けて
-`python src/meeting_minutes/download_transcribe_model.py`
-（→ `meeting_minutes.download_transcribe_model`）を呼ぶ。この取得スクリプトは
-`resolve_backend()` の結果に
-合うモデルだけを落とし、取得済みなら何もしない（冪等）。**取得は必須で、失敗したら
-`set -e` でセットアップ自体を失敗終了させる**（旧: 失敗を握りつぶし「初回実行時に
-自動DL」と案内していた）。
+**mlx の割り切り:**
+
+- mlx-whisper は結果を一括で返す（ジェネレータではない）ため、文字起こし中の
+  逐次進捗が出せない
+- 開始時に説明メッセージを 1 回出し、完了後にセグメントを変換しながら
+  `on_progress` を回す（進捗バーは 0 → 100 に飛ぶ）
+- 逐次表示が要るなら音声を自前でチャンク分割する必要があり、それは今回のスコープ外
+
+**モデルは事前取得必須、実行時はオフライン強制:**
+
+- Whisper モデル（既定 `large-v3-turbo`、約 1.6GB）はリポジトリに含めず
+  HuggingFace の共有キャッシュ（`~/.cache/huggingface/hub/`）に入る。取得は
+  **セットアップ時の 1 回だけ**
+- `scripts/setup.sh` が venv 作成・依存導入に続けて
+  `python src/meeting_minutes/download_transcribe_model.py`
+  （→ `meeting_minutes.download_transcribe_model`）を呼ぶ
+- この取得スクリプトは `resolve_backend()` の結果に合うモデルだけを落とし、
+  取得済みなら何もしない（冪等）
+- **取得は必須で、失敗したら `set -e` でセットアップ自体を失敗終了させる**
+  （旧: 失敗を握りつぶし「初回実行時に自動DL」と案内していた）
 
 アプリ実行時（`cli.py` / `gui.py`）は一切外部通信させない。二段構え:
 
@@ -299,15 +338,22 @@ mlx は `_MLX_MODEL_MAP` で `mlx-community/whisper-<size>` へ）。`/` を含�
 LM Studio 側の LLM/VLM は別管理なので、モデル取得スクリプト・オフライン強制いずれの
 対象外。
 
-**空耳の繰り返し（repetition loop）対策:** 実際に起きた不具合。歌や BGM を含む区間で、
-faster-whisper・mlx-whisper 共通の既定 `condition_on_previous_text=True`（直前の窓の
-出力を次の窓の文脈にする）が災いし、同じ空耳フレーズを何十行も繰り返す幻覚が発生した。
-両バックエンドで `condition_on_previous_text=False` を明示
-指定して対処（前の窓の誤りに引きずられなくなる）。**残る限界:** 完全な無音や歌唱区間で
-単発の幻覚（Whisper 系モデル定番の「ご視聴ありがとうございました」等）が1行だけ混じる
-ことはある。`no_speech_threshold` / `logprob_threshold` の既定値では防ぎきれない
-Whisper 全般の既知の癖で、"大量に同じ行が続くループ" は防げても "たまに1行だけ変な行"
-はゼロにできない。歌・拍手・BGM が多い会議は文字起こしの目視確認を推奨する。
+**空耳の繰り返し（repetition loop）対策:**
+
+- 不具合: 歌や BGM を含む区間で、faster-whisper・mlx-whisper 共通の既定
+  `condition_on_previous_text=True`（直前の窓の出力を次の窓の文脈にする）が
+  災いし、同じ空耳フレーズを何十行も繰り返す幻覚が発生した
+- 対処: 両バックエンドで `condition_on_previous_text=False` を明示指定
+  （前の窓の誤りに引きずられなくなる）
+
+**残る限界:**
+
+- 完全な無音や歌唱区間で単発の幻覚（Whisper 系モデル定番の
+  「ご視聴ありがとうございました」等）が1行だけ混じることはある
+- `no_speech_threshold` / `logprob_threshold` の既定値では防ぎきれない Whisper
+  全般の既知の癖で、"大量に同じ行が続くループ" は防げても "たまに1行だけ変な行"
+  はゼロにできない
+- 歌・拍手・BGM が多い会議は文字起こしの目視確認を推奨する
 
 ---
 
@@ -338,9 +384,13 @@ Whisper 全般の既知の癖で、"大量に同じ行が続くループ" は防
 
 ## 8.5 GUI の構成（Model-View-Presenter、2026-09、Issue #49）
 
-**判断:** `gui.py` の 1 クラス（`App`）に混在していた「ウィジェット構築」「画面ロジック
-（進捗率計算・フォーマット 3 択の解決・成功/失敗/中断の状態遷移）」「実処理の起動」を、
-参考プロジェクト `tkinter-task-manager-mvp` と同じ Model-View-Presenter に分けた。
+**判断:** `gui.py` の 1 クラス（`App`）に混在していた次を、参考プロジェクト
+`tkinter-task-manager-mvp` と同じ Model-View-Presenter に分けた:
+
+- ウィジェット構築
+- 画面ロジック（進捗率計算・フォーマット 3 択の解決・成功/失敗/中断の状態遷移）
+- 実処理の起動
+
 本プロジェクトはタブが無い単一画面なので、参考実装よりフラットな構成にしている。
 
 ```
@@ -373,26 +423,31 @@ src/meeting_minutes/
 
 ## 8.6 エントリポイントも src/ 配下へ（2026-09、Issue #51）
 
-**判断:** リポジトリ直下にあった `gui.py` / `cli.py` / `download_transcribe_model.py`
-（当時は `prefetch.py`。ルートの薄いランチャー）を `src/meeting_minutes/` 配下へ移し、
-直下から `.py` を無くした。参考
-プロジェクト `tkinter-task-manager-mvp` と同じ構成。ルートのランチャーが持っていた
-`sys.path.insert(0, ".../src")` は、次の `__package__` ブートストラップに置き換えた:
+**判断:**
+
+- リポジトリ直下にあった `gui.py` / `cli.py` / `download_transcribe_model.py`
+  （当時は `prefetch.py`。ルートの薄いランチャー）を `src/meeting_minutes/` 配下へ移し、
+  直下から `.py` を無くした（参考プロジェクト `tkinter-task-manager-mvp` と同じ構成）
+- ルートのランチャーが持っていた `sys.path.insert(0, ".../src")` は、次の
+  `__package__` ブートストラップに置き換えた:
 
 ```python
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ```
 
-`python src/meeting_minutes/gui.py` のようにファイル指定で起動すると `__package__` が
-未設定なので `src/` を `sys.path` に足す。`python -m meeting_minutes.gui` で起動された
-場合は `__package__` が設定済みなので何もしない（この場合は `cd src` するか
-`PYTHONPATH=src` が要る）。両方の起動方法が動く。
+- `python src/meeting_minutes/gui.py` のようにファイル指定で起動すると
+  `__package__` が未設定なので `src/` を `sys.path` に足す
+- `python -m meeting_minutes.gui` で起動された場合は `__package__` が
+  設定済みなので何もしない（この場合は `cd src` するか `PYTHONPATH=src` が要る）
+- 両方の起動方法が動く
 
 **主たる案内コマンドはファイル指定形式**（`python src/meeting_minutes/gui.py`）にした。
-非エンジニア利用者向けに「clone して 1 コマンド」の手軽さを保つため、`PYTHONPATH` の
-設定や `cd` を要求する `-m` 形式より、パスが長くなるだけで追加設定の要らないファイル
-指定形式を採る（8 節の設計判断の延長）。`-m` 形式は開発者向けの補足として併記する。
+
+- 非エンジニア利用者向けに「clone して 1 コマンド」の手軽さを保つため、
+  `PYTHONPATH` の設定や `cd` を要求する `-m` 形式より、パスが長くなるだけで
+  追加設定の要らないファイル指定形式を採る（8 節の設計判断の延長）
+- `-m` 形式は開発者向けの補足として併記する
 
 `download_transcribe_model.py` は元々 `from .config import ...` という相対 import
 だったので、ファイル指定起動でも通るよう絶対 import
@@ -403,11 +458,16 @@ if __package__ in (None, ""):
 
 ## 8.7 Model 層を model/ にまとめる（2026-09、Issue #53）
 
-**判断:** 実処理の 10 モジュール（`audio` / `cancel` / `config` / `ffmpeg_utils` /
-`frames` / `llm_client` / `minutes` / `pipeline` / `transcribe` / `vision`）を
-`src/meeting_minutes/model/` へ移し、`view/` + `presenter/` + `model/` の対称な
-構成にした（参考プロジェクト `tkinter-task-manager-mvp` と同じ）。`gui.py` /
-`cli.py` / `download_transcribe_model.py`（エントリポイント）は直下のまま。
+**判断:**
+
+- 実処理の 10 モジュール（`audio` / `cancel` / `config` / `ffmpeg_utils` /
+  `frames` / `llm_client` / `minutes` / `pipeline` / `transcribe` / `vision`）を
+  `src/meeting_minutes/model/` へ移し、`view/` + `presenter/` + `model/` の
+  対称な構成にした（参考プロジェクト `tkinter-task-manager-mvp` と同じ）
+- `gui.py` / `cli.py` / `download_transcribe_model.py`（エントリポイント）は
+  直下のまま
+
+要点:
 
 - **10 モジュールは互いに相対 import**（`from . import audio` 等）なので、まとめて
   `model/` 直下に移すだけで内部参照は変更不要。外部（`gui` / `cli` /
@@ -425,9 +485,16 @@ if __package__ in (None, ""):
 
 ## 8.8 GUI の表示言語 ja/en（2026-09、Issue #55）
 
-**判断:** GUI の画面文言だけを日本語／英語で切り替えられるようにした。対象は
-**GUI の画面テキストのみ** — 文字起こしの言語（`[transcribe] language`）、LLM への
-プロンプト、生成される議事録の中身、CLI の出力は対象外。
+**判断:** GUI の画面文言だけを日本語／英語で切り替えられるようにした。
+
+対象は **GUI の画面テキストのみ**。対象外:
+
+- 文字起こしの言語（`[transcribe] language`）
+- LLM へのプロンプト
+- 生成される議事録の中身
+- CLI の出力
+
+要点:
 
 - **起動時に 1 回だけ選ぶ方式**（動作中のライブ切替はしない）。実行中に文言が
   差し替わる UI を作らずに済み、`presenter` / `view` は言語を 1 個の文字列として
@@ -470,18 +537,21 @@ if __package__ in (None, ""):
 
 ## 9.5 起動前チェックと途中再開
 
-**きっかけ:** 1 時間の会議で文字起こしに数分かけたあと、フレーム解析の段階で
-LM Studio が「No models loaded」を返して全部が無駄になった。長時間処理なのに
-「失敗が遅い」「失敗するとゼロからやり直し」が痛い。
+**きっかけ:**
 
-**起動前チェック（`pipeline.run` の `"preflight"` 段階）:** 音声抽出より前に、
-`client.preflight([config.llm.model, config.llm.vlm_model])` を呼ぶ。各モデルへ
-`max_tokens=1` の極小リクエストを投げ、1 つでも失敗したら**その場で中断**する。
-数分待たされる前に「モデルをロードして」と分かる。副次的に LM Studio の
-Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の本文に
-`No models loaded` / `model_not_found` / `"param": "model"` を見つけたら、
-「JIT を ON にする / Loaded Instances でロード / モデル名を Library と一致させる」
-ヒントを添える。
+- 1 時間の会議で文字起こしに数分かけたあと、フレーム解析の段階で LM Studio が
+  「No models loaded」を返して全部が無駄になった
+- 長時間処理なのに「失敗が遅い」「失敗するとゼロからやり直し」が痛い
+
+**起動前チェック（`pipeline.run` の `"preflight"` 段階）:**
+
+- 音声抽出より前に、`client.preflight([config.llm.model, config.llm.vlm_model])` を呼ぶ
+- 各モデルへ `max_tokens=1` の極小リクエストを投げ、1 つでも失敗したら
+  **その場で中断**する。数分待たされる前に「モデルをロードして」と分かる
+- 副次的に LM Studio の Just-in-time ロードを前倒しで起こす
+- `llm_client` は 400 応答の本文に `No models loaded` / `model_not_found` /
+  `"param": "model"` を見つけたら、「JIT を ON にする / Loaded Instances で
+  ロード / モデル名を Library と一致させる」ヒントを添える
 
 **途中再開（`run(..., reuse=True)`、既定 ON）:** 中間ファイルをすべて同じ `reuse`
 フラグで再利用し、**終わっている分だけスキップして残りだけ実行**する。
@@ -499,20 +569,25 @@ Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の�
 最初からやり直したいときは CLI `--fresh` / GUI のチェックボックスで `reuse=False`
 （このときはすべての中間ファイルを無視して最初から書き直す）。
 
-**各工程・各チャンク・各フレームの所要時間を表示する:** 「今どのくらい待てばいいか」が
-長時間処理では重要なので、`pipeline.py` / `minutes.py` / `vision.py` それぞれに
-`_format_elapsed()` を置き、`time.monotonic()` で実測した時間を完了メッセージに
-埋め込む（例:「文字起こし完了（444 区間、所要 12分34秒）」）。ログの表示側（GUI/CLI）
-を触らずに実現できるよう、時間はメッセージ文字列に含めて渡す設計にしてある——進捗
-イベントの形（stage, current, total, message）を増やさずに済む。
+**各工程・各チャンク・各フレームの所要時間を表示する:**
 
-**使用モデル名と「応答を待っています」も同じメッセージに埋め込む:** LLM/VLM を呼ぶ
-直前のメッセージ（preflight・文字起こし開始・フレーム解析中・部分要約・議事録統合）
-すべてに、使っているモデル名と「応答を待っています」を添える。ねらいは2つ:
-実行中の GUI の設定パネルを見なくても今どのモデルが動いているか分かること、
-そしてブロッキングな HTTP 呼び出し中（数秒〜数分、ストリーミングはしていない）に
-画面が固まって見えないようにすること。所要時間の表示と同じ理由で、これも
-メッセージ文字列に含めるだけで実現し、進捗イベントの形は変えていない。
+- 「今どのくらい待てばいいか」が長時間処理では重要
+- `pipeline.py` / `minutes.py` / `vision.py` それぞれに `_format_elapsed()` を置き、
+  `time.monotonic()` で実測した時間を完了メッセージに埋め込む
+  （例:「文字起こし完了（444 区間、所要 12分34秒）」）
+- ログの表示側（GUI/CLI）を触らずに実現できるよう、時間はメッセージ文字列に
+  含めて渡す設計にしてある — 進捗イベントの形（stage, current, total, message）
+  を増やさずに済む
+
+**使用モデル名と「応答を待っています」も同じメッセージに埋め込む:**
+
+- LLM/VLM を呼ぶ直前のメッセージ（preflight・文字起こし開始・フレーム解析中・
+  部分要約・議事録統合）すべてに、使っているモデル名と「応答を待っています」を添える
+- ねらいは2つ: 実行中の GUI の設定パネルを見なくても今どのモデルが動いているか
+  分かること、そしてブロッキングな HTTP 呼び出し中（数秒〜数分、ストリーミングは
+  していない）に画面が固まって見えないようにすること
+- 所要時間の表示と同じ理由で、これもメッセージ文字列に含めるだけで実現し、
+  進捗イベントの形は変えていない
 
 ---
 
@@ -527,11 +602,12 @@ Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の�
 抜ける」やり方だけ。`on_progress` を各関数に引き回しているのと同じパターンで
 `cancel_event` も引き回すことで、既存の構造を壊さずに追加できた。
 
-**`cancel.py` を独立モジュールにした理由:** `PipelineCancelled` を
-`pipeline.py` に置くと、`pipeline.py` が import している `transcribe.py` /
-`vision.py` / `minutes.py` がそれを使うために `pipeline` を逆 import する形になり
-循環 import になる。依存ゼロの `cancel.py` を切り出して全員がそこから import する
-構成にした。
+**`cancel.py` を独立モジュールにした理由:**
+
+- `PipelineCancelled` を `pipeline.py` に置くと、`pipeline.py` が import している
+  `transcribe.py` / `vision.py` / `minutes.py` がそれを使うために `pipeline` を
+  逆 import する形になり循環 import になる
+- 依存ゼロの `cancel.py` を切り出して全員がそこから import する構成にした
 
 **チェックを入れた場所（効く/効かない）:**
 
@@ -544,11 +620,13 @@ Just-in-time ロードを前倒しで起こす。`llm_client` は 400 応答の�
 | mlx-whisper の文字起こし呼び出し中 | **反応しない**（結果を一括で返す1回のブロッキング呼び出し。呼び出し前のみチェック） |
 | ffmpeg サブプロセス実行中 | **反応しない**（`subprocess.run` で待つだけ。Popen 化すれば中断可能だが今回は見送り） |
 
-**中断時に残るもの:** `finally` で LLM クライアントは必ず閉じる。
-`transcript/transcript.json` / `frames/frames.json` に加え、**フレーム解析の途中経過
-（`frames/frame_notes.json`）も1枚ごとに保存済み**なので、次回実行時（9.5 の再開機構）は
-解析済みのフレームからやり直さない。同様に議事録のチャンク要約
-（`work/minutes_partials.json`）も終えた分から再開する。
+**中断時に残るもの:**
+
+- `finally` で LLM クライアントは必ず閉じる
+- `transcript/transcript.json` / `frames/frames.json` に加え、**フレーム解析の
+  途中経過（`frames/frame_notes.json`）も1枚ごとに保存済み**なので、次回実行時
+  （9.5 の再開機構）は解析済みのフレームからやり直さない
+- 同様に議事録のチャンク要約（`work/minutes_partials.json`）も終えた分から再開する
 
 ---
 

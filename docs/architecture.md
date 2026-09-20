@@ -30,23 +30,27 @@
 ```
 
 `pipeline.run()` がこの順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の
-管理を担当する。GUI・CLI・テストはすべて `run()` を呼ぶだけ。`run(..., reuse=True)`
-（既定）は前回の中間生成物（transcript/transcript.json / frames/frames.json / frames/frame_notes.json /
-work/minutes_partials.json）を再利用し、終わっている分をやり直さない（`--fresh` / GUI の
-チェックで無効化）。進捗の `stage` は
-`preflight → audio → transcribe → frames → vision → minutes → done`。
-各工程・各チャンク・各フレームの完了メッセージには「所要 X」の実測時間が、
-LLM/VLM を呼ぶ工程の開始メッセージには使用モデル名と「応答を待っています」が付く
-（`pipeline._format_elapsed` / `minutes._format_elapsed` / `vision._format_elapsed`、
-モジュールをまたいで共有するほどでもない小関数なので複製している）。
+管理を担当する。GUI・CLI・テストはすべて `run()` を呼ぶだけ。
+
+- `run(..., reuse=True)`（既定）は前回の中間生成物（transcript/transcript.json /
+  frames/frames.json / frames/frame_notes.json / work/minutes_partials.json）を
+  再利用し、終わっている分をやり直さない（`--fresh` / GUI のチェックで無効化）
+- 進捗の `stage` は `preflight → audio → transcribe → frames → vision → minutes → done`
+- 各工程・各チャンク・各フレームの完了メッセージには「所要 X」の実測時間が付く
+- LLM/VLM を呼ぶ工程の開始メッセージには使用モデル名と「応答を待っています」が付く
+  （`pipeline._format_elapsed` / `minutes._format_elapsed` / `vision._format_elapsed`、
+  モジュールをまたいで共有するほどでもない小関数なので複製している）
 
 ## モジュールの責務
 
-実処理（Model）は `src/meeting_minutes/model/` にまとまっている。GUI は
-`src/meeting_minutes/view/` + `src/meeting_minutes/presenter/`、実行の入口は
-`src/meeting_minutes/` 直下の `gui.py` / `cli.py` / `download_transcribe_model.py`。下表の
-`download_transcribe_model.py` 以外の 10 モジュールが `model/` 配下（例: `model/pipeline.py` ⇔
-`meeting_minutes.model.pipeline`）。
+コードは役割ごとに分かれている。
+
+- 実処理（Model）は `src/meeting_minutes/model/` にまとまっている
+- GUI は `src/meeting_minutes/view/` + `src/meeting_minutes/presenter/`
+- 実行の入口は `src/meeting_minutes/` 直下の `gui.py` / `cli.py` /
+  `download_transcribe_model.py`
+- 下表の `download_transcribe_model.py` 以外の 10 モジュールが `model/` 配下
+  （例: `model/pipeline.py` ⇔ `meeting_minutes.model.pipeline`）
 
 | モジュール | 役割 | 外部依存 |
 | --- | --- | --- |
@@ -66,15 +70,19 @@ LLM/VLM を呼ぶ工程の開始メッセージには使用モデル名と「応
 ## エントリポイント
 
 `src/meeting_minutes/` 配下の `gui.py` / `cli.py` / `download_transcribe_model.py` が実行の入口。
-GUI は `view/` + `presenter/` を組み立てて起動する薄いラッパー（→ `DESIGN.md` 8.5 節）、
-CLI / モデル取得は argparse + `meeting_minutes.model.*`（取得スクリプトは自身が model 外）の呼び出し。いずれも冒頭に
-`__package__` ブートストラップがあり、`python src/meeting_minutes/gui.py` のような
-ファイル指定でも `python -m meeting_minutes.gui`（`cd src` か `PYTHONPATH=src` が要る）
-でも動く（→ `DESIGN.md` 8.6 節）。
 
-`gui.py` は `--lang {ja,en}` を受け付ける。指定があればその回だけ表示言語を上書きし、
-省略時は `config.toml` の `[gui] language`（既定 `ja`、不正値は `ja` 扱い）に従う。
-影響するのは GUI の画面文言だけ（→ `DESIGN.md` 8.8 節）。
+- GUI は `view/` + `presenter/` を組み立てて起動する薄いラッパー（→ `DESIGN.md` 8.5 節）
+- CLI / モデル取得は argparse + `meeting_minutes.model.*`（取得スクリプトは自身が
+  model 外）の呼び出し
+- いずれも冒頭に `__package__` ブートストラップがあり、`python src/meeting_minutes/gui.py`
+  のようなファイル指定でも `python -m meeting_minutes.gui`（`cd src` か
+  `PYTHONPATH=src` が要る）でも動く（→ `DESIGN.md` 8.6 節）
+
+`gui.py` は `--lang {ja,en}` を受け付ける。
+
+- 指定があればその回だけ表示言語を上書きする
+- 省略時は `config.toml` の `[gui] language`（既定 `ja`、不正値は `ja` 扱い）に従う
+- 影響するのは GUI の画面文言だけ（→ `DESIGN.md` 8.8 節）
 
 ## 進捗通知
 
