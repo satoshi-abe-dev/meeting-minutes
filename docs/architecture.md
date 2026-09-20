@@ -29,8 +29,9 @@
            └─ save_minutes_docx → minutes.docx（.md と同内容の Word 版。失敗しても警告のみ）
 ```
 
-`pipeline.run()` がこの順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の
-管理を担当する。GUI・CLI・テストはこの処理を個別に実装せず、`run()` に委ねる。
+この順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の管理は
+`pipeline.run()` の中に集約されており、GUI・CLI・テストはそれぞれ `run()` を
+呼び出して使う。
 
 - `run(..., reuse=True)`（既定）は前回の中間生成物（transcript/transcript.json /
   frames/frames.json / frames/frame_notes.json / work/minutes_partials.json）を

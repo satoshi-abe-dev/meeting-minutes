@@ -216,8 +216,8 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
        (ffmpeg)       (Whisper)       (ffmpeg)        (localhost)         (localhost)
 ```
 
-- `pipeline.run()` がこの順序・進捗通知・出力ディレクトリ管理を担当し、
-  **GUI・CLI・テストはこの処理を個別に実装せず `run()` に委ねる**
+- この順序・進捗通知・出力ディレクトリ管理は **`pipeline.run()` の中に集約されており**、
+  GUI・CLI・テストはそれぞれ `run()` を呼び出して使う
 - 各工程の実装は `pipeline.Deps` 経由で差し替えられる
   （詳細は [`docs/architecture.md`](docs/architecture.md)）
 
