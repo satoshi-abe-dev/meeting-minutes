@@ -203,13 +203,13 @@ video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame a
         (ffmpeg)        (Whisper)         (ffmpeg)         (localhost)             (localhost)
 ```
 
-- `pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all just call `run()`**
+- `pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all call `run()`**
 - Each stage's implementation is swappable via `pipeline.Deps` (see [`docs/architecture.md`](docs/architecture.md) for details)
 
 ## Design highlights
 
 - **A single seam (`pipeline.run` + `Deps`)** — separates the UI from the real processing. You can test "stage ordering / progress / output paths" without calling ffmpeg or an LLM.
-- **LLM/VLM abstracted behind an OpenAI-compatible API** — swappable between LM Studio / Ollama / others just by changing `base_url`. No dependency on the `openai` package; calls `httpx` directly.
+- **LLM/VLM abstracted behind an OpenAI-compatible API** — swappable between LM Studio / Ollama / others by changing `base_url`. No dependency on the `openai` package; calls `httpx` directly.
 - **Map-reduce for long transcripts** — a one-hour meeting does not fit in the context window, so it switches to a two-stage chunk-summarize → merge. Summaries are written incrementally to `work/minutes_partials.json`, so a re-run does not redo the finished parts.
 - **Per-stage elapsed time shown in the log** — the completion message for audio extraction, transcription, frame extraction, frame analysis, chunk summaries, and the minutes merge each append "elapsed X".
 - **Frame analysis is also checkpointed per frame** — `frames/frame_notes.json` is rewritten after each frame finishes, so a mid-way failure does not redo already-analyzed frames.
@@ -252,7 +252,7 @@ This project was implemented by **two role-separated Claude Code sessions** (ind
 - **the manager does not rely on the worker's self-report alone** — for every PR the manager re-runs pytest and the confidential-data check itself and reviews the diff directly before merging
 - **conversation context is not shared between sessions** — the manager does not see the worker's trial and error, and reviews only from the final diff and report
 - **a case where the permission boundary held** — for operations that need the owner's direct confirmation, such as deleting tracked files, the worker did not act on a relay through the manager alone and held work pending the owner's confirmation
-- **an independent review by a model from a different vendor is also built in** — in addition to Claude's (the manager's) judgment, an independent code review by OpenAI Codex (`codex exec review`) was added to the pre-merge checks for every PR and is actually in use
+- **an independent review by a model from a different vendor is also built in** — in addition to Claude's (the manager's) judgment, an independent code review by OpenAI Codex (`codex exec review`) was added to the pre-merge checks for every PR
 - **loop engineering** — rather than a one-shot review, implement → independent verification (pytest, confidential-data check, diff review, Codex review) → send-back → fix → re-verify, repeated until every check is clear
 - send-backs are specific — each is returned with the exact location, reproduction conditions, and a fix approach
 - Example: in Auto mode (Issue #34, PRs #19 / #35), more than six token-budget bugs surfaced and were fixed over these round trips

@@ -30,7 +30,7 @@
 ```
 
 `pipeline.run()` がこの順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の
-管理を担当する。GUI・CLI・テストはすべて `run()` を呼ぶだけ。
+管理を担当する。GUI・CLI・テストはいずれも `run()` を呼び出す。
 
 - `run(..., reuse=True)`（既定）は前回の中間生成物（transcript/transcript.json /
   frames/frames.json / frames/frame_notes.json / work/minutes_partials.json）を

@@ -217,7 +217,7 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 ```
 
 - `pipeline.run()` がこの順序・進捗通知・出力ディレクトリ管理を担当し、
-  **GUI・CLI・テストはすべて `run()` を呼ぶだけ**
+  **GUI・CLI・テストはいずれも `run()` を呼び出す**
 - 各工程の実装は `pipeline.Deps` 経由で差し替えられる
   （詳細は [`docs/architecture.md`](docs/architecture.md)）
 
@@ -225,8 +225,8 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 
 - **1 つの継ぎ目（`pipeline.run` + `Deps`）** — UI と実処理を分離。ffmpeg も LLM も
   呼ばずに「工程順序・進捗・出力パス」をテストできる。
-- **LLM/VLM を OpenAI 互換 API で抽象化** — `base_url` の差し替えだけで LM Studio /
-  Ollama / 他に交換可能。`openai` パッケージには依存せず `httpx` 直叩き。
+- **LLM/VLM を OpenAI 互換 API で抽象化** — `base_url` を差し替えると LM Studio /
+  Ollama / 他に交換できる。`openai` パッケージには依存せず `httpx` 直叩き。
 - **長い文字起こしの map-reduce** — 1 時間の会議はコンテキストに収まらないので、
   チャンク要約 → 統合の 2 段に切り替える。要約は `work/minutes_partials.json` に逐次保存し、
   再実行時は終わった分をやり直さない。
@@ -285,7 +285,7 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
   worker は manager 経由の伝達だけでは実行せず、本人への確認を待って保留した実例がある
 - **異なるベンダーのモデルによる独立レビューも組み込んだ** — Claude（manager）の判断に加え、
   OpenAI Codex（`codex exec review`）による独立コードレビューを全 PR のマージ前チェックに
-  追加し、実際に運用している
+  追加した
 - **ループエンジニアリング** — 単発のレビューで終わらせず、実装 → 独立検証
   （pytest・機密混入チェック・diff 確認・Codex レビュー）→ 差し戻し → 修正 → 再検証を、
   全チェックがクリアになるまで繰り返す
