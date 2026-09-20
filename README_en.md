@@ -203,7 +203,7 @@ video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame a
         (ffmpeg)        (Whisper)         (ffmpeg)         (localhost)             (localhost)
 ```
 
-- `pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests all call `run()`**
+- `pipeline.run()` owns this ordering, progress notifications, and output-directory management, and **the GUI, CLI, and tests delegate to it rather than reimplementing this logic themselves**
 - Each stage's implementation is swappable via `pipeline.Deps` (see [`docs/architecture.md`](docs/architecture.md) for details)
 
 ## Design highlights

@@ -217,7 +217,7 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 ```
 
 - `pipeline.run()` がこの順序・進捗通知・出力ディレクトリ管理を担当し、
-  **GUI・CLI・テストはいずれも `run()` を呼び出す**
+  **GUI・CLI・テストはこの処理を個別に実装せず `run()` に委ねる**
 - 各工程の実装は `pipeline.Deps` 経由で差し替えられる
   （詳細は [`docs/architecture.md`](docs/architecture.md)）
 
