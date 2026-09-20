@@ -228,7 +228,7 @@ pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipp
 
 ## Development process (AI-assisted collaboration)
 
-This project was implemented by **two role-separated Claude Code sessions** (independent `claude` processes) working together.
+This project was implemented by **two role-separated Claude Code sessions** (independent `claude` processes) working together. It applies the idea of **harness engineering** — pairing LLM output with verification and guardrails rather than trusting it outright — to the development process itself.
 
 ```
   [normal flow]     owner -> worker -(PR)-> manager -(merge)-> main
