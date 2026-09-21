@@ -125,15 +125,15 @@ python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・�
 
 `config.toml`（無ければ `config.example.toml` をコピーして作る）で調整。主な項目:
 
-- `[llm] base_url` — ローカルサーバーの接続先（Ollama なら `http://localhost:11434/v1`）
-- `[llm] model` / `[llm] vlm_model` — ロード済みモデル名
+- `[ai] base_url` — ローカルサーバーの接続先（Ollama なら `http://localhost:11434/v1`）
+- `[ai] llm_model` / `[ai] vlm_model` — ロード済みモデル名
 - `[transcribe] backend` — `auto` / `mlx`（Apple GPU）/ `faster-whisper`
 - `[transcribe] model` — 既定 `large-v3-turbo`（速い・高精度）/ `large-v3` / `medium` / `small`
 - `[frames] interval_sec` / `scene_threshold` / `max_frames` — フレーム抽出の粒度と上限
 - `[output] template_path` — 議事録の様式（見出し構成）を差し替えるカスタムテンプレート（下記）
 - `[output] auto_structure` — `true` で「おまかせ」モード（動画内容に合わせて見出し構成を自動生成。下記）
 
-各値は環境変数（`MM_LLM_MODEL` など）でも上書き可能。
+各値は環境変数（`MM_AI_LLM_MODEL` など）でも上書き可能。
 
 ### 議事録フォーマット（見出し構成）を選ぶ
 

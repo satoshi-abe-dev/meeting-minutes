@@ -38,10 +38,10 @@ def load_prompt(name: str) -> str:
 
 
 @dataclass
-class LLMConfig:
+class AIConfig:
     base_url: str = "http://localhost:1234/v1"
     api_key: str = "local-no-key"
-    model: str = "qwen2.5-7b-instruct"
+    llm_model: str = "qwen2.5-7b-instruct"
     vlm_model: str = "qwen2-vl-7b-instruct"
     # ローカルの大きめモデルは1リクエストで数分かかることがある（特に議事録の
     # 最終統合は出力トークン数が多く時間がかかりやすい）ので長めにしてある。
@@ -112,7 +112,7 @@ class GuiConfig:
 
 @dataclass
 class Config:
-    llm: LLMConfig = field(default_factory=LLMConfig)
+    ai: AIConfig = field(default_factory=AIConfig)
     transcribe: TranscribeConfig = field(default_factory=TranscribeConfig)
     frames: FramesConfig = field(default_factory=FramesConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
@@ -127,15 +127,15 @@ class Config:
 
 # 環境変数 -> (セクション, キー, 変換関数) の対応表
 _ENV_MAP: dict[str, tuple[str, str, Callable[[str], object]]] = {
-    "MM_LLM_BASE_URL": ("llm", "base_url", str),
-    "MM_LLM_API_KEY": ("llm", "api_key", str),
-    "MM_LLM_MODEL": ("llm", "model", str),
-    "MM_LLM_VLM_MODEL": ("llm", "vlm_model", str),
-    "MM_LLM_TIMEOUT": ("llm", "timeout", float),
-    "MM_LLM_MAX_TOKENS": ("llm", "max_tokens", int),
-    "MM_LLM_CHUNK_TRIGGER_CHARS": ("llm", "chunk_trigger_chars", int),
-    "MM_LLM_CHUNK_SIZE_CHARS": ("llm", "chunk_size_chars", int),
-    "MM_LLM_CONTEXT_TOKENS": ("llm", "context_tokens", int),
+    "MM_AI_BASE_URL": ("ai", "base_url", str),
+    "MM_AI_API_KEY": ("ai", "api_key", str),
+    "MM_AI_LLM_MODEL": ("ai", "llm_model", str),
+    "MM_AI_VLM_MODEL": ("ai", "vlm_model", str),
+    "MM_AI_TIMEOUT": ("ai", "timeout", float),
+    "MM_AI_MAX_TOKENS": ("ai", "max_tokens", int),
+    "MM_AI_CHUNK_TRIGGER_CHARS": ("ai", "chunk_trigger_chars", int),
+    "MM_AI_CHUNK_SIZE_CHARS": ("ai", "chunk_size_chars", int),
+    "MM_AI_CONTEXT_TOKENS": ("ai", "context_tokens", int),
     "MM_TRANSCRIBE_BACKEND": ("transcribe", "backend", str),
     "MM_TRANSCRIBE_MODEL": ("transcribe", "model", str),
     "MM_TRANSCRIBE_COMPUTE_TYPE": ("transcribe", "compute_type", str),
@@ -152,7 +152,7 @@ _ENV_MAP: dict[str, tuple[str, str, Callable[[str], object]]] = {
 }
 
 _SECTION_TYPES = {
-    "llm": LLMConfig,
+    "ai": AIConfig,
     "transcribe": TranscribeConfig,
     "frames": FramesConfig,
     "output": OutputConfig,

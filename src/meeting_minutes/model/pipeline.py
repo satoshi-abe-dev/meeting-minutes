@@ -37,7 +37,7 @@ STAGES = ("preflight", "audio", "transcribe", "frames", "vision", "minutes")
 
 
 def _default_make_client(cfg: Config) -> LLMClient:
-    return LLMClient(cfg.llm)
+    return LLMClient(cfg.ai)
 
 
 @dataclass
@@ -148,11 +148,11 @@ def run(
         progress(
             "preflight", 0, 1,
             t("pmsg.pre_wait", language,
-              model=config.llm.model, vlm=config.llm.vlm_model),
+              model=config.ai.llm_model, vlm=config.ai.vlm_model),
         )
         preflight = getattr(client, "preflight", None)
         if callable(preflight):
-            preflight([config.llm.model, config.llm.vlm_model])
+            preflight([config.ai.llm_model, config.ai.vlm_model])
         progress("preflight", 1, 1, t("pmsg.pre_ok", language))
 
         # 1) 音声抽出 --------------------------------------------------------
@@ -251,7 +251,7 @@ def run(
 
         progress(
             "vision", 0, len(frames),
-            t("pmsg.vision_analyzing", language, vlm=config.llm.vlm_model),
+            t("pmsg.vision_analyzing", language, vlm=config.ai.vlm_model),
         )
         t0 = time.monotonic()
         notes = deps.describe_frames(
@@ -292,7 +292,7 @@ def run(
             segments,
             notes,
             client,
-            config.llm,
+            config.ai,
             meta,
             on_progress=_mp,
             cancel_event=cancel_event,

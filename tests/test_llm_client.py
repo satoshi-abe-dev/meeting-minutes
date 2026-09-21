@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 
-from meeting_minutes.model.config import LLMConfig
+from meeting_minutes.model.config import AIConfig
 from meeting_minutes.model.llm_client import LLMClient, LLMConnectionError
 
 
@@ -23,7 +23,7 @@ class _Resp:
 
 
 def _client() -> LLMClient:
-    return LLMClient(LLMConfig(base_url="http://localhost:1234/v1"))
+    return LLMClient(AIConfig(base_url="http://localhost:1234/v1"))
 
 
 def test_400_no_models_loaded_adds_model_hint(monkeypatch):
@@ -99,7 +99,7 @@ def test_connection_error_still_gets_server_down_hint(monkeypatch):
 
 
 def test_error_hints_translated_when_language_en(monkeypatch):
-    c = LLMClient(LLMConfig(base_url="http://localhost:1234/v1"), language="en")
+    c = LLMClient(AIConfig(base_url="http://localhost:1234/v1"), language="en")
 
     def raise_connect_error(*a, **k):
         raise httpx.ConnectError("connection refused")
@@ -114,7 +114,7 @@ def test_error_hints_translated_when_language_en(monkeypatch):
 
 
 def test_preflight_failure_message_translated_when_language_en(monkeypatch):
-    c = LLMClient(LLMConfig(base_url="http://localhost:1234/v1"), language="en")
+    c = LLMClient(AIConfig(base_url="http://localhost:1234/v1"), language="en")
 
     def fake_chat(system, user, *, model=None, **kw):
         raise LLMConnectionError("boom")

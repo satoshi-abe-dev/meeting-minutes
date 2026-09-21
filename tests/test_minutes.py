@@ -8,7 +8,7 @@ import threading
 import pytest
 
 from meeting_minutes.model.cancel import PipelineCancelled
-from meeting_minutes.model.config import LLMConfig
+from meeting_minutes.model.config import AIConfig
 from meeting_minutes.model.minutes import (
     _DEFAULT_SYSTEM,
     _MINUTES_RESPONSE_TOKENS,
@@ -42,13 +42,13 @@ def _segments(n: int, text: str = "発言") -> list[Segment]:
 
 
 @pytest.fixture
-def chunking_config() -> LLMConfig:
-    """分割要約（長い会議）の経路を必ず通すための、しきい値を下げた LLMConfig。
+def chunking_config() -> AIConfig:
+    """分割要約（長い会議）の経路を必ず通すための、しきい値を下げた AIConfig。
 
     通常運用ではコンテキストに収まる限り一発生成を優先するため既定のしきい値は大きい。
     テストでは chunk_trigger_chars / chunk_size_chars を小さくして分割経路を検証する。
     """
-    return LLMConfig(chunk_trigger_chars=2000, chunk_size_chars=1000)
+    return AIConfig(chunk_trigger_chars=2000, chunk_size_chars=1000)
 
 
 def test_approx_tokens_ratio_matches_measured_qwen_japanese():
@@ -79,7 +79,7 @@ def test_generate_minutes_short_path_single_call():
         _segments(5),
         notes,
         client,
-        LLMConfig(),
+        AIConfig(),
         meta,
     )
 
@@ -97,7 +97,7 @@ def test_generate_minutes_short_path_messages_translated_when_language_en():
     client = FakeClient(reply="# Minutes\n\n## Decisions\n- none\n")
     progress: list[tuple] = []
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="Meeting"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="Meeting"),
         on_progress=lambda c, t, m: progress.append((c, t, m)),
         language="en",
     )
@@ -112,7 +112,7 @@ def test_generate_minutes_single_pass_under_char_fallback_threshold():
     """context_tokens 不明時は文字数しきい値で判断。既定 20000 字未満は一発生成。"""
     client = FakeClient(reply="# 議事録\n\n本文\n")
     segs = _segments(180, text="議題について長い発言をする" * 3)  # 1万字弱 < 20000
-    generate_minutes(segs, [], client, LLMConfig(), MinutesMeta(title="会議"))
+    generate_minutes(segs, [], client, AIConfig(), MinutesMeta(title="会議"))
     assert len(client.calls) == 1
     assert client.calls[0]["user"].startswith("以下のテンプレートに沿って")
 
@@ -121,7 +121,7 @@ def test_generate_minutes_char_fallback_chunks_over_threshold():
     """context_tokens 不明で 20000 字を超えると分割する。"""
     client = FakeClient(reply="要約")
     segs = _segments(320, text="議題について長い発言をする" * 5)  # 2.5万字超 > 20000
-    generate_minutes(segs, [], client, LLMConfig(), MinutesMeta(title="会議"))
+    generate_minutes(segs, [], client, AIConfig(), MinutesMeta(title="会議"))
     assert len(client.calls) >= 2
 
 
@@ -130,7 +130,7 @@ def test_generate_minutes_context_tokens_allow_single_pass():
     client = FakeClient(reply="# 議事録\n\n本文\n")
     segs = _segments(320, text="議題について長い発言をする" * 5)  # char 閾値なら分割される長さ
     generate_minutes(
-        segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        segs, [], client, AIConfig(), MinutesMeta(title="会議"),
         context_tokens=32768,
     )
     assert len(client.calls) == 1
@@ -147,7 +147,7 @@ def test_generate_minutes_context_tokens_force_chunk_when_prompt_would_overflow(
         for i in range(40)
     ]
     generate_minutes(
-        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        segs, notes, client, AIConfig(), MinutesMeta(title="会議"),
         context_tokens=4096,
     )
     assert len(client.calls) >= 2
@@ -163,7 +163,7 @@ def test_generate_minutes_frames_text_is_truncated_to_budget():
         for i in range(50)
     ]
     generate_minutes(
-        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        segs, notes, client, AIConfig(), MinutesMeta(title="会議"),
         context_tokens=32768,
     )
     assert len(client.calls) == 1
@@ -172,16 +172,16 @@ def test_generate_minutes_frames_text_is_truncated_to_budget():
 
 
 def test_generate_minutes_chunk_trigger_chars_from_config_controls_path():
-    """[llm] chunk_trigger_chars を下げると、短い文字起こしでも分割経路になる。"""
+    """[ai] chunk_trigger_chars を下げると、短い文字起こしでも分割経路になる。"""
     segs = _segments(20, text="短い発言")  # 数百文字。既定 40000 なら一発生成
     single = FakeClient(reply="要約")
-    generate_minutes(segs, [], single, LLMConfig(), MinutesMeta(title="会議"))
+    generate_minutes(segs, [], single, AIConfig(), MinutesMeta(title="会議"))
     assert len(single.calls) == 1
 
     split = FakeClient(reply="要約")
     generate_minutes(
         segs, [], split,
-        LLMConfig(chunk_trigger_chars=50, chunk_size_chars=30),
+        AIConfig(chunk_trigger_chars=50, chunk_size_chars=30),
         MinutesMeta(title="会議"),
     )
     assert len(split.calls) >= 2  # チャンク要約(複数) + 統合
@@ -256,7 +256,7 @@ def test_generate_minutes_cancel_before_start_raises_immediately():
 
     with pytest.raises(PipelineCancelled):
         generate_minutes(
-            _segments(3), [], client, LLMConfig(), MinutesMeta(title="会議"),
+            _segments(3), [], client, AIConfig(), MinutesMeta(title="会議"),
             cancel_event=cancel_event,
         )
     assert client.calls == []
@@ -363,7 +363,7 @@ def test_generate_minutes_discards_partials_when_chunk_size_changed(tmp_path):
         size_chars=1000, num_segments=len(long_segs), num_chunks=5,
     )
     client = FakeClient(reply="新しい要約")
-    cfg = LLMConfig(chunk_trigger_chars=500, chunk_size_chars=400)  # size を変更
+    cfg = AIConfig(chunk_trigger_chars=500, chunk_size_chars=400)  # size を変更
 
     generate_minutes(
         long_segs, [], client, cfg, MinutesMeta(title="会議"),
@@ -402,7 +402,7 @@ def test_generate_minutes_chunk_max_tokens_matches_budget_cap(tmp_path):
     client = FakeClient(reply="要約")
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
     meta = MinutesMeta(title="長い会議")
-    llm_config = LLMConfig(max_tokens=12345, chunk_trigger_chars=2000, chunk_size_chars=1000)
+    llm_config = AIConfig(max_tokens=12345, chunk_trigger_chars=2000, chunk_size_chars=1000)
 
     generate_minutes(long_segs, [], client, llm_config, meta, out_dir=tmp_path)
 
@@ -416,11 +416,11 @@ def test_generate_minutes_chunk_max_tokens_matches_budget_cap(tmp_path):
 
 
 def test_generate_minutes_manual_context_tokens_beats_autodetect():
-    """config の [llm] context_tokens が 0 でなければ、自動検出値より優先される。"""
+    """config の [ai] context_tokens が 0 でなければ、自動検出値より優先される。"""
     client = FakeClient(reply="要約")
     segs = _segments(320, text="議題について長い発言をする" * 5)  # 約2.5万字
     # 手動 4096（小さい）を設定。自動検出で 200000 が来ても手動が勝ち、分割になる。
-    cfg = LLMConfig(context_tokens=4096)
+    cfg = AIConfig(context_tokens=4096)
     generate_minutes(
         segs, [], client, cfg, MinutesMeta(title="会議"), context_tokens=200000
     )
@@ -439,7 +439,7 @@ def test_generate_minutes_small_context_does_not_force_oversized_frames_budget()
     # ctx=4096 では一発生成は無理なので分割になるが、frames の切り詰めで
     # frames_text 自体が 4096 を単独で超えることはない。
     generate_minutes(
-        segs, notes, client, LLMConfig(), MinutesMeta(title="会議"),
+        segs, notes, client, AIConfig(), MinutesMeta(title="会議"),
         context_tokens=4096,
     )
     from meeting_minutes.model.minutes import _approx_tokens
@@ -509,7 +509,7 @@ def test_generate_minutes_uses_custom_template_single_pass(tmp_path):
     tpl.write_text("# お客様フォーマット\n## 合意事項\n## 次アクション\n", encoding="utf-8")
     client = FakeClient(reply="# 議事録\n本文\n")
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         template_path=str(tpl),
     )
     assert len(client.calls) == 1
@@ -544,7 +544,7 @@ def test_generate_minutes_custom_template_missing_still_produces_minutes(tmp_pat
     msgs: list[str] = []
     client = FakeClient(reply="# 議事録\n本文\n")
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         template_path=str(tmp_path / "missing.txt"),
         on_progress=lambda c, t, m: msgs.append(m),
     )
@@ -559,8 +559,8 @@ def test_generate_minutes_system_prompt_unchanged_by_custom_template(tmp_path):
     tpl.write_text("# 様式\n## 本文\n", encoding="utf-8")
     a = FakeClient(reply="x")
     b = FakeClient(reply="x")
-    generate_minutes(_segments(3), [], a, LLMConfig(), MinutesMeta(title="会議"))
-    generate_minutes(_segments(3), [], b, LLMConfig(), MinutesMeta(title="会議"),
+    generate_minutes(_segments(3), [], a, AIConfig(), MinutesMeta(title="会議"))
+    generate_minutes(_segments(3), [], b, AIConfig(), MinutesMeta(title="会議"),
                      template_path=str(tpl))
     assert a.calls[0]["system"] == b.calls[0]["system"]
 
@@ -658,7 +658,7 @@ def test_auto_structure_single_pass_uses_full_transcript_and_saves(tmp_path):
     segs = _segments(5, text="旅行の説明")
 
     generate_minutes(
-        segs, [], client, LLMConfig(), MinutesMeta(title="旅行説明会"),
+        segs, [], client, AIConfig(), MinutesMeta(title="旅行説明会"),
         out_dir=tmp_path, auto_structure=True,
     )
 
@@ -669,7 +669,7 @@ def test_auto_structure_single_pass_uses_full_transcript_and_saves(tmp_path):
     # 応答予約は議事録本文と同じ minutes_max_tokens（推論モデル耐性を揃える）
     assert struct_call["kwargs"]["max_tokens"] == client.calls[1]["kwargs"]["max_tokens"]
     assert struct_call["kwargs"]["max_tokens"] == min(
-        LLMConfig().max_tokens, _MINUTES_RESPONSE_TOKENS
+        AIConfig().max_tokens, _MINUTES_RESPONSE_TOKENS
     )
 
     # 生成された型が最終議事録プロンプトに使われ、内蔵は使われていない
@@ -716,7 +716,7 @@ def test_auto_structure_fallback_on_missing_placeholder(tmp_path):
     client = RoutingFakeClient(structure=bad)
 
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True,
         on_progress=lambda c, t, m: msgs.append(m),
     )
@@ -731,7 +731,7 @@ def test_auto_structure_fallback_on_llm_error(tmp_path):
     client = RoutingFakeClient(raise_on_structure=True)
 
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True,
         on_progress=lambda c, t, m: msgs.append(m),
     )
@@ -744,7 +744,7 @@ def test_auto_structure_fallback_on_llm_error(tmp_path):
 def test_auto_structure_prompt_instructs_literal_placeholders():
     client = RoutingFakeClient(structure=_GEN_STRUCTURE)
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         auto_structure=True,
     )
     struct_user = client.calls[0]["user"]
@@ -760,7 +760,7 @@ def test_auto_structure_takes_precedence_over_template_path(tmp_path):
     client = RoutingFakeClient(structure=_GEN_STRUCTURE)
 
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True, template_path=str(tpl),
     )
 
@@ -772,7 +772,7 @@ def test_auto_structure_takes_precedence_over_template_path(tmp_path):
 def test_auto_structure_without_out_dir_still_generates():
     client = RoutingFakeClient(structure=_GEN_STRUCTURE)
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         auto_structure=True,  # out_dir なし → 保存はしないが生成はする
     )
     assert "## スケジュール" in client.calls[-1]["user"]
@@ -785,7 +785,7 @@ def test_auto_structure_failure_falls_back_to_builtin_not_file_template(tmp_path
     client = RoutingFakeClient(structure="型らしきもの（プレースホルダー無し）")  # 必須欠落→失敗
 
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True, template_path=str(tpl),
     )
 
@@ -812,7 +812,7 @@ def test_auto_structure_recomputes_budget_after_generation(tmp_path):
     segs = _segments(90, text="そこそこの長さの発言をする" * 4)
 
     generate_minutes(
-        segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        segs, [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True, context_tokens=13000,
     )
 
@@ -839,7 +839,7 @@ def test_auto_structure_rejects_structure_too_large_for_merge(tmp_path):
     long_segs = _segments(200, text="議題の発言" * 3)
 
     generate_minutes(
-        long_segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        long_segs, [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True, context_tokens=ctx,
         on_progress=lambda c, t, m: msgs.append(m),
     )
@@ -857,7 +857,7 @@ def test_auto_structure_no_size_reject_when_ctx_unknown(tmp_path):
     )
     client = RoutingFakeClient(structure=big)
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True,  # context_tokens 指定なし
     )
     # サイズ理由での棄却はされず、生成された型が使われて保存される
@@ -875,7 +875,7 @@ def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):
     long_segs = _segments(400, text="議題について長い発言をする" * 5)
 
     generate_minutes(
-        long_segs, [], client, LLMConfig(), MinutesMeta(title="長い会議"),
+        long_segs, [], client, AIConfig(), MinutesMeta(title="長い会議"),
         out_dir=tmp_path, auto_structure=True, context_tokens=ctx,
     )
 
@@ -902,7 +902,7 @@ def test_auto_structure_cancel_after_generation_stops_before_minutes(tmp_path):
     client = RoutingFakeClient(structure=_GEN_STRUCTURE)
     with pytest.raises(PipelineCancelled):
         generate_minutes(
-            _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+            _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
             out_dir=tmp_path, auto_structure=True,
             on_progress=on_progress, cancel_event=cancel_event,
         )
@@ -917,7 +917,7 @@ def test_auto_structure_response_reserve_follows_llm_max_tokens():
     推論（thinking）モデルで max_tokens を小さくしている場合でも、メインの議事録生成と
     同じ基準（min(llm_config.max_tokens, _MINUTES_RESPONSE_TOKENS)）で予約する。
     """
-    cfg = LLMConfig(max_tokens=900)  # 推論モデル想定で小さめ
+    cfg = AIConfig(max_tokens=900)  # 推論モデル想定で小さめ
     client = RoutingFakeClient(structure=_GEN_STRUCTURE)
 
     generate_minutes(
@@ -942,14 +942,14 @@ def test_generate_minutes_truncates_oversized_merged_transcript(tmp_path):
     msgs: list[str] = []
 
     generate_minutes(
-        long_segs, [], client, LLMConfig(), MinutesMeta(title="会議"),
+        long_segs, [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, context_tokens=ctx,
         on_progress=lambda c, t, m: msgs.append(m),
     )
 
     merge_user = client.calls[-1]["user"]
     assert "以降はコンテキスト長の都合で省略" in merge_user  # 末尾を切り詰めた
-    reserve = min(LLMConfig().max_tokens, _MINUTES_RESPONSE_TOKENS)
+    reserve = min(AIConfig().max_tokens, _MINUTES_RESPONSE_TOKENS)
     # 統合リクエスト（user + 応答予約 + マージン）が ctx に収まる
     assert _approx_tokens(merge_user) + reserve + _PROMPT_MARGIN_TOKENS <= ctx
     assert any("統合入力の末尾を一部省略" in m for m in msgs)
@@ -964,7 +964,7 @@ def test_auto_structure_failure_removes_stale_structure_file(tmp_path):
 
     client = RoutingFakeClient(structure="型らしきもの（プレースホルダー無し）")  # 生成失敗
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         out_dir=tmp_path, auto_structure=True,
     )
 
@@ -1021,7 +1021,7 @@ def test_generate_minutes_warns_when_template_instruction_leaks(tmp_path):
     client = FakeClient(reply=f"# 概要\n{instr}\n## 決定事項\n- 出発は9時に決定\n")
     msgs: list[str] = []
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         template_path=str(tpl), on_progress=lambda c, t, m: msgs.append(m),
     )
     assert any("指示文" in m and "残っている" in m for m in msgs)
@@ -1031,7 +1031,7 @@ def test_generate_minutes_no_leak_warning_on_clean_output():
     client = FakeClient(reply="# 議事録: 会議\n## 決定事項\n- 出発は9時\n## 宿題\n（該当なし）\n")
     msgs: list[str] = []
     generate_minutes(
-        _segments(5), [], client, LLMConfig(), MinutesMeta(title="会議"),
+        _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         on_progress=lambda c, t, m: msgs.append(m),
     )
     assert not any("指示文" in m and "残っている" in m for m in msgs)

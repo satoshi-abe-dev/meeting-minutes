@@ -120,15 +120,15 @@ python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / auto
 
 Adjust via `config.toml` (if you don't have one yet, copy `config.example.toml` to create it). Main keys:
 
-- `[llm] base_url` — the local server endpoint (for Ollama, `http://localhost:11434/v1`)
-- `[llm] model` / `[llm] vlm_model` — the loaded model names
+- `[ai] base_url` — the local server endpoint (for Ollama, `http://localhost:11434/v1`)
+- `[ai] llm_model` / `[ai] vlm_model` — the loaded model names
 - `[transcribe] backend` — `auto` / `mlx` (Apple GPU) / `faster-whisper`
 - `[transcribe] model` — default `large-v3-turbo` (fast, high accuracy) / `large-v3` / `medium` / `small`
 - `[frames] interval_sec` / `scene_threshold` / `max_frames` — the granularity and cap for frame extraction
 - `[output] template_path` — a custom template that replaces the minutes format (heading structure) (see below)
 - `[output] auto_structure` — `true` enables "Auto" mode (auto-generates the heading structure to match the video content; see below)
 
-Each value can also be overridden by an environment variable (`MM_LLM_MODEL`, etc.).
+Each value can also be overridden by an environment variable (`MM_AI_LLM_MODEL`, etc.).
 
 ### Choosing the minutes format (heading structure)
 

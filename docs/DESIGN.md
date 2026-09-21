@@ -63,7 +63,7 @@ STT や生成 AI に録音を送れない現場。ここでは「精度が少し
 ## 4. LLM/VLM を OpenAI 互換 API で抽象化
 
 **判断:** `llm_client.py` は OpenAI 互換の `/v1/chat/completions` を `httpx` で直接叩く。
-接続先は `config.llm.base_url` の 1 か所だけ。
+接続先は `config.ai.base_url` の 1 か所だけ。
 
 **理由:**
 - LM Studio・Ollama・その他の OpenAI 互換サーバーを、`base_url` の変更で交換できる。
@@ -97,7 +97,7 @@ STT や生成 AI に録音を送れない現場。ここでは「精度が少し
 
 - `llm_client` で「`content` 空 かつ `reasoning_content` あり」を検知し、
   「思考で max_tokens を使い切った。増やすか reasoning を下げて」という明示エラーに。
-- チャンク要約の `max_tokens` を固定 1500 → `config.llm.max_tokens` に。
+- チャンク要約の `max_tokens` を固定 1500 → `config.ai.max_tokens` に。
 - `minutes._load_partials` は本文が空のエントリを無効化（壊れた
   `work/minutes_partials.json` を再実行時に自動で作り直す）。
 - 既定 `max_tokens` を 4096 → 8192 に。
@@ -135,7 +135,7 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 
 - `docs/models.md` に Context Length を 32768 以上にする手順を明記
 - `llm_client` がこの 400 を検出して原因の分かる日本語ヒントに変換
-- 閾値を `config.toml` の `[llm] chunk_trigger_chars` / `chunk_size_chars` で
+- 閾値を `config.toml` の `[ai] chunk_trigger_chars` / `chunk_size_chars` で
   調整可能にし、小さいコンテキストのモデルでも下げて分割モードで回せるように
   した（`minutes.py` の `_CHUNK_TRIGGER_CHARS` / `_CHUNK_SIZE_CHARS` はその既定値）
 
@@ -157,7 +157,7 @@ Context Length を上げていないユーザーが一発生成時に HTTP 400�
 - `frames_text` はコンテキストの約 1/3（下限 6000 トークン）に切り詰める。
 - 議事録本文の応答予約は `max_tokens` ではなく `_MINUTES_RESPONSE_TOKENS`（5000）で
   頭打ちにする（型を埋めるタスクなので十分。推論モデルは非対象）。
-- 取れないときのため `[llm] context_tokens` で実値を直接指定もできる。
+- 取れないときのため `[ai] context_tokens` で実値を直接指定もできる。
 実測に基づくテストを `test_minutes.py` / `test_llm_client.py` に追加。
 
 **チャンク要約は1つ終えるたびに `work/minutes_partials.json` へ保存する:**
@@ -545,7 +545,7 @@ if __package__ in (None, ""):
 
 **起動前チェック（`pipeline.run` の `"preflight"` 段階）:**
 
-- 音声抽出より前に、`client.preflight([config.llm.model, config.llm.vlm_model])` を呼ぶ
+- 音声抽出より前に、`client.preflight([config.ai.llm_model, config.ai.vlm_model])` を呼ぶ
 - 各モデルへ `max_tokens=1` の極小リクエストを投げ、1 つでも失敗したら
   **その場で中断**する。数分待たされる前に「モデルをロードして」と分かる
 - 副次的に LM Studio の Just-in-time ロードを前倒しで起こす
