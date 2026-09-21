@@ -242,9 +242,9 @@ flowchart LR
 - **manager** — the session that reviews the PRs the worker opens, merges them to `main`
   if clear, or sends them back to the worker if not. Checks before merging:
   - no leaked confidential data (proper nouns from real meetings) in the diff
+  - no destructive operations (force push, history rewrite, etc.)
   - `.gitignore` correctly excludes `config.toml` / `output/` etc.
   - the diff stays within the intended scope (no more than the linked Issue/request)
-  - no destructive operations (force push, history rewrite, etc.)
   - manager re-runs pytest and the confidential-data check itself (does not rely on the
     worker's self-report alone)
   - reviews the diff directly

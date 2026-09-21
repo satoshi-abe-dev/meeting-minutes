@@ -268,9 +268,9 @@ flowchart LR
 - **manager** — worker が発行した PR をレビューし、問題がなければ `main` へマージ、
   見つかれば worker へ差し戻すセッション。マージ前に確認すること:
   - 機密混入（実会議の固有名詞）が diff に含まれていないか
+  - 破壊的操作（force push・履歴書き換え等）が含まれていないか
   - `.gitignore` が `config.toml` / `output/` 等を正しく除外しているか
   - 差分が意図した範囲内か（対応する Issue・依頼を超えていないか）
-  - 破壊的操作（force push・履歴書き換え等）が含まれていないか
   - pytest と機密混入チェックを manager 自身が再実行（worker の自己申告だけに頼らない）
   - diff を直接確認
   - OpenAI Codex（`codex exec review`。別ベンダーによる独立レビュー）
