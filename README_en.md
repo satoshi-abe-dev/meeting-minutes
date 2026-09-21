@@ -247,8 +247,10 @@ flowchart LR
 - **an independent review by a model from a different vendor is also built in** — in addition to Claude's (the manager's) judgment, an independent code review by OpenAI Codex (`codex exec review`) was added to the pre-merge checks for every PR
 - **loop engineering** — rather than a one-shot review, implement → independent verification (pytest, confidential-data check, diff review, Codex review) → send-back → fix → re-verify, repeated until every check is clear
 - send-backs are specific — each is returned with the exact location, reproduction conditions, and a fix approach
-- Example: in Auto mode (Issue #34, PRs #19 / #35), more than six token-budget bugs surfaced and were fixed over these round trips
-- Example: the problem where the settings frame was invisible on a real screen took four rounds (PRs #33 → #40 → #41 → #42) to get right
+  - Example: in Auto mode (Issue #34, PRs #19 / #35), more than six token-budget bugs
+    surfaced and were fixed over these round trips
+  - Example: the problem where the settings frame was invisible on a real screen took
+    four rounds (PRs #33 → #40 → #41 → #42) to get right
 - **when the same finding recurs, the operational rules are revised** — not just the individual PRs (example: the old-path guard in `.gitignore` was dropped three times in a row across PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule)
 
 Because this project handles real meeting data, tracked files are grepped for leaked confidential data before every push / PR.
