@@ -230,20 +230,12 @@ pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipp
 
 This project was implemented by **two role-separated Claude Code sessions** (independent `claude` processes) working together. It applies the idea of **harness engineering** — pairing LLM output with verification and guardrails rather than trusting it outright — to the development process itself.
 
-```
-  [normal flow]     owner -> worker -(PR)-> manager -(merge)-> main
-
-  [pre-merge checks / manager]
-     * manager re-runs pytest and the confidential-data check itself
-     * reviews the diff directly
-     * independent review by OpenAI Codex (a different vendor)
-
-  [send-back loop]
-     finding -> send-back (exact location, repro steps, fix approach)
-             -> worker fixes -> re-verify -> repeat until every check is clear
-
-  * worker and manager do not share conversation context
-    (the manager sees only the final diff and report)
+```mermaid
+flowchart LR
+    Owner[owner] --> Worker[worker]
+    Worker -->|PR| Manager[manager]
+    Manager -->|merge| Main[main]
+    Manager -->|send back| Worker
 ```
 
 - **worker** — the session that handles implementation, tests, and git operations

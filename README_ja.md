@@ -256,20 +256,12 @@ pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM
 組み合わせて確実性を担保する——いわゆる**ハーネスエンジニアリング**の考え方を、
 開発プロセス自体にも適用している。
 
-```
-  [通常フロー]   本人 → worker →（PR）→ manager →（マージ）→ main
-
-  [マージ前チェック / manager]
-     ・pytest と機密混入チェックを manager 自身が再実行
-     ・diff を直接確認
-     ・Codex（別ベンダー）による独立レビュー
-
-  [差し戻しループ]
-     指摘あり → 差し戻し（該当箇所・再現条件・対処方針）
-             → worker 修正 → 再検証 → 全チェックがクリアするまで繰り返す
-
-  ※ worker と manager は会話コンテキストを共有しない
-    （manager は最終 diff と報告のみを見る）
+```mermaid
+flowchart LR
+    Owner[本人] --> Worker[worker]
+    Worker -->|PR発行| Manager[manager]
+    Manager -->|マージ| Main[main]
+    Manager -->|差し戻し| Worker
 ```
 
 - **worker** — 実装・テスト・git 操作を担当するセッション
