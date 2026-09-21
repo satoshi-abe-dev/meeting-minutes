@@ -13,9 +13,9 @@ English | [日本語](README_ja.md)
 > - **The worker/manager two-session setup** — separated implementation
 >   from independent review/merge authority, and required an independent review
 >   from a different vendor (Codex)
+> - **The GUI design**
 > - **"Auto" mode** — having the LLM suggest a heading structure per video,
 >   which can be pinned as a template once you like it
-> - **The GUI design**
 > - **The "Stop" button requirement** — the need to safely interrupt processing that
 >   can take tens of minutes
 > - **The intermediate-file reuse requirement** — saving transcription, frame
