@@ -251,7 +251,9 @@ flowchart LR
     surfaced and were fixed over these round trips
   - Example: the problem where the settings frame was invisible on a real screen took
     four rounds (PRs #33 → #40 → #41 → #42) to get right
-- **when the same finding recurs, the operational rules are revised** — not just the individual PRs (example: the old-path guard in `.gitignore` was dropped three times in a row across PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule)
+- **when the same finding recurs, the operational rules are revised** — not just the individual PRs
+  - Example: the old-path guard in `.gitignore` was dropped three times in a row across
+    PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule
 
 Because this project handles real meeting data, tracked files are grepped for leaked confidential data before every push / PR.
 
