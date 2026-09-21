@@ -264,6 +264,13 @@ flowchart LR
     Manager -->|差し戻し| Worker
 ```
 
+**マージ前チェック（manager）:**
+- pytest と機密混入チェックを manager 自身が再実行
+- diff を直接確認
+- Codex（別ベンダー）による独立レビュー
+
+※ worker と manager は会話コンテキストを共有しない（manager は最終 diff と報告のみを見る）
+
 - **worker** — 実装・テスト・git 操作を担当するセッション
 - **manager** — worker が発行した PR をレビューして `main` へマージするセッション。
   機密混入（実会議の固有名詞）・`.gitignore` の除外設定・差分が意図した範囲内か・

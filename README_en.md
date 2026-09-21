@@ -238,6 +238,13 @@ flowchart LR
     Manager -->|send back| Worker
 ```
 
+**Pre-merge checks (manager):**
+- manager re-runs pytest and the confidential-data check itself
+- reviews the diff directly
+- independent review by OpenAI Codex (a different vendor)
+
+\* worker and manager do not share conversation context (the manager sees only the final diff and report)
+
 - **worker** — the session that handles implementation, tests, and git operations
 - **manager** — the session that reviews the PRs the worker opens and merges them to `main`. Merges only after checking for leaked confidential data (proper nouns from real meetings), the `.gitignore` exclusions, that the diff stays within the intended scope, and the absence of destructive operations
 - The division of roles, the prohibitions, and the review criteria are written out in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) (Claude Code loads it automatically at session start; the rest of `.claude/`, such as the operational session log, is private)
