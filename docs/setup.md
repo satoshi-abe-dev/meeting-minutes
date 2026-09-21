@@ -100,7 +100,7 @@ python -m venv .venv
 
 この節は **LM Studio 前提**の手順。本ツールは OpenAI 互換 API クライアントなので、
 他の互換サーバー（Ollama など）でも動く。その場合は各サーバーの起動方法に
-読み替え、`config.toml` の `[llm] base_url` をそのサーバーに合わせる
+読み替え、`config.toml` の `[ai] base_url` をそのサーバーに合わせる
 （末尾の「### 他の OpenAI 互換サーバー（Ollama 等）」参照）。
 
 画面構成は LM Studio のバージョンで変わる。ここでは新しい UI（「Bionic」系。
@@ -143,7 +143,7 @@ python -m venv .venv
    - ブラウザから叩くわけではないので **CORS は OFF のままで良い**。
 5. `config.toml` に書くモデル ID を確認する:
    - **Local Models → Library** に表示されるモデルキー（例: `qwen2.5-7b-instruct`）を
-     そのまま `model` / `vlm_model` に書く。
+     そのまま `llm_model` / `vlm_model` に書く。
    - または `curl <base_url>/models`（LM Studio 既定は
      `http://localhost:1234/v1/models`）が返す `id` を見る。
    - Just-in-time loading を OFF にする場合は、使うモデルを先に
@@ -154,11 +154,11 @@ python -m venv .venv
 本ツールは OpenAI 互換の `chat/completions` を使うので、LM Studio 以外のサーバーでも
 動く。
 
-- `config.toml` の `[llm] base_url` をそのサーバーに合わせる。Ollama は `ollama serve`
+- `config.toml` の `[ai] base_url` をそのサーバーに合わせる。Ollama は `ollama serve`
   を起動して `http://localhost:11434/v1`。
-- モデル ID は `curl <base_url>/models` の `id` で確認し、`model` / `vlm_model` に書く。
+- モデル ID は `curl <base_url>/models` の `id` で確認し、`llm_model` / `vlm_model` に書く。
 - **コンテキスト長の自動検出は LM Studio 専用**（`/api/v0/models` 拡張を読む）。他
-  サーバーでは効かないので、`config.toml` の `[llm] context_tokens` に実値を書くか、
+  サーバーでは効かないので、`config.toml` の `[ai] context_tokens` に実値を書くか、
   `chunk_trigger_chars` / `chunk_size_chars` を小さくして分割生成に寄せる
   （→ [`models.md`](models.md)「コンテキスト長の設定（重要）」）。
 - Context Length 自体の設定方法は各サーバー依存（Ollama は `num_ctx` / Modelfile 等）。
@@ -180,10 +180,10 @@ copy config.example.toml config.toml
 `config.toml` を開き、最低限これらを環境に合わせる:
 
 ```toml
-[llm]
+[ai]
 base_url = "http://localhost:1234/v1"
 vlm_model = "<フレーム解析に使う VLM の ID>"
-model = "<議事録生成に使うテキスト LLM の ID>"
+llm_model = "<議事録生成に使うテキスト LLM の ID>"
 
 [transcribe]
 backend = "auto"          # Apple Silicon なら mlx（GPU）。"faster-whisper" に固定も可
@@ -237,8 +237,8 @@ python src/meeting_minutes/gui.py              # GUI
 | `ffmpeg が見つかりません` | §1 の OS 別インストールを参照（`brew` / `winget` / `apt` など）。venv を抜けても PATH は必要。 |
 | `ローカル LLM サーバーに接続できません` | Settings → Local Model API の「Local API server」が **Running** か、`base_url` が合っているか確認（メニュー名は LM Studio。他サーバーは起動状態と `base_url` を各自の方法で確認）。 |
 | `model_not_found` / モデル未ロード | 「Just-in-time model loading」を ON にするか、Loaded Instances で該当モデルをロード。`config.toml` の名前が Library のモデルキーと一致しているか確認（LM Studio の場合。他サーバーはモデルのロード方法・ID を各自で）。 |
-| `詳細: timed out`（議事録生成の途中で失敗） | サーバーは動いていて応答生成が長いだけ。特に議事録の最終統合は出力が長くタイムアウトしやすい。`config.toml` の `[llm] timeout` を増やす（既定600秒。大きいモデルはさらに）。 |
-| 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models.md`](models.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状（LM Studio の場合。他サーバーは各自の方法で。自動検出は LM Studio 専用なので `[llm] context_tokens` を手動設定）。 |
+| `詳細: timed out`（議事録生成の途中で失敗） | サーバーは動いていて応答生成が長いだけ。特に議事録の最終統合は出力が長くタイムアウトしやすい。`config.toml` の `[ai] timeout` を増やす（既定600秒。大きいモデルはさらに）。 |
+| 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models.md`](models.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状（LM Studio の場合。他サーバーは各自の方法で。自動検出は LM Studio 専用なので `[ai] context_tokens` を手動設定）。 |
 | 議事録生成が極端に遅い／「思考で max_tokens を使い切った」エラー／部分要約が空 | 使用中の LLM が推論（thinking）モデルの可能性。LM Studio で reasoning を OFF にするか、非推論の **Instruct 系モデル**に変更する（→ [`models.md`](models.md)）。`max_tokens` を増やしても速度問題は残る（reasoning の OFF は LM Studio の場合。他サーバーは各自の reasoning 設定、または非推論モデルへ）。 |
 | 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |

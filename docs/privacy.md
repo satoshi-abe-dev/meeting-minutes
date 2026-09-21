@@ -15,7 +15,7 @@
 | 議事録の出力（`output/<動画名>/minutes.docx` と `minutes.md`） | ローカル（`.docx` は python-docx で `.md` から変換。外部バイナリ不使用） | なし |
 
 実行時に外部ドメインへ HTTP リクエストを送るコードはない。接続先は
-`config.toml` の `[llm] base_url` のみで、既定値は `http://localhost:1234/v1`。
+`config.toml` の `[ai] base_url` のみで、既定値は `http://localhost:1234/v1`。
 
 唯一の外部通信は **セットアップ時のモデル取得**。`scripts/setup.sh`（内部の
 `python src/meeting_minutes/download_transcribe_model.py`）が HuggingFace から Whisper

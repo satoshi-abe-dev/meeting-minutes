@@ -3,7 +3,7 @@
 #
 #   cp config.example.toml config.toml
 #
-# 各値は環境変数でも上書きできる（MM_LLM_BASE_URL など。config.py 参照）。
+# 各値は環境変数でも上書きできる（MM_AI_BASE_URL など。config.py 参照）。
 
 # --------------------------------------
 [transcribe]
@@ -44,7 +44,7 @@ max_frames = 60
 min_gap_sec = 4
 
 # --------------------------------------
-[llm]
+[ai]
 
 # ローカル LLM / VLM サーバーの OpenAI 互換エンドポイント。
 # LM Studio: Developer タブでローカルサーバーを起動すると既定でこの URL。
@@ -55,13 +55,12 @@ base_url = "http://localhost:1234/v1"
 api_key = "local-no-key"
 
 # フレーム（画面共有・スライド）画像の解析に使う VLM のモデル名。
-# 議事録生成のテキスト LLM は下の model。
 vlm_model = "qwen2-vl-7b-instruct"
 
-# 議事録生成に使うテキスト LLM のモデル名（フレーム解析の VLM は上の vlm_model）。
+# 議事録生成に使うテキスト LLM のモデル名。
 # ※ 推論（thinking）モデル（Qwen3 / DeepSeek-R1 等）は避けるか、reasoning をオフに
 #    して使うこと。そのままだと極端に遅く、本文が空で返ることがある（docs/models.md）。
-model = "qwen2.5-7b-instruct"
+llm_model = "qwen2.5-7b-instruct"
 
 # 1 リクエストのタイムアウト秒。大きめモデルは数分かかることがあり、特に
 # 議事録の最終統合（出力トークン数が多い）はタイムアウトしやすいので長めにする。

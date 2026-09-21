@@ -107,7 +107,7 @@ class MainPresenter:
 
     # --- 設定表示 -------------------------------------------------
     def _config_summary(self) -> str:
-        llm = self.config_obj.llm
+        ai = self.config_obj.ai
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
         # backend=auto（や未知の値）は resolve_backend が実際の値へ読み替える。
@@ -122,9 +122,9 @@ class MainPresenter:
         return "\n".join(
             (
                 self._t("cfg.transcribe", model=tr.model, note=backend_note),
-                self._t("cfg.vlm", model=llm.vlm_model),
-                self._t("cfg.llm", model=llm.model),
-                self._t("cfg.endpoint", url=llm.base_url),
+                self._t("cfg.vlm", model=ai.vlm_model),
+                self._t("cfg.llm", model=ai.llm_model),
+                self._t("cfg.endpoint", url=ai.base_url),
             )
         )
 

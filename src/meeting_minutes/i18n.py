@@ -402,12 +402,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": (
             "警告: コンテキスト長（約 {ctx} トークン）が小さすぎます。"
             "使う LLM のコンテキスト長を増やすか（LM Studio なら Context Length）、"
-            "config.toml の [llm] context_tokens / chunk_size_chars を見直してください"
+            "config.toml の [ai] context_tokens / chunk_size_chars を見直してください"
         ),
         "en": (
             "Warning: the context window (~{ctx} tokens) is too small. Increase the "
             "LLM's context length (in LM Studio, Context Length), or review "
-            "[llm] context_tokens / chunk_size_chars in config.toml"
+            "[ai] context_tokens / chunk_size_chars in config.toml"
         ),
     },
     "pmsg.minutes_generating": {
@@ -488,13 +488,13 @@ _STRINGS: dict[str, dict[str, str]] = {
             "終わらず、タイムアウトしました。サーバー自体は動いていて、応答の生成に時間が"
             "かかっているだけの可能性が高いです"
             "（大きいモデルほど、また出力トークン数が多いほど時間がかかります）。"
-            "config.toml の [llm] timeout を増やしてください（例: 600）。"
+            "config.toml の [ai] timeout を増やしてください（例: 600）。"
         ),
         "en": (
             "[Timeout] The request to the local LLM server did not finish within "
             "{timeout:.0f} s and timed out. The server is most likely up and just "
             "taking a long time to generate a response (larger models and more "
-            "output tokens take longer). Increase [llm] timeout in config.toml "
+            "output tokens take longer). Increase [ai] timeout in config.toml "
             "(e.g. 600)."
         ),
     },
@@ -523,7 +523,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "設定して読み込み直す（一度ロード済みなら Eject してから設定し直す）。"
             "詳しくは docs/models.md の「コンテキスト長の設定」を参照。"
             "コンテキスト長を大きくできない場合は、config.toml の "
-            "[llm] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
+            "[ai] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
             "1 回あたりのプロンプトが短くなります。"
         ),
         "en": (
@@ -532,7 +532,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "LM Studio, set Context Length to 32768 or more when loading this LLM and "
             "reload it (if already loaded, Eject first and set it again). See "
             "\"Setting the context length\" in docs/models.md. If you cannot increase "
-            "it, lowering [llm] chunk_trigger_chars / chunk_size_chars in config.toml "
+            "it, lowering [ai] chunk_trigger_chars / chunk_size_chars in config.toml "
             "switches to split summarization and shortens each prompt."
         ),
     },
@@ -541,7 +541,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "モデルが「思考」（reasoning）に max_tokens を使い切り、本文を1文字も"
             "出力できませんでした（reasoning は {reasoning_len} 文字生成、本文は空、"
             "finish_reason={finish_reason!r}）。Qwen3 系などの推論モデルは、入力が長い"
-            "ほど思考に多くのトークンを使います。config.toml の [llm] max_tokens を"
+            "ほど思考に多くのトークンを使います。config.toml の [ai] max_tokens を"
             "増やすか、サーバー側でこのモデルの reasoning（思考の強さ）を下げてください"
             "（LM Studio なら reasoning 設定、または非推論の Instruct 系モデルへ）。"
         ),
@@ -550,7 +550,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "at all (reasoning generated {reasoning_len} chars, body empty, "
             "finish_reason={finish_reason!r}). Reasoning models such as the Qwen3 "
             "family spend more tokens on thinking as the input gets longer. Increase "
-            "[llm] max_tokens in config.toml, or lower this model's reasoning effort "
+            "[ai] max_tokens in config.toml, or lower this model's reasoning effort "
             "on the server side (in LM Studio, the reasoning setting; or switch to a "
             "non-reasoning Instruct model)."
         ),

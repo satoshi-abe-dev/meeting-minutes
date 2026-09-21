@@ -129,9 +129,9 @@ or provide a shorter input"}
 
 **それでも収まらない／LM Studio 以外の基盤の場合:**
 
-- `config.toml` の `[llm] chunk_trigger_chars` と `chunk_size_chars` を小さくする
+- `config.toml` の `[ai] chunk_trigger_chars` と `chunk_size_chars` を小さくする
   （既定 20000 / 12000。例: `chunk_trigger_chars = 8000` / `chunk_size_chars = 6000`）
-- 実コンテキスト長が自動取得できない基盤では、`[llm] context_tokens` に実値
+- 実コンテキスト長が自動取得できない基盤では、`[ai] context_tokens` に実値
   （例: 32768）を書くとトークンベースの判定が効く
 
 ## メモリ別のおすすめ構成

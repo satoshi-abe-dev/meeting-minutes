@@ -17,7 +17,7 @@ from pathlib import Path
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, format_elapsed, t
 
 from .cancel import check_cancel
-from .config import LLMConfig, load_prompt
+from .config import AIConfig, load_prompt
 from .llm_client import LLMClient
 from .transcribe import Segment, transcript_to_text
 from .vision import FrameNote, notes_to_text
@@ -46,7 +46,7 @@ _FRAMES_TOKEN_BUDGET = 6000
 
 # 実コンテキスト長が取得できない基盤向けのフォールバック（文字数しきい値）。
 # 32k コンテキスト前提で frames 上限・応答予約・マージンを引いた残りに収まる
-# おおよその文字数。config.toml の [llm] chunk_trigger_chars / chunk_size_chars で
+# おおよその文字数。config.toml の [ai] chunk_trigger_chars / chunk_size_chars で
 # 上書きできる（Context Length を上げられない環境ではさらに小さくする）。
 _CHUNK_TRIGGER_CHARS = 20000
 _CHUNK_SIZE_CHARS = 12000
@@ -640,7 +640,7 @@ def _system_prompt() -> str:
 def _summarize_chunks(
     chunks: list[list[Segment]],
     client: LLMClient,
-    llm_config: LLMConfig,
+    llm_config: AIConfig,
     *,
     partials: list[str],
     out_path: Path | None,
@@ -665,7 +665,7 @@ def _summarize_chunks(
             on_progress(
                 i - 1, total_steps,
                 t("pmsg.chunk_wait", language,
-                  i=i, n=len(chunks), model=llm_config.model),
+                  i=i, n=len(chunks), model=llm_config.llm_model),
             )
         chunk_text = transcript_to_text(chunks[i - 1])
         t0 = time.monotonic()
@@ -712,7 +712,7 @@ def generate_minutes(
     segments: list[Segment],
     notes: list[FrameNote],
     client: LLMClient,
-    llm_config: LLMConfig,
+    llm_config: AIConfig,
     meta: MinutesMeta,
     *,
     on_progress: ProgressFn | None = None,
@@ -768,7 +768,7 @@ def generate_minutes(
     trigger_chars = getattr(llm_config, "chunk_trigger_chars", None) or _CHUNK_TRIGGER_CHARS
     size_chars = getattr(llm_config, "chunk_size_chars", None) or _CHUNK_SIZE_CHARS
 
-    # 手動設定（config.toml の [llm] context_tokens）が 0 でなければそれを優先し、
+    # 手動設定（config.toml の [ai] context_tokens）が 0 でなければそれを優先し、
     # 0 のときだけ自動検出値（pipeline が渡す context_tokens 引数）を使う。
     ctx = int(getattr(llm_config, "context_tokens", 0) or 0) or int(context_tokens or 0)
     # 議事録本文・チャンク要約の応答トークン上限。予算計算と実リクエストで同じ値を使う。
@@ -863,7 +863,7 @@ def generate_minutes(
         # （分割生成への切り替えでは救えないため）。
         structure = _resolve_auto_structure(
             client, material, _MINUTES_STRUCTURE, out_dir,
-            model=llm_config.model, max_tokens=minutes_max_tokens,
+            model=llm_config.llm_model, max_tokens=minutes_max_tokens,
             minutes_system=system, ctx=ctx,
             on_progress=on_progress, cancel_event=cancel_event, language=language,
         )
@@ -884,7 +884,7 @@ def generate_minutes(
         if on_progress:
             on_progress(
                 0, 1,
-                t("pmsg.minutes_generating", language, model=llm_config.model),
+                t("pmsg.minutes_generating", language, model=llm_config.llm_model),
             )
         user = _fill_minutes_template(structure, meta, full_transcript, frames_text)
         t0 = time.monotonic()
@@ -905,7 +905,7 @@ def generate_minutes(
     if on_progress:
         on_progress(
             len(chunks), total_steps,
-            t("pmsg.merging", language, model=llm_config.model),
+            t("pmsg.merging", language, model=llm_config.llm_model),
         )
     merged_transcript, merged_truncated = _fit_merged_transcript(
         "\n\n".join(partials), system, structure, frames_text,

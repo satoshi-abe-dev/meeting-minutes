@@ -1,7 +1,7 @@
 """ローカル LLM / VLM サーバー（LM Studio 等）への OpenAI 互換クライアント。
 
 `/v1/chat/completions` を httpx で直接叩くだけ。openai パッケージには依存しない。
-接続先は config.llm.base_url。既定は LM Studio の http://localhost:1234/v1。
+接続先は config.ai.base_url。既定は LM Studio の http://localhost:1234/v1。
 Ollama など OpenAI 互換 API を出す他基盤に差し替えても動く。
 
 外部ネットワークへは接続しない（base_url が localhost 前提）。
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, normalize_language, t
 
-from .config import LLMConfig
+from .config import AIConfig
 
 
 class LLMConnectionError(RuntimeError):
@@ -23,7 +23,7 @@ class LLMConnectionError(RuntimeError):
 
 
 class LLMClient:
-    def __init__(self, config: LLMConfig, *, language: str = DEFAULT_LANGUAGE):
+    def __init__(self, config: AIConfig, *, language: str = DEFAULT_LANGUAGE):
         self.config = config
         # 例外メッセージ（接続エラー時のヒント）の言語。既定は "ja"。
         # GUI が --lang en のとき pipeline.run() 側で "en" に差し替える。
@@ -114,7 +114,7 @@ class LLMClient:
     ) -> str:
         """テキストのみのチャット補完。議事録生成やチャンク要約に使う。"""
         payload = {
-            "model": model or self.config.model,
+            "model": model or self.config.llm_model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -192,7 +192,7 @@ class LLMClient:
         except Exception:
             return None
 
-        want = model or self.config.model
+        want = model or self.config.llm_model
         for e in entries:
             if e.get("type") not in (None, "llm"):
                 continue

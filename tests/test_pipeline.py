@@ -210,15 +210,15 @@ def test_pipeline_messages_show_model_and_waiting(config, video):
         by_stage.setdefault(stage, []).append(msg)
 
     preflight_msg = by_stage["preflight"][0]
-    assert config.llm.model in preflight_msg
-    assert config.llm.vlm_model in preflight_msg
+    assert config.ai.llm_model in preflight_msg
+    assert config.ai.vlm_model in preflight_msg
     assert "待っています" in preflight_msg
 
     transcribe_start = by_stage["transcribe"][0]
     assert config.transcribe.model in transcribe_start
 
     vision_start = by_stage["vision"][0]
-    assert config.llm.vlm_model in vision_start
+    assert config.ai.vlm_model in vision_start
 
 
 def test_pipeline_messages_translated_when_language_en(config, video):
@@ -321,7 +321,7 @@ def test_pipeline_missing_video_raises(config, tmp_path):
 def test_pipeline_preflight_called_with_configured_models(config, video):
     client = FakeClient(with_preflight=True)
     run(video, config, deps=_fake_deps([], client))
-    assert client.preflight_models == [config.llm.model, config.llm.vlm_model]
+    assert client.preflight_models == [config.ai.llm_model, config.ai.vlm_model]
 
 
 def test_pipeline_reuses_existing_transcript_and_frames(config, video):
