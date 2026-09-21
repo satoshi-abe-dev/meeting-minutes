@@ -83,6 +83,11 @@ manager は原則、実装（コード・ドキュメントの変更）を自分
 - `.gitignore` が `config.toml` / `output/` / `temp/` / `.venv*/` / `__pycache__/` /
   `.DS_Store` を除外していることをコミット前に確認する。
 
+## ドキュメント編集ルール
+
+- `README_ja.md` を編集した場合は、`README_en.md` にも同一の変更（文言・順序等）を
+  必ず適用する。ja のみの変更で完結させない。
+
 ## その他
 
 - worker の具体的な作業手順（git 初期化〜PR など）は worker セッションのプランファイル
