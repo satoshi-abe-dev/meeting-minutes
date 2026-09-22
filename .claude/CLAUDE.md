@@ -108,6 +108,9 @@ a PR.
 
 - If you edit `README_ja.md`, also apply the identical change (wording, ordering, etc.)
   to `README_en.md`. Never leave a change to the ja side alone.
+- The same applies to `docs/*_ja.md` / `docs/*_en.md` pairs, in both directions: if you
+  edit a `docs/*_ja.md` file, apply the identical change to the corresponding
+  `docs/*_en.md` file if one exists, and vice versa.
 
 ## Other
 
