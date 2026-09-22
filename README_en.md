@@ -93,7 +93,8 @@ This project was developed by running multiple Claude Code sessions (an implemen
 Quickstart for macOS / Linux (Windows: see [`docs/setup.md`](docs/setup.md)):
 
 ```bash
-brew install ffmpeg          # required for audio / frame extraction
+brew install ffmpeg          # macOS. Required for audio / frame extraction
+sudo apt install ffmpeg      # Linux (Debian/Ubuntu; other distros use their own package manager)
 bash scripts/setup.sh        # creates the virtualenv, installs deps, and fetches the transcription model
 cp config.example.toml config.toml
 ```
