@@ -90,7 +90,8 @@ output/<動画名>/
 macOS / Linux のクイックスタート（Windows は [`docs/setup.md`](docs/setup.md) を参照）:
 
 ```bash
-brew install ffmpeg          # 音声・フレーム抽出に必要
+brew install ffmpeg          # macOS。音声・フレーム抽出に必要
+sudo apt install ffmpeg      # Linux（Debian/Ubuntu。他ディストリは各パッケージマネージャ）
 bash scripts/setup.sh        # 仮想環境の作成・依存導入・文字起こしモデルの取得まで自動
 cp config.example.toml config.toml
 ```
