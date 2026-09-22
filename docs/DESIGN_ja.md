@@ -1,9 +1,9 @@
 # 設計の判断と理由
 
-[English](DESIGN_en.md) | 日本語
+日本語 | [English](DESIGN_en.md)
 
 このドキュメントは「なぜこの形にしたか」を残すもの。実装の説明は
-[`architecture.md`](architecture.md) を参照。
+[`architecture_ja.md`](architecture_ja.md) を参照。
 
 ---
 
@@ -93,7 +93,7 @@
     `work/minutes_partials.json` を再実行時に自動で作り直す）
   - 既定 `max_tokens` を4096→8192に
 - 根本原因は「重い推論モデルを議事録生成に使っている」ことなので、**非推論の
-  Instruct系モデルを使うことを前提条件としてドキュメント化**した（`docs/models.md`）。
+  Instruct系モデルを使うことを前提条件としてドキュメント化**した（`docs/models_ja.md`）。
   `/no_think` を自動付与する案もあったが、Qwen3専用の書き方で他社の推論モデルには
   効かずモデルごとに切り方が違うためコードには入れない
 
@@ -117,11 +117,11 @@
 **収まる限り一発生成**、非常に長い会議だけmap-reduceにフォールバックする方針にした。
 
 **この前提は文書化と設定化が必要だった（2026-09、Issue #16）:** 「32kコンテキスト前提」
-とコード内コメントに書いただけで `docs/models.md` に設定手順が無く、LM Studioで
+とコード内コメントに書いただけで `docs/models_ja.md` に設定手順が無く、LM Studioで
 Context Lengthを上げていないユーザーが一発生成時にHTTP 400（context length不足）を
 踏んだ。対応:
 
-- `docs/models.md` にContext Lengthを32768以上にする手順を明記
+- `docs/models_ja.md` にContext Lengthを32768以上にする手順を明記
 - `llm_client` がこの400を検出して原因の分かる日本語ヒントに変換
 - 閾値を `config.toml` の `[ai] chunk_trigger_chars` / `chunk_size_chars` で
   調整可能にし、小さいコンテキストのモデルでも下げて分割モードで回せるように

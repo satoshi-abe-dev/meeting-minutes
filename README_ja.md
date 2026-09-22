@@ -46,7 +46,7 @@
 - 外部ドメインへ接続するコードは無い。唯一の通信先は **自分で立てるローカル LLM サーバー**
   （[LM Studio](https://lmstudio.ai/) など）への `localhost` 呼び出しのみ
 - モデルのダウンロードさえ済ませれば **Wi-Fi を切っても最後まで動く**
-  （→ [`docs/privacy.md`](docs/privacy.md)）
+  （→ [`docs/privacy_ja.md`](docs/privacy_ja.md)）
 
 出力は `output/<動画名>/` に:
 
@@ -87,7 +87,7 @@ output/<動画名>/
 
 ## セットアップ
 
-macOS / Linux のクイックスタート（Windows は [`docs/setup.md`](docs/setup.md) を参照）:
+macOS / Linux のクイックスタート（Windows は [`docs/setup_ja.md`](docs/setup_ja.md) を参照）:
 
 **macOS:**
 
@@ -111,9 +111,9 @@ cp config.example.toml config.toml
 - 別途 **LM Studio** を起動する（Settings → Local Models → Local Model API で
   「Local API server」を ON。「Just-in-time model loading」も ON 推奨）
 - 議事録生成の LLM は **推論（thinking）をしない／オフにできる Instruct 系モデル** を選ぶ
-  （推論モデルは極端に遅く、本文が空で返ることがある → [`docs/models.md`](docs/models.md)）
-- 詳しい手順・モデル選び・トラブルシューティングは [`docs/setup.md`](docs/setup.md) と
-  [`docs/models.md`](docs/models.md)
+  （推論モデルは極端に遅く、本文が空で返ることがある → [`docs/models_ja.md`](docs/models_ja.md)）
+- 詳しい手順・モデル選び・トラブルシューティングは [`docs/setup_ja.md`](docs/setup_ja.md) と
+  [`docs/models_ja.md`](docs/models_ja.md)
 
 ## 使い方
 
@@ -229,7 +229,7 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 - この順序・進捗通知・出力ディレクトリ管理は **`pipeline.run()` の中に集約されており**、
   GUI・CLI・テストはそれぞれ `run()` を呼び出して使う
 - 各工程の実装は `pipeline.Deps` 経由で差し替えられる
-  （詳細は [`docs/architecture.md`](docs/architecture.md)）
+  （詳細は [`docs/architecture_ja.md`](docs/architecture_ja.md)）
 
 ## 設計のポイント
 
@@ -250,7 +250,7 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
   GPU を使う mlx-whisper、それ以外は faster-whisper。`config.toml` で固定もできる。
 - **設定の多層化** — デフォルト < `config.toml` < 環境変数。TOML は標準 `tomllib` で依存ゼロ。
 
-判断の理由とトレードオフは [`docs/DESIGN.md`](docs/DESIGN.md)。
+判断の理由とトレードオフは [`docs/DESIGN_ja.md`](docs/DESIGN_ja.md)。
 
 ## テスト
 

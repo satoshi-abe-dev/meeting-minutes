@@ -1,6 +1,6 @@
 # Design decisions and rationale
 
-English | [日本語](DESIGN.md)
+[日本語](DESIGN_ja.md) | English
 
 This document records "why it was built this way." For how it's implemented, see
 [`architecture_en.md`](architecture_en.md).
@@ -118,7 +118,7 @@ This document records "why it was built this way." For how it's implemented, see
   - The default `max_tokens` was raised from 4096 to 8192
 - Since the root cause is "using a heavy reasoning model for minutes
   generation," **using a non-reasoning Instruct-style model was documented
-  as a prerequisite** (`docs/models.md`). Auto-appending `/no_think` was
+  as a prerequisite** (`docs/models_en.md`). Auto-appending `/no_think` was
   considered, but that's Qwen3-specific syntax that doesn't work on other
   vendors' reasoning models (each model turns reasoning off differently), so
   it wasn't added to the code
@@ -148,11 +148,11 @@ falling back to map-reduce only for very long meetings.
 
 **This assumption needed to be documented and made configurable (2026-09,
 Issue #16):** "assumes a 32k context" was only a code comment — there was no
-setup procedure in `docs/models.md`, so users who hadn't raised the Context
+setup procedure in `docs/models_en.md`, so users who hadn't raised the Context
 Length in LM Studio hit HTTP 400 (context length too small) on one-shot
 generation. Response:
 
-- `docs/models.md` now documents setting Context Length to 32768 or higher
+- `docs/models_en.md` now documents setting Context Length to 32768 or higher
 - `llm_client` detects this 400 and turns it into a hint that explains the cause
 - The threshold became adjustable via `config.toml`'s `[ai] chunk_trigger_chars` /
   `chunk_size_chars`, so a model with a smaller context can be lowered to lean on

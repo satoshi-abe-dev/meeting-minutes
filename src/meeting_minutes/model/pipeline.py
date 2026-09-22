@@ -113,7 +113,7 @@ def run(
         失敗したあとの再実行を速くする）。False で常に最初から。
     cancel_event: セットされていれば PipelineCancelled を送出して中断する。
         各ステージの開始前・フレーム解析の1枚ごと・議事録のチャンクごとで反応する。
-        mlx-whisper の呼び出し中と ffmpeg 実行中は反応できない（docs/DESIGN.md 参照）。
+        mlx-whisper の呼び出し中と ffmpeg 実行中は反応できない（docs/DESIGN_ja.md 参照）。
     language: on_progress へ渡す進捗メッセージ・エラーヒントの言語（"ja" / "en"）。
         既定 "ja"。GUI が --lang en のとき "en" を渡す。CLI は渡さない（＝ja）。
         文字起こし言語（config.transcribe.language）や議事録の中身は対象外。

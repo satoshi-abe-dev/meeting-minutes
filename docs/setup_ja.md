@@ -1,6 +1,6 @@
 # セットアップ手順
 
-[English](setup_en.md) | 日本語
+日本語 | [English](setup_en.md)
 
 対応 OS: **macOS / Windows / Linux**。文字起こしのバックエンドは OS で自動的に決まる
 （`config.toml` の `[transcribe] backend` は既定 `auto`）:
@@ -109,14 +109,14 @@ python -m venv .venv
   を前提にする。旧 UI では「Developer」タブに同等の設定がある
 
 1. [LM Studio](https://lmstudio.ai/) をインストールして起動。
-2. モデルを 2 つ用意する（詳しい選び方は [`models.md`](models.md)）:
+2. モデルを 2 つ用意する（詳しい選び方は [`models_ja.md`](models_ja.md)）:
    - テキスト LLM（議事録生成用）
    - VLM（フレーム解析用。vision / 画像対応のモデル。LM Studio の **Explore** で
      vision（画像対応）バッジが付くもの、または名前に `-vl` / `vision` を含むものを選ぶ）
 
    **迷ったら**: 16GB Mac ならテキスト LLM `qwen2.5-7b-instruct` ＋ VLM
    `qwen2-vl-2b-instruct`、24GB 以上なら VLM を `qwen2-vl-7b-instruct` に。
-   メモリ別の一覧は [`models.md`](models.md) の「メモリ別のおすすめ構成」。
+   メモリ別の一覧は [`models_ja.md`](models_ja.md) の「メモリ別のおすすめ構成」。
 
    入手は左メニュー **Local Models → Explore** から検索してダウンロード。
    ダウンロード済みは **Local Models → Library** で確認できる。
@@ -132,7 +132,7 @@ python -m venv .venv
      （デフォルトの Context Length）を 32768 以上にしておく（一度手動でロードして
      設定するか、モデル設定の既定値を変更する）。
    - 詳細と、それでも収まらない場合の `config.toml` 側の対処は
-     [`models.md`](models.md) の「コンテキスト長の設定（重要）」を参照。
+     [`models_ja.md`](models_ja.md) の「コンテキスト長の設定（重要）」を参照。
 4. ローカル API サーバーを起動する:
    - **Settings**（設定画面）を開く → 左メニュー **Local Models → Local Model API**
    - **「Local API server」** を ON（表示が **Running** になる）
@@ -161,7 +161,7 @@ python -m venv .venv
 - **コンテキスト長の自動検出は LM Studio 専用**（`/api/v0/models` 拡張を読む）。他
   サーバーでは効かないので、`config.toml` の `[ai] context_tokens` に実値を書くか、
   `chunk_trigger_chars` / `chunk_size_chars` を小さくして分割生成に寄せる
-  （→ [`models.md`](models.md)「コンテキスト長の設定（重要）」）。
+  （→ [`models_ja.md`](models_ja.md)「コンテキスト長の設定（重要）」）。
 - Context Length 自体の設定方法は各サーバー依存（Ollama は `num_ctx` / Modelfile 等）。
 
 ## 4. 設定ファイル
@@ -239,8 +239,8 @@ python src/meeting_minutes/gui.py              # GUI
 | `ローカル LLM サーバーに接続できません` | Settings → Local Model API の「Local API server」が **Running** か、`base_url` が合っているか確認（メニュー名は LM Studio。他サーバーは起動状態と `base_url` を各自の方法で確認）。 |
 | `model_not_found` / モデル未ロード | 「Just-in-time model loading」を ON にするか、Loaded Instances で該当モデルをロード。`config.toml` の名前が Library のモデルキーと一致しているか確認（LM Studio の場合。他サーバーはモデルのロード方法・ID を各自で）。 |
 | `詳細: timed out`（議事録生成の途中で失敗） | サーバーは動いていて応答生成が長いだけ。特に議事録の最終統合は出力が長くタイムアウトしやすい。`config.toml` の `[ai] timeout` を増やす（既定600秒。大きいモデルはさらに）。 |
-| 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models.md`](models.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状（LM Studio の場合。他サーバーは各自の方法で。自動検出は LM Studio 専用なので `[ai] context_tokens` を手動設定）。 |
-| 議事録生成が極端に遅い／「思考で max_tokens を使い切った」エラー／部分要約が空 | 使用中の LLM が推論（thinking）モデルの可能性。LM Studio で reasoning を OFF にするか、非推論の **Instruct 系モデル**に変更する（→ [`models.md`](models.md)）。`max_tokens` を増やしても速度問題は残る（reasoning の OFF は LM Studio の場合。他サーバーは各自の reasoning 設定、または非推論モデルへ）。 |
+| 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models_ja.md`](models_ja.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状（LM Studio の場合。他サーバーは各自の方法で。自動検出は LM Studio 専用なので `[ai] context_tokens` を手動設定）。 |
+| 議事録生成が極端に遅い／「思考で max_tokens を使い切った」エラー／部分要約が空 | 使用中の LLM が推論（thinking）モデルの可能性。LM Studio で reasoning を OFF にするか、非推論の **Instruct 系モデル**に変更する（→ [`models_ja.md`](models_ja.md)）。`max_tokens` を増やしても速度問題は残る（reasoning の OFF は LM Studio の場合。他サーバーは各自の reasoning 設定、または非推論モデルへ）。 |
 | 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |
 | mlx で進捗バーが動かない | 仕様。mlx-whisper は結果を一括で返すため、完了まで 0 のまま。GUI のログに「mlx-whisper で文字起こし中」と出ていれば動作中。 |

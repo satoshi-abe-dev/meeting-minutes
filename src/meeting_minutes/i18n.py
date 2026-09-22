@@ -521,7 +521,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "32768 以上にしてください（設定方法はサーバー依存）。"
             "LM Studio ならこの LLM をロードするときに Context Length を 32768 以上に"
             "設定して読み込み直す（一度ロード済みなら Eject してから設定し直す）。"
-            "詳しくは docs/models.md の「コンテキスト長の設定」を参照。"
+            "詳しくは docs/models_ja.md の「コンテキスト長の設定」を参照。"
             "コンテキスト長を大きくできない場合は、config.toml の "
             "[ai] chunk_trigger_chars / chunk_size_chars を小さくすると分割要約に切り替わり、"
             "1 回あたりのプロンプトが短くなります。"
@@ -531,7 +531,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "length to 32768 or more (how to do this depends on the server). In "
             "LM Studio, set Context Length to 32768 or more when loading this LLM and "
             "reload it (if already loaded, Eject first and set it again). See "
-            "\"Setting the context length\" in docs/models.md. If you cannot increase "
+            "\"Setting the context length\" in docs/models_en.md. If you cannot increase "
             "it, lowering [ai] chunk_trigger_chars / chunk_size_chars in config.toml "
             "switches to split summarization and shortens each prompt."
         ),
