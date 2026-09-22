@@ -38,7 +38,7 @@ _TOKENS_PER_CHAR = 0.8
 _PROMPT_MARGIN_TOKENS = 1500
 # 議事録本文（＝最終 chat の出力）に見込む上限トークン。context 予約に使う。
 # 型を埋めるタスクなので実運用ではこの範囲に収まる。推論モデル用の大きい
-# max_tokens はここでは使わない（docs/models.md のとおり推論モデルは非対象）。
+# max_tokens はここでは使わない（docs/models_ja.md のとおり推論モデルは非対象）。
 _MINUTES_RESPONSE_TOKENS = 5000
 # frames_text（フレーム解析の連結）がプロンプトを食い尽くさないための上限トークン。
 # 実コンテキスト長が分かるときは ctx/3 まで許容する。

@@ -1,6 +1,6 @@
 # Privacy design — nothing leaves the machine
 
-English | [日本語](privacy.md)
+English | [日本語](privacy_ja.md)
 
 The goal of this tool is to produce meeting minutes **without ever sending the
 meeting's content (audio, video, transcript, or summary) to any external

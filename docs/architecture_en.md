@@ -1,6 +1,6 @@
 # Architecture
 
-English | [日本語](architecture.md)
+English | [日本語](architecture_ja.md)
 
 ## Overall flow
 

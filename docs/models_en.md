@@ -1,6 +1,6 @@
 # Recommended models and rough spec guidance
 
-English | [日本語](models.md)
+English | [日本語](models_ja.md)
 
 - Pick based on your environment (Mac RAM, Apple Silicon generation). The
   examples here are ones that were readily available and handle Japanese
