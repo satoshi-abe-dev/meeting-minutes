@@ -1,6 +1,6 @@
 # 推奨モデルと必要スペックの目安
 
-[English](models_en.md) | 日本語
+日本語 | [English](models_en.md)
 
 - 環境（Mac のメモリ、Apple Silicon の世代）に合わせて選ぶ。ここに挙げるのは
   2026 年時点で入手しやすく日本語をそれなりに扱えるものの例

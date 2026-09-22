@@ -1,6 +1,6 @@
 # Design decisions and rationale
 
-English | [日本語](DESIGN_ja.md)
+[日本語](DESIGN_ja.md) | English
 
 This document records "why it was built this way." For how it's implemented, see
 [`architecture_en.md`](architecture_en.md).

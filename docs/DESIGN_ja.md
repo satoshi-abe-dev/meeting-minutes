@@ -1,6 +1,6 @@
 # 設計の判断と理由
 
-[English](DESIGN_en.md) | 日本語
+日本語 | [English](DESIGN_en.md)
 
 このドキュメントは「なぜこの形にしたか」を残すもの。実装の説明は
 [`architecture_ja.md`](architecture_ja.md) を参照。

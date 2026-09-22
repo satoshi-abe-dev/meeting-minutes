@@ -1,6 +1,6 @@
 # セットアップ手順
 
-[English](setup_en.md) | 日本語
+日本語 | [English](setup_en.md)
 
 対応 OS: **macOS / Windows / Linux**。文字起こしのバックエンドは OS で自動的に決まる
 （`config.toml` の `[transcribe] backend` は既定 `auto`）:

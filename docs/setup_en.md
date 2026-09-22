@@ -1,6 +1,6 @@
 # Setup instructions
 
-English | [日本語](setup_ja.md)
+[日本語](setup_ja.md) | English
 
 Supported OS: **macOS / Windows / Linux**. The transcription backend is picked automatically by OS
 (`config.toml`'s `[transcribe] backend` defaults to `auto`):

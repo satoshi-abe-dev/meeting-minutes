@@ -1,6 +1,6 @@
 # アーキテクチャ
 
-[English](architecture_en.md) | 日本語
+日本語 | [English](architecture_en.md)
 
 ## 全体の流れ
 
