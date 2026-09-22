@@ -1,6 +1,6 @@
 # meeting-minutes
 
-English | [日本語](README_ja.md)
+[日本語](README_ja.md) | English
 
 **Turn a recording of a meeting into minutes (Word and Markdown). Everything runs on your own PC; audio, transcription, and summarization are never sent anywhere external.**
 
