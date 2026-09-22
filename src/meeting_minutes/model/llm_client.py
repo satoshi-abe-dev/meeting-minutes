@@ -1,10 +1,11 @@
-"""ローカル LLM / VLM サーバー（LM Studio 等）への OpenAI 互換クライアント。
+"""An OpenAI-compatible client for a local LLM/VLM server (LM Studio, etc.).
 
-`/v1/chat/completions` を httpx で直接叩くだけ。openai パッケージには依存しない。
-接続先は config.ai.base_url。既定は LM Studio の http://localhost:1234/v1。
-Ollama など OpenAI 互換 API を出す他基盤に差し替えても動く。
+Just calls `/v1/chat/completions` directly with httpx. Does not depend on the
+openai package. The endpoint is config.ai.base_url; defaults to LM Studio's
+http://localhost:1234/v1. Also works if swapped for another OpenAI-compatible
+backend such as Ollama.
 
-外部ネットワークへは接続しない（base_url が localhost 前提）。
+Never connects to an external network (base_url is assumed to be localhost).
 """
 
 from __future__ import annotations
@@ -19,16 +20,16 @@ from .config import AIConfig
 
 
 class LLMConnectionError(RuntimeError):
-    """ローカル LLM サーバーに接続できない／エラー応答のときに送出する。"""
+    """Raised when the local LLM server can't be reached, or returns an error response."""
 
 
 class LLMClient:
     def __init__(self, config: AIConfig, *, language: str = DEFAULT_LANGUAGE):
         self.config = config
-        # 例外メッセージ（接続エラー時のヒント）の言語。既定は "ja"。
-        # GUI が --lang en のとき pipeline.run() 側で "en" に差し替える。
+        # The language of exception messages (connection-error hints). Defaults to "ja".
+        # pipeline.run() swaps it to "en" when the GUI is run with --lang en.
         self.language = normalize_language(language)
-        # 関数内 import ではなくここで一度だけ（httpx は requirements 必須依存）
+        # Imported here once rather than inside a function (httpx is a required dependency)
         import httpx
 
         self._httpx = httpx
@@ -38,13 +39,14 @@ class LLMClient:
             headers={"Authorization": f"Bearer {config.api_key}"},
         )
 
-    # --- 低レベル ---------------------------------------------------------
+    # --- Low-level ---------------------------------------------------------
     def _post_chat(self, payload: dict) -> str:
         try:
             resp = self._client.post("/chat/completions", json=payload)
         except self._httpx.TimeoutException as exc:
-            # サーバーは動いているが、応答（多くは生成中）が timeout より長い場合。
-            # 「サーバーを起動して」のヒントは的外れなので専用メッセージにする。
+            # The server is up, but the response (usually still generating)
+            # took longer than the timeout. The "start the server" hint would
+            # be misleading here, so use a dedicated message.
             raise LLMConnectionError(
                 t("pmsg.llm_hint_timeout", self.language, timeout=self.config.timeout)
                 + t("pmsg.llm_err_detail", self.language, exc=exc)
@@ -88,9 +90,11 @@ class LLMClient:
             ) from exc
 
         if not content:
-            # Qwen3 系などの推論モデルは <think> 相当の内容を message.reasoning_content
-            # に、最終回答を message.content に分けて返す。max_tokens が思考だけで
-            # 尽きると content が空のまま返ってくる（HTTP は 200 なので気づきにくい）。
+            # Reasoning models like the Qwen3 family split their response:
+            # <think>-equivalent content goes into message.reasoning_content,
+            # and the final answer into message.content. If max_tokens runs
+            # out purely on thinking, content comes back empty (easy to miss
+            # since the HTTP status is still 200).
             reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
             if reasoning:
                 raise LLMConnectionError(
@@ -102,7 +106,7 @@ class LLMClient:
                 )
         return content
 
-    # --- 高レベル -------------------------------------------------------
+    # --- High-level -------------------------------------------------------
     def chat(
         self,
         system: str,
@@ -112,7 +116,7 @@ class LLMClient:
         max_tokens: int | None = None,
         temperature: float = 0.2,
     ) -> str:
-        """テキストのみのチャット補完。議事録生成やチャンク要約に使う。"""
+        """Text-only chat completion. Used for minutes generation and chunk summarization."""
         payload = {
             "model": model or self.config.llm_model,
             "messages": [
@@ -134,7 +138,7 @@ class LLMClient:
         max_tokens: int = 512,
         temperature: float = 0.1,
     ) -> str:
-        """画像 1 枚を VLM に説明させる。"""
+        """Have the VLM describe a single image."""
         data_url = _image_to_data_url(image_path)
         payload = {
             "model": model or self.config.vlm_model,
@@ -154,7 +158,7 @@ class LLMClient:
         return self._post_chat(payload).strip()
 
     def ping(self) -> bool:
-        """サーバーに到達できるか軽く確認する（GET /models）。"""
+        """A lightweight check that the server can be reached (GET /models)."""
         try:
             resp = self._client.get("/models")
             return resp.status_code < 500
@@ -162,7 +166,7 @@ class LLMClient:
             return False
 
     def list_models(self) -> list[str]:
-        """サーバーが返すモデル id 一覧（取得できなければ空）。"""
+        """The list of model ids the server reports (empty if it can't be fetched)."""
         try:
             resp = self._client.get("/models")
             data = resp.json()
@@ -171,14 +175,17 @@ class LLMClient:
             return []
 
     def loaded_context_length(self, model: str | None = None) -> int | None:
-        """対象モデルの「実際にロードされている」コンテキスト長（トークン）を返す。
+        """Return the target model's "actually loaded" context length (in tokens).
 
-        LM Studio 拡張の GET /api/v0/models が返す `loaded_context_length` を読む。
-        この値は「安全チェックを無効化してよい確かな上限」として使われるため、
-        **対象モデルが実際にロードされている場合の loaded_context_length のみ**を
-        返す。ID だけ一致（未ロード時の広告値 max_context_length）や、別モデルの
-        ロード値へのフォールバックは行わない（誤値は HTTP 400 を再発させるため）。
-        確認できなければ None（呼び出し側は文字数しきい値にフォールバックする）。
+        Reads `loaded_context_length` as returned by LM Studio's extension
+        endpoint GET /api/v0/models. Since this value is used as "a reliable
+        ceiling that lets a safety check be skipped," this returns
+        **`loaded_context_length` only when the target model is actually
+        loaded**. It does not fall back to a match on ID alone (the
+        advertised `max_context_length` when not loaded) or to another
+        model's loaded value (a wrong value would just reproduce the HTTP
+        400). Returns None if it can't be confirmed (the caller falls back to
+        the character-count threshold).
         """
         try:
             from urllib.parse import urlsplit
@@ -204,10 +211,11 @@ class LLMClient:
         return None
 
     def preflight(self, models: list[str]) -> None:
-        """指定モデルそれぞれに極小のリクエストを投げ、実際に応答できるか確認する。
+        """Send a minimal request to each given model to confirm it actually responds.
 
-        1 つでも失敗したら LLMConnectionError を送出する。JIT ロードを前倒しで
-        起こす効果もある。文字起こしなど重い処理の前に呼ぶこと。
+        Raises LLMConnectionError if even one fails. Also has the effect of
+        triggering JIT loading ahead of time. Call this before heavy
+        processing such as transcription.
         """
         seen: list[str] = []
         for model in models:
