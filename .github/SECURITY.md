@@ -1,21 +1,3 @@
-# セキュリティポリシー
-
-## 対応バージョン
-
-サポート対象は `main` の最新コミットのみ。過去のタグ・コミットへの個別対応は行わない。
-
-## 脆弱性の報告
-
-- **機密性が高い場合** — GitHub の private vulnerability reporting を利用してください。
-  リポジトリの **Security** タブ →  **Report a vulnerability**
-  （[報告フォーム](https://github.com/satoshi-abe-dev/meeting-minutes/security/advisories/new)）。
-- **機密性が低い場合** — [GitHub Issues](https://github.com/satoshi-abe-dev/meeting-minutes/issues)
-  でも受け付けます。
-
-再現手順・影響範囲・想定される攻撃シナリオを添えていただけると対応が早くなります。
-
----
-
 # Security Policy
 
 ## Supported versions
