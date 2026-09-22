@@ -1,17 +1,18 @@
-"""文字起こし（完全ローカル）。
+"""Transcription (fully local).
 
-2 つのバックエンドを持つ:
-    - "faster-whisper": CTranslate2 実装。どの OS でも動くが Mac では CPU のみ。
-    - "mlx": Apple Silicon の GPU を使う mlx-whisper。Mac では大幅に速い。
+Has two backends:
+    - "faster-whisper": the CTranslate2 implementation. Works on any OS, but CPU-only on a Mac.
+    - "mlx": mlx-whisper, using Apple Silicon's GPU. Much faster on a Mac.
 
-`config.backend` が "auto" のときは Apple Silicon かつ mlx-whisper が入っていれば
-mlx、そうでなければ faster-whisper を使う。
+When `config.backend` is "auto," uses mlx if it's Apple Silicon and
+mlx-whisper is installed; otherwise uses faster-whisper.
 
-モデルは **セットアップ時に `scripts/setup.sh`（→ `meeting_minutes.download_transcribe_model`）
-で事前取得しておく前提**。アプリ実行時はここで Hugging Face へ取りに行かない
-（`cli.py` / `gui.py` が `HF_HUB_OFFLINE` を立て、さらにこのモジュールが
-ローカルキャッシュの有無を明示チェックする）。未取得なら自動ダウンロードせず
-`ModelNotAvailableError` で停止する。
+**Assumes the model was already fetched at setup time**, via
+`scripts/setup.sh` (-> `meeting_minutes.download_transcribe_model`). At app
+runtime, this module does not go fetch it from Hugging Face (`cli.py` /
+`gui.py` set `HF_HUB_OFFLINE`, and this module also explicitly checks whether
+the local cache has it). If it wasn't fetched, this does not auto-download —
+it stops with `ModelNotAvailableError`.
 """
 
 from __future__ import annotations
@@ -30,37 +31,39 @@ from meeting_minutes.i18n import DEFAULT_LANGUAGE, t
 from .cancel import check_cancel
 from .config import TranscribeConfig
 
-# 進捗コールバック: (完了セグメント数, おおよその総数, 直近テキスト)
+# Progress callback: (completed segment count, approximate total, most recent text)
 ProgressFn = Callable[[int, int, str], None]
 
 
 class ModelNotAvailableError(Exception):
-    """文字起こしモデルがローカルに無く、実行時は自動ダウンロードしない方針のため停止した。
+    """Raised when the transcription model isn't available locally and, per
+    policy, isn't auto-downloaded at runtime.
 
-    メッセージは i18n 済み（`pmsg.stt_model_missing`）で、そのまま画面／ログに 1 行で
-    出せる。CLI（`cli.py`）・GUI（`presenter/main.py`）はどちらも例外を捕捉して
-    `str(exc)` を表示するので、追加のハンドリングは要らない。
+    The message is already i18n'd (`pmsg.stt_model_missing`), so it can be
+    shown as a single line as-is in the UI/log. Both the CLI (`cli.py`) and
+    the GUI (`presenter/main.py`) catch the exception and display
+    `str(exc)`, so no extra handling is needed.
     """
 
 
 @dataclass
 class Segment:
-    """文字起こしの 1 区間。"""
+    """One span of transcription."""
 
-    start: float  # 秒
-    end: float  # 秒
+    start: float  # seconds
+    end: float  # seconds
     text: str
 
 
 def _format_ts(seconds: float) -> str:
-    """秒を [HH:MM:SS] 形式にする。"""
+    """Format seconds as [HH:MM:SS]."""
     seconds = max(0, round(seconds))
     h, rem = divmod(seconds, 3600)
     m, s = divmod(rem, 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
-# --- バックエンドの選択 --------------------------------------------------
+# --- Choosing a backend --------------------------------------------------
 
 def _mlx_available() -> bool:
     return importlib.util.find_spec("mlx_whisper") is not None
@@ -71,9 +74,9 @@ def _is_apple_silicon() -> bool:
 
 
 def resolve_backend(config: TranscribeConfig) -> str:
-    """config.backend を実際に使うバックエンド名に解決する。
+    """Resolve config.backend to the actual backend name to use.
 
-    戻り値は "mlx" か "faster-whisper"。
+    Returns either "mlx" or "faster-whisper".
     """
     backend = (config.backend or "auto").strip().lower()
     if backend in ("mlx", "faster-whisper"):
@@ -82,10 +85,10 @@ def resolve_backend(config: TranscribeConfig) -> str:
         if _is_apple_silicon() and _mlx_available():
             return "mlx"
         return "faster-whisper"
-    return "faster-whisper"  # 未知の値はフォールバック
+    return "faster-whisper"  # fall back for an unknown value
 
 
-# mlx-whisper のモデル名（サイズ名 → HF リポジトリ）
+# mlx-whisper model names (size name -> HF repo)
 _MLX_MODEL_MAP = {
     "large-v3": "mlx-community/whisper-large-v3-mlx",
     "large-v3-turbo": "mlx-community/whisper-large-v3-turbo",
@@ -99,19 +102,20 @@ _MLX_MODEL_MAP = {
 
 
 def _mlx_model_repo(name: str) -> str:
-    """サイズ名を mlx-whisper 用の HF リポジトリ名へ。"/" 入り・未知はそのまま。"""
+    """Convert a size name to the HF repo name for mlx-whisper. Anything containing "/" or unknown is passed through as-is."""
     if "/" in name:
         return name
     return _MLX_MODEL_MAP.get(name.strip().lower(), name)
 
 
 def _mlx_model_cached(repo: str) -> bool:
-    """mlx モデルが利用可能か（best-effort）。
+    """Whether the mlx model is available (best-effort).
 
-    `repo` が実在するローカルディレクトリなら「在り」とみなす（`_mlx_model_repo` が
-    `"/" 入り`・未知名を素通しする設計に合わせる。エアギャップ配布でモデル一式を
-    同梱し `config.model` にそのパスを書くユースケースがある）。それ以外は
-    HuggingFace 共有キャッシュを見る。
+    If `repo` is an existing local directory, it's considered "present" (this
+    matches how `_mlx_model_repo` passes through anything containing "/" or an
+    unknown name unchanged — there's a use case for air-gapped distribution
+    where the full model is bundled and its path is written into
+    `config.model`). Otherwise, checks the HuggingFace shared cache.
     """
     if Path(repo).is_dir():
         return True
@@ -125,13 +129,14 @@ def _mlx_model_cached(repo: str) -> bool:
 
 
 def _faster_whisper_model_cached(config: TranscribeConfig) -> bool:
-    """faster-whisper モデルが利用可能か（best-effort）。`_mlx_model_cached` の
-    faster-whisper 版。
+    """Whether the faster-whisper model is available (best-effort). The
+    faster-whisper counterpart to `_mlx_model_cached`.
 
-    `config.model` が実在するローカルディレクトリなら「在り」とみなす（`config.model`
-    はサイズ名だけでなくローカルのモデルパスも取れる。docs 参照）。それ以外は
-    `download_model(..., local_files_only=True)` でキャッシュを解決する（モデルを
-    RAM に読み込まず、未取得なら例外）。
+    If `config.model` is an existing local directory, it's considered
+    "present" (`config.model` can be a local model path too, not just a size
+    name — see the docs). Otherwise, resolves the cache via
+    `download_model(..., local_files_only=True)` (doesn't load the model into
+    RAM; raises if it hasn't been fetched).
     """
     if Path(config.model).is_dir():
         return True
@@ -144,7 +149,7 @@ def _faster_whisper_model_cached(config: TranscribeConfig) -> bool:
         return False
 
 
-# --- 公開エントリ ------------------------------------------------------
+# --- Public entry points ------------------------------------------------------
 
 def transcribe_wav(
     wav_path: str | Path,
@@ -155,17 +160,20 @@ def transcribe_wav(
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
 ) -> list[Segment]:
-    """wav を文字起こしして Segment のリストを返す。
+    """Transcribe the wav and return a list of Segment.
 
-    バックエンド（mlx / faster-whisper）は `resolve_backend(config)` で決まる。
-    on_progress: 進捗コールバック。faster-whisper はセグメント確定ごと、mlx は
-        完了後にまとめて呼ぶ（下記 _transcribe_mlx のコメント参照）。
-    total_hint: 進捗表示用の総セグメント数の見込み（音声長 / 平均秒などから算出）。
-    cancel_event: セットされていれば中断する。faster-whisper はセグメントの
-        合間で反応するが、mlx は 1 回のブロッキング呼び出しなので呼び出し前
-        にしか反応できない（下記 _transcribe_mlx 参照）。
-    language: on_progress へ渡す進捗メッセージの言語（"ja" / "en"）。文字起こしの
-        言語そのものは config.language（別物）。
+    The backend (mlx / faster-whisper) is decided by `resolve_backend(config)`.
+    on_progress: the progress callback. faster-whisper calls it as each
+        segment is finalized; mlx calls it all at once after completion (see
+        the comment on _transcribe_mlx below).
+    total_hint: an estimated total segment count for the progress display
+        (computed from things like audio length / average seconds per segment).
+    cancel_event: interrupts if set. faster-whisper responds between segments,
+        but mlx is a single blocking call, so it can only respond before the
+        call starts (see _transcribe_mlx below).
+    language: the language of the progress messages passed to on_progress
+        ("ja" / "en"). The transcription language itself is config.language
+        (a separate setting).
     """
     if resolve_backend(config) == "mlx":
         return _transcribe_mlx(
@@ -195,7 +203,7 @@ def _transcribe_faster_whisper(
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
 ) -> list[Segment]:
-    # 重い依存なので関数内 import（テストでスタブしやすくもなる）
+    # a heavy dependency, so imported inside the function (also makes it easier to stub in tests)
     from faster_whisper import WhisperModel
 
     if on_progress is not None:
@@ -205,7 +213,7 @@ def _transcribe_faster_whisper(
             t("pmsg.stt_preparing", language),
         )
 
-    # 事前取得（scripts/setup.sh）されていなければ、ここで HF に取りに行かず停止する。
+    # If it wasn't fetched ahead of time (via scripts/setup.sh), stop here instead of going to HF.
     if not _faster_whisper_model_cached(config):
         raise ModelNotAvailableError(
             t("pmsg.stt_model_missing", language, repo=config.model)
@@ -216,25 +224,28 @@ def _transcribe_faster_whisper(
         config.model,
         device=device,
         compute_type=config.compute_type,
-        # 環境変数（HF_HUB_OFFLINE）に依存しない実行時ガード。上のプリフライトを
-        # すり抜けても、ここで自動ダウンロードは起きない。
+        # A runtime guard that doesn't depend on the environment variable
+        # (HF_HUB_OFFLINE). Even if something slips past the preflight check
+        # above, no auto-download happens here.
         local_files_only=True,
     )
 
-    stt_lang = config.language.strip() or None  # 文字起こし対象の言語（表示言語とは別）
+    stt_lang = config.language.strip() or None  # the language being transcribed (separate from the display language)
     raw_segments, _info = model.transcribe(
         str(wav_path),
         language=stt_lang,
-        vad_filter=True,  # 無音区間を落として精度と速度を上げる
-        # 直前の（誤った）出力を次の窓の文脈にしない。歌・BGM・雑音のある区間で
-        # 同じ空耳フレーズを延々と繰り返す "repetition loop" 幻覚を防ぐ。
+        vad_filter=True,  # drop silent stretches to improve accuracy and speed
+        # Don't feed the previous (possibly wrong) output as context for the
+        # next window. Prevents a "repetition loop" hallucination where the
+        # same mis-heard phrase gets repeated endlessly during singing, BGM,
+        # or noisy stretches.
         condition_on_previous_text=False,
     )
 
     segments: list[Segment] = []
     approx_total = total_hint or 0
     for i, seg in enumerate(_iter_segments(raw_segments), start=1):
-        # セグメントは遅延生成なので、ここで打ち切れば以降の生成も止まる。
+        # Segments are generated lazily, so stopping here also halts further generation.
         check_cancel(cancel_event)
         segments.append(seg)
         if approx_total and i > approx_total:
@@ -253,18 +264,20 @@ def _transcribe_mlx(
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
 ) -> list[Segment]:
-    # mlx-whisper は結果を一括で返す（ジェネレータではない）ため、処理中の
-    # 逐次進捗は出せない。開始時に 1 回説明を出し、完了後にセグメントを
-    # 変換しながら on_progress を回す（進捗バーは 0 → 100 に飛ぶ）。
+    # mlx-whisper returns its result all at once (not a generator), so there's
+    # no way to show incremental progress while it's working. Emit an
+    # explanation once at the start, then run on_progress while converting
+    # segments after completion (the progress bar jumps from 0 to 100).
     import mlx_whisper
 
     repo = _mlx_model_repo(config.model)
 
-    # 中断が最優先。モデル確認より先に見る。
+    # Cancellation takes top priority — checked before the model check.
     check_cancel(cancel_event)
 
-    # 事前取得（scripts/setup.sh）されていなければ、ここで HF に取りに行かず停止する。
-    # mlx_whisper.transcribe には local_files_only 相当の引数が無いので、明示チェックする。
+    # If it wasn't fetched ahead of time (via scripts/setup.sh), stop here
+    # instead of going to HF. mlx_whisper.transcribe has no local_files_only
+    # equivalent, so this is checked explicitly.
     if not _mlx_model_cached(repo):
         raise ModelNotAvailableError(
             t("pmsg.stt_model_missing", language, repo=repo)
@@ -273,20 +286,22 @@ def _transcribe_mlx(
     if on_progress is not None:
         on_progress(0, total_hint or 0, t("pmsg.stt_mlx_running", language))
 
-    # mlx-whisper はブロッキングの一括呼び出しなので、呼び出し中は中断に反応
-    # できない。呼び出し前にだけチェックする。
+    # mlx-whisper is a single blocking call, so it can't respond to
+    # cancellation while it's running. Only checked before the call.
     check_cancel(cancel_event)
 
-    stt_lang = config.language.strip() or None  # 文字起こし対象の言語（表示言語とは別）
+    stt_lang = config.language.strip() or None  # the language being transcribed (separate from the display language)
     result = mlx_whisper.transcribe(
         str(wav_path),
         path_or_hf_repo=repo,
         language=stt_lang,
         word_timestamps=False,
-        # 直前の（誤った）出力を次の窓の文脈にしない。歌・BGM・雑音のある区間で
-        # 同じ空耳フレーズを延々と繰り返す "repetition loop" 幻覚を防ぐ。
-        # mlx-whisper には faster-whisper の vad_filter に相当する無音除去が無いため、
-        # この対策の重要度がより高い。
+        # Don't feed the previous (possibly wrong) output as context for the
+        # next window. Prevents a "repetition loop" hallucination where the
+        # same mis-heard phrase gets repeated endlessly during singing, BGM,
+        # or noisy stretches. mlx-whisper has no silence-removal equivalent to
+        # faster-whisper's vad_filter, which makes this precaution more
+        # important here.
         condition_on_previous_text=False,
     )
 
@@ -311,9 +326,9 @@ def _iter_segments(raw: Iterable) -> Iterable[Segment]:
 
 
 def save_transcript(segments: list[Segment], out_dir: str | Path) -> tuple[Path, Path]:
-    """文字起こしを JSON とプレーンテキストの両方で保存する。
+    """Save the transcript as both JSON and plain text.
 
-    戻り値は (json_path, txt_path)。
+    Returns (json_path, txt_path).
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -330,13 +345,13 @@ def save_transcript(segments: list[Segment], out_dir: str | Path) -> tuple[Path,
 
 
 def transcript_to_text(segments: list[Segment]) -> str:
-    """[HH:MM:SS] 行頭タイムスタンプ付きの読みやすいテキストにする。"""
+    """Format as readable text with a [HH:MM:SS] timestamp at the start of each line."""
     lines = [f"[{_format_ts(s.start)}] {s.text}" for s in segments if s.text]
     return "\n".join(lines) + ("\n" if lines else "")
 
 
 def load_transcript(out_dir: str | Path) -> list[Segment]:
-    """save_transcript が書いた transcript.json を読み戻す（再開用）。"""
+    """Read back the transcript.json written by save_transcript (for resuming)."""
     path = Path(out_dir) / "transcript.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     return [
