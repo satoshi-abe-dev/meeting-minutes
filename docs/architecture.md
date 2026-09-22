@@ -1,5 +1,7 @@
 # アーキテクチャ
 
+[English](architecture_en.md) | 日本語
+
 ## 全体の流れ
 
 ```
