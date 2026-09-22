@@ -1,11 +1,11 @@
-"""設定の読み込み。
+"""Loads configuration.
 
-優先順位（強い順）:
-    1. 環境変数（MM_ プレフィックス）
-    2. TOML ファイル（既定は config.toml、無ければ config.example.toml）
-    3. コード内のデフォルト値
+Priority (strongest first):
+    1. Environment variables (the MM_ prefix)
+    2. A TOML file (config.toml by default, or config.example.toml if that doesn't exist)
+    3. Default values in the code
 
-TOML は標準ライブラリ tomllib（Python 3.11+）で読む。追加依存なし。
+TOML is read with the standard library's tomllib (Python 3.11+). No extra dependency.
 """
 
 from __future__ import annotations
@@ -19,18 +19,18 @@ from typing import cast
 
 from meeting_minutes.i18n import normalize_language
 
-# リポジトリのルート（このファイルは src/meeting_minutes/model/config.py なので 3 つ上）
+# The repo root (this file is src/meeting_minutes/model/config.py, so 3 levels up)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPTS_DIR = REPO_ROOT / "prompts"
 
 
 def _to_bool(raw: str) -> bool:
-    """環境変数の真偽値。"1"/"true"/"yes"/"on"（大小無視）だけ True。"""
+    """A boolean from an environment variable. Only "1"/"true"/"yes"/"on" (case-insensitive) are True."""
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
 
 
 def load_prompt(name: str) -> str:
-    """prompts/<name> を読み込んで文字列で返す。"""
+    """Read prompts/<name> and return it as a string."""
     path = PROMPTS_DIR / name
     if not path.is_file():
         raise FileNotFoundError(f"プロンプトファイルが見つかりません: {path}")
@@ -43,41 +43,45 @@ class AIConfig:
     api_key: str = "local-no-key"
     llm_model: str = "qwen2.5-7b-instruct"
     vlm_model: str = "qwen2-vl-7b-instruct"
-    # ローカルの大きめモデルは1リクエストで数分かかることがある（特に議事録の
-    # 最終統合は出力トークン数が多く時間がかかりやすい）ので長めにしてある。
+    # A large local model can take minutes for a single request (the final
+    # merge step of minutes generation especially, since it outputs many
+    # tokens and tends to take a while), so this is set generously.
     timeout: float = 600.0
-    # Qwen3 系などの推論（reasoning）モデルは、可視の回答を書く前に見えない
-    # "思考" にもこの上限からトークンを消費する。小さすぎると思考だけで使い切り
-    # 本文が空で返ってくることがあるため、通常のモデルより多めにしてある。
+    # Reasoning models like the Qwen3 family spend tokens from this cap on
+    # invisible "thinking" before writing the visible answer. If it's too
+    # small, they can use it all up on thinking and return an empty body, so
+    # this is set higher than for an ordinary model.
     max_tokens: int = 8192
-    # 議事録生成で「一発生成」する文字起こしの上限文字数。これを超えると
-    # チャンク要約 → 統合の分割モードに切り替える。既定 40000 は LLM を 32k 前後の
-    # コンテキストで動かす前提。LM Studio 側で Context Length を大きくできない場合は
-    # 小さくする（例: 8000）。→ docs/models_ja.md「コンテキスト長の設定」
+    # The upper bound (in characters) on a transcript for "one-shot"
+    # generation of the minutes. Beyond this, switches to the split mode of
+    # chunk summarization -> merge. The default 40000 assumes the LLM is run
+    # with a context of roughly 32k. If Context Length can't be raised on the
+    # LM Studio side, lower this (e.g. 8000). -> docs/models_ja.md "Setting the context length"
     chunk_trigger_chars: int = 20000
-    # 分割モードのときの 1 チャンクの文字数。
+    # Character count of one chunk in split mode.
     chunk_size_chars: int = 12000
-    # ロード中モデルの実コンテキスト長（トークン）。0 なら自動検出
-    # （LM Studio の /api/v0/models）。検出できない基盤で、かつ 32k 以外を
-    # 使っている場合はここに実値を書く。
+    # The loaded model's real context length (in tokens). 0 means auto-detect
+    # (via LM Studio's /api/v0/models). On a backend where it can't be
+    # detected, and you're using something other than 32k, write the real
+    # value here.
     context_tokens: int = 0
 
 
 @dataclass
 class TranscribeConfig:
-    # 文字起こしエンジン: "auto"（Apple Silicon なら mlx、他は faster-whisper）/
-    # "mlx" / "faster-whisper"
+    # Transcription engine: "auto" (mlx on Apple Silicon, faster-whisper
+    # elsewhere) / "mlx" / "faster-whisper"
     backend: str = "auto"
-    # モデルのサイズ名（large-v3-turbo / large-v3 / medium / small ...）。
-    # バックエンドごとに実体（HF リポジトリ名など）へ変換する。"/" を含む文字列は
-    # フルリポジトリ名としてそのまま使う。
-    # 既定の large-v3-turbo は large-v3 とほぼ同精度で推論が速く、faster-whisper /
-    # mlx どちらのバックエンドでも使える。
+    # The model's size name (large-v3-turbo / large-v3 / medium / small ...).
+    # Converted per-backend into the actual thing to fetch (e.g. an HF repo
+    # name). A string containing "/" is used as-is as a full repo name.
+    # The default, large-v3-turbo, is nearly as accurate as large-v3 while
+    # running faster, and works on either the faster-whisper or mlx backend.
     model: str = "large-v3-turbo"
-    # 以下 2 つは faster-whisper のときだけ有効（mlx では無視）
+    # The next two only take effect with faster-whisper (ignored by mlx)
     compute_type: str = "int8"
     device: str = "auto"
-    language: str = "ja"  # 空文字なら自動判定
+    language: str = "ja"  # empty string means auto-detect
 
 
 @dataclass
@@ -91,22 +95,29 @@ class FramesConfig:
 @dataclass
 class OutputConfig:
     dir: str = "output"
-    # 議事録の「構造」を差し替えるカスタムテンプレートのパス。空なら内蔵テンプレート。
-    # ここに設定しておくと毎回自動で使われる（GUI のドロップダウンからその回だけ上書きも可能）。
-    # 存在しない・読めない・空の場合は内蔵にフォールバックし警告する。
+    # Path to a custom template that replaces the minutes "structure." Empty
+    # means the built-in template. Setting this makes it used automatically
+    # every time (it can also be overridden for a single run from the GUI's
+    # dropdown). If it doesn't exist, can't be read, or is empty, falls back
+    # to the built-in template with a warning.
     template_path: str = ""
-    # 「おまかせ」モード: 動画の内容に合わせて議事録の見出し構成を LLM に自動生成させる。
-    # True なら template_path より優先（優先順位: auto > file > builtin）。生成された構成は
-    # output/<動画名>/work/structure_used.txt に保存され、気に入れば templates/ にコピーして
-    # 固定テンプレートとして使い回せる。生成に失敗したら内蔵にフォールバックし警告する。
+    # "Auto" mode: has the LLM auto-generate the minutes' heading structure to
+    # match the video content. If True, takes priority over template_path
+    # (priority order: auto > file > built-in). The generated structure is
+    # saved to output/<video name>/work/structure_used.txt, and if you like
+    # it, can be copied into templates/ to reuse as a fixed template. If
+    # generation fails, falls back to the built-in template with a warning.
     auto_structure: bool = False
 
 
 @dataclass
 class GuiConfig:
-    # GUI の表示言語。"ja" / "en"。それ以外は load_config で "ja" に丸める。
-    # 起動時に gui.py の --lang で毎回上書きできる（優先順位: --lang > config/env > 既定）。
-    # 影響範囲は GUI の画面文言のみ（文字起こし言語・LLM プロンプト・議事録内容は別）。
+    # The GUI's display language. "ja" / "en". Anything else is rounded to
+    # "ja" by load_config.
+    # Can be overridden per launch via gui.py's --lang (priority order:
+    # --lang > config/env > default).
+    # Only affects the GUI's on-screen text (the transcription language, LLM
+    # prompts, and minutes content are separate).
     language: str = "ja"
 
 
@@ -120,12 +131,12 @@ class Config:
 
     @property
     def output_root(self) -> Path:
-        """出力ルートを絶対パスで返す（相対指定はリポジトリルート基準）。"""
+        """Return the output root as an absolute path (a relative one is resolved against the repo root)."""
         p = Path(self.output.dir).expanduser()
         return p if p.is_absolute() else (REPO_ROOT / p)
 
 
-# 環境変数 -> (セクション, キー, 変換関数) の対応表
+# Environment variable -> (section, key, conversion function) mapping
 _ENV_MAP: dict[str, tuple[str, str, Callable[[str], object]]] = {
     "MM_AI_BASE_URL": ("ai", "base_url", str),
     "MM_AI_API_KEY": ("ai", "api_key", str),
@@ -161,7 +172,7 @@ _SECTION_TYPES = {
 
 
 def default_config_path() -> Path | None:
-    """使う TOML を決める。config.toml > config.example.toml > なし。"""
+    """Decide which TOML file to use. config.toml > config.example.toml > none."""
     for name in ("config.toml", "config.example.toml"):
         p = REPO_ROOT / name
         if p.is_file():
@@ -170,12 +181,12 @@ def default_config_path() -> Path | None:
 
 
 def _build_section(section_cls: type, raw: dict) -> object:
-    """辞書から dataclass セクションを作る。未知キーは無視し、型は緩く合わせる。"""
+    """Build a dataclass section from a dict. Unknown keys are ignored; types are loosely coerced."""
     known = {f.name: f for f in fields(section_cls)}
     kwargs = {}
     for key, value in raw.items():
         if key not in known:
-            continue  # 知らないキーは黙って捨てる（前方互換）
+            continue  # silently drop unknown keys (forward compatibility)
         target_type = known[key].type
         try:
             if target_type in ("int", int):
@@ -191,9 +202,9 @@ def _build_section(section_cls: type, raw: dict) -> object:
 
 
 def load_config(path: str | os.PathLike | None = None) -> Config:
-    """設定を読み込む。
+    """Load the configuration.
 
-    path: TOML のパス。None なら default_config_path() を使う。
+    path: path to the TOML file. Uses default_config_path() if None.
     """
     toml_path: Path | None
     if path is not None:
@@ -212,7 +223,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     for name, cls in _SECTION_TYPES.items():
         sections[name] = _build_section(cls, data.get(name, {}) or {})
 
-    # 環境変数で上書き
+    # override with environment variables
     for env_name, (section, key, caster) in _ENV_MAP.items():
         if env_name not in os.environ:
             continue
@@ -223,7 +234,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
             casted = raw
         setattr(sections[section], key, casted)
 
-    # GUI 言語は対応外の値なら既定（ja）に丸める（TOML・環境変数どちらの経路でも）。
+    # Round an unsupported GUI language value to the default (ja), whether it came via TOML or an environment variable.
     gui = cast(GuiConfig, sections["gui"])
     gui.language = normalize_language(getattr(gui, "language", None))
 
