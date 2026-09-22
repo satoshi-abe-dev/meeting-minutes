@@ -51,10 +51,10 @@ POSIX パスをハードコードしており、`python -m venv` が作る `.ven
    （`cli.py` / `gui.py`）は `HF_HUB_OFFLINE` で外部通信を止めるので、モデルが
    未取得でも自動ダウンロードはされず、文字起こしがエラーで停止する。
 
-`config.toml` の `[transcribe] backend` は既定 `auto`: Apple Silicon の Mac は mlx、
-**Windows / Linux / Intel Mac は faster-whisper（CPU のみ・遅め。`medium` /
-`large-v3-turbo` を推奨）**。`mlx` / `faster-whisper` に固定もできる。既定モデルは
-`large-v3-turbo`。
+- `config.toml` の `[transcribe] backend` は既定 `auto`: Apple Silicon の Mac は mlx、
+  **Windows / Linux / Intel Mac は faster-whisper（CPU のみ・遅め。`medium` /
+  `large-v3-turbo` を推奨）**
+- `mlx` / `faster-whisper` に固定もできる。既定モデルは `large-v3-turbo`
 
 ### 手動でやる場合（setup.sh を使わない）
 
@@ -98,14 +98,13 @@ python -m venv .venv
 
 ## 3. ローカル LLM サーバー（LM Studio）
 
-この節は **LM Studio 前提**の手順。本ツールは OpenAI 互換 API クライアントなので、
-他の互換サーバー（Ollama など）でも動く。その場合は各サーバーの起動方法に
-読み替え、`config.toml` の `[ai] base_url` をそのサーバーに合わせる
-（末尾の「### 他の OpenAI 互換サーバー（Ollama 等）」参照）。
-
-画面構成は LM Studio のバージョンで変わる。ここでは新しい UI（「Bionic」系。
-サイドバーが Settings / Integrations / Devices / Local Models に分かれているもの）を
-前提にする。旧 UI では「Developer」タブに同等の設定がある。
+- この節は **LM Studio 前提**の手順。本ツールは OpenAI 互換 API クライアントなので、
+  他の互換サーバー（Ollama など）でも動く。その場合は各サーバーの起動方法に
+  読み替え、`config.toml` の `[ai] base_url` をそのサーバーに合わせる
+  （末尾の「### 他の OpenAI 互換サーバー（Ollama 等）」参照）
+- 画面構成は LM Studio のバージョンで変わる。ここでは新しい UI（「Bionic」系。
+  サイドバーが Settings / Integrations / Devices / Local Models に分かれているもの）
+  を前提にする。旧 UI では「Developer」タブに同等の設定がある
 
 1. [LM Studio](https://lmstudio.ai/) をインストールして起動。
 2. モデルを 2 つ用意する（詳しい選び方は [`models.md`](models.md)）:
@@ -222,10 +221,10 @@ python src/meeting_minutes/gui.py              # GUI
 .venv\Scripts\python src\meeting_minutes\gui.py
 ```
 
-`output/sample/minutes.md` が生成されれば成功。venv を有効化しているか、
-上のように venv 内の Python を明示すれば、どの OS でも同じコマンド構成で動く
-（Python はパス区切りに `/` も `\` も受ける。venv 未有効化のまま素の `python` で
-呼ぶとグローバル環境が使われ ImportError になる）。
+- `output/sample/minutes.md` が生成されれば成功
+- venv を有効化しているか、上のように venv 内の Python を明示すれば、どの OS でも
+  同じコマンド構成で動く（Python はパス区切りに `/` も `\` も受ける。venv 未有効化
+  のまま素の `python` で呼ぶとグローバル環境が使われ ImportError になる）
 
 > 開発者向けには `python -m meeting_minutes.cli sample.mp4` / `-m meeting_minutes.gui`
 > でも起動できる（その場合は `cd src` するか `PYTHONPATH=src` を設定する）。

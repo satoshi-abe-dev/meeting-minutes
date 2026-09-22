@@ -29,10 +29,9 @@
            └─ save_minutes_docx → minutes.docx（.md と同内容の Word 版。失敗しても警告のみ）
 ```
 
-この順序と進捗通知、出力ディレクトリ（`output/<動画名>/`）の管理は
-`pipeline.run()` の中に集約されており、GUI・CLI・テストはそれぞれ `run()` を
-呼び出して使う。
-
+- この順序・進捗通知・出力ディレクトリ（`output/<動画名>/`）の管理は
+  `pipeline.run()` の中に集約されており、GUI・CLI・テストはそれぞれ `run()` を
+  呼び出して使う
 - `run(..., reuse=True)`（既定）は前回の中間生成物（transcript/transcript.json /
   frames/frames.json / frames/frame_notes.json / work/minutes_partials.json）を
   再利用し、終わっている分をやり直さない（`--fresh` / GUI のチェックで無効化）
@@ -44,7 +43,7 @@
 
 ## モジュールの責務
 
-コードは役割ごとに分かれている。
+コードは役割ごとに分かれている:
 
 - 実処理（Model）は `src/meeting_minutes/model/` にまとまっている
 - GUI は `src/meeting_minutes/view/` + `src/meeting_minutes/presenter/`
@@ -95,9 +94,10 @@
 
 ## テスト用の差し替え（`Deps`）
 
-`pipeline.Deps` が各工程の関数参照を保持する。テストではダミー関数を渡した
-`Deps` を `run(..., deps=fake_deps)` に渡し、ffmpeg も LLM も呼ばずに
-「工程の順序」「進捗コールバックの内容」「出力パスの組み立て」を検証する。
+- `pipeline.Deps` が各工程の関数参照を保持する
+- テストではダミー関数を渡した `Deps` を `run(..., deps=fake_deps)` に渡し、
+  ffmpeg も LLM も呼ばずに「工程の順序」「進捗コールバックの内容」
+  「出力パスの組み立て」を検証する
 
 ## データ構造
 
