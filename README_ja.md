@@ -1,6 +1,6 @@
 # meeting-minutes
 
-[English](README_en.md) | 日本語
+日本語 | [English](README_en.md)
 
 **打ち合わせの録画動画から議事録（Word・Markdown）を作成する。処理はすべて手元の PC で完結し、音声も文字起こしも要約も外部に送信しない。**
 
