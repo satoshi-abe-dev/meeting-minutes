@@ -112,6 +112,13 @@ a PR.
   edit a `docs/*_ja.md` file, apply the identical change to the corresponding
   `docs/*_en.md` file if one exists, and vice versa.
 
+## Commit / PR language
+
+- Commit messages and PR titles/descriptions are written in English going forward.
+  (Past Japanese commit history is not rewritten.)
+- This does not apply to SendMessage exchanges between the manager and worker sessions,
+  which continue in Japanese as before.
+
 ## Other
 
 - The worker's concrete operating procedure (from git init through to opening a PR, etc.)
