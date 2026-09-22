@@ -285,8 +285,8 @@ flowchart LR
   - diff を直接確認
   - OpenAI Codex（`codex exec review`。別ベンダーによる独立レビュー）
 - 役割分担・禁止事項・レビュー基準は
-  [`.claude/CLAUDE.md`](.claude/CLAUDE.md) に明文化（Claude Code がセッション開始時に
-  自動で読み込む。実運用のセッションログなど他の `.claude/` 配下は非公開）
+  [`.claude/CLAUDE.md`](.claude/CLAUDE.md)（English）に明文化（Claude Code がセッション
+  開始時に自動で読み込む。実運用のセッションログなど他の `.claude/` 配下は非公開）
 - **セッション間で会話コンテキストは共有されない** — manager は worker の試行錯誤の
   過程を見ず、最終的な diff と報告のみからレビューする
 - **権限境界が働いた実例** — 追跡ファイルの削除など本人の直接確認が必要な操作では、
