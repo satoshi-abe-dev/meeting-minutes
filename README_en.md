@@ -50,7 +50,7 @@ A CLI / GUI tool that takes a single video file and runs the following **entirel
 4. Generate minutes from the transcript + frame notes (LLM)
 
 - There is no code that connects to an external domain. The only thing it talks to is a **local LLM server you run yourself** (e.g. [LM Studio](https://lmstudio.ai/)) over `localhost`
-- Once the models are downloaded, it **runs to completion even with Wi-Fi turned off** (→ [`docs/privacy.md`](docs/privacy.md))
+- Once the models are downloaded, it **runs to completion even with Wi-Fi turned off** (→ [`docs/privacy_en.md`](docs/privacy_en.md))
 
 Output goes to `output/<video name>/`:
 
@@ -90,7 +90,7 @@ This project was developed by running multiple Claude Code sessions (an implemen
 
 ## Setup
 
-Quickstart for macOS / Linux (Windows: see [`docs/setup.md`](docs/setup.md)):
+Quickstart for macOS / Linux (Windows: see [`docs/setup_en.md`](docs/setup_en.md)):
 
 **macOS:**
 
@@ -110,8 +110,8 @@ cp config.example.toml config.toml
 
 - `scripts/setup.sh` does the whole setup in one command: create the virtualenv (`.venv`), install dependencies, and fetch the transcription model from HuggingFace. This setup step is the only time the model is downloaded — **the app itself runs fully offline** (`cli.py` / `gui.py` set `HF_HUB_OFFLINE`; if the model is missing at runtime it stops with an error instead of downloading)
 - Separately, start **LM Studio** (Settings → Local Models → Local Model API: turn on "Local API server"; "Just-in-time model loading" is also recommended)
-- For minutes generation, choose an **Instruct-style model that does not do reasoning (thinking), or can have it turned off** (reasoning models are extremely slow and can return empty bodies → [`docs/models.md`](docs/models.md))
-- For detailed steps, model selection, and troubleshooting, see [`docs/setup.md`](docs/setup.md) and [`docs/models.md`](docs/models.md)
+- For minutes generation, choose an **Instruct-style model that does not do reasoning (thinking), or can have it turned off** (reasoning models are extremely slow and can return empty bodies → [`docs/models_en.md`](docs/models_en.md))
+- For detailed steps, model selection, and troubleshooting, see [`docs/setup_en.md`](docs/setup_en.md) and [`docs/models_en.md`](docs/models_en.md)
 
 ## Usage
 
@@ -214,7 +214,7 @@ video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame a
 ```
 
 - This ordering, progress notifications, and output-directory management are all **consolidated inside `pipeline.run()`**; the GUI, CLI, and tests each call `run()` to use it
-- Each stage's implementation is swappable via `pipeline.Deps` (see [`docs/architecture.md`](docs/architecture.md) for details)
+- Each stage's implementation is swappable via `pipeline.Deps` (see [`docs/architecture_en.md`](docs/architecture_en.md) for details)
 
 ## Design highlights
 
@@ -227,7 +227,7 @@ video ─▶ audio extract ─▶ transcribe ─▶ frame extract ─▶ frame a
 - **Swappable transcription backend** — with `backend=auto`, Apple Silicon uses GPU-backed mlx-whisper and everything else uses faster-whisper. You can also pin it in `config.toml`.
 - **Layered configuration** — defaults < `config.toml` < environment variables. TOML is parsed with the standard-library `tomllib`, so there is zero dependency.
 
-For the reasoning behind decisions and their trade-offs, see [`docs/DESIGN.md`](docs/DESIGN.md).
+For the reasoning behind decisions and their trade-offs, see [`docs/DESIGN_en.md`](docs/DESIGN_en.md).
 
 ## Tests
 
