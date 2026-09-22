@@ -1,12 +1,12 @@
-"""Presenter — メイン画面
+"""Presenter — the main screen
 
-現行 gui.py の ``App`` に混在していた画面ロジック一式:
-    - 議事録フォーマット 3 択の解決（config.output への反映）
-    - 「議事録を作成」開始時のガード・ボタン状態遷移・ワーカースレッド起動
-    - 進捗イベントの受信（queue）と進捗率計算・ログ整形
-    - 成功／エラー／中断時の状態遷移
-View の契約（MainView）と Model（config / pipeline.run）にだけ依存し、tkinter は
-一切 import しない。
+The full set of screen logic that used to be mixed into gui.py's ``App``:
+    - resolving the minutes-format 3-way choice (reflecting it into config.output)
+    - guarding the start of "Create minutes," button state transitions, launching the worker thread
+    - receiving progress events (via a queue), computing the progress fraction, and formatting the log
+    - state transitions on success / error / cancellation
+Depends only on the View's contract (MainView) and the Model (config /
+pipeline.run); does not import tkinter at all.
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ from meeting_minutes.model.pipeline import run as _default_run
 from meeting_minutes.model.transcribe import resolve_backend
 from meeting_minutes.view import MainView
 
-# 工程ラベルは i18n カタログの "stage.<name>" キーへ移した（旧 _STAGE_LABEL）。
-# 工程ごとの全体に対する重み（進捗バーをそれっぽく動かすための目安）
+# Stage labels have moved to the i18n catalog's "stage.<name>" keys (used to be _STAGE_LABEL).
+# Each stage's weight relative to the whole (a rough guide for making the progress bar move plausibly)
 _STAGE_WEIGHT = {
     "preflight": 0.03,
     "audio": 0.05,
@@ -55,16 +55,17 @@ class MainPresenter:
         self.result_dir = None
         self.minutes_path = None
         self.minutes_docx_path = None
-        # 議事録フォーマット。config.toml の設定を初期値として尊重し、GUI の
-        # ラジオ／ファイル選択はその回だけの上書き（config.toml は書き換えない）。
+        # The minutes format. Respects the config.toml setting as the initial
+        # value; the GUI's radio/file selection is a one-time override for
+        # that run (config.toml itself is not rewritten).
         _cfg_tpl = self.config_obj.output.template_path
-        self._template_path: str | None = _cfg_tpl or None  # 「ファイルを選択」側の対象
+        self._template_path: str | None = _cfg_tpl or None  # the target for "Choose a file"
 
         self._events: queue.Queue[tuple] = queue.Queue()
         self._worker: threading.Thread | None = None
         self._reuse: bool = True
         self._cancel_event: threading.Event | None = None
-        # 実行開始時に output/<動画名>/logs/gui.log を指す。画面のログ欄と同じ内容を追記する。
+        # Points at output/<video name>/logs/gui.log once a run starts. Appended with the same content as the on-screen log.
         self._log_path: Path | None = None
 
         self.view.set_on_choose_video(self._choose_file)
@@ -74,7 +75,7 @@ class MainPresenter:
         self.view.set_on_open_minutes(self._open_minutes)
         self.view.set_on_open_folder(self._open_folder)
 
-        # 初期選択は config の優先順位（auto > file > builtin）に合わせる。
+        # The initial selection matches config's priority order (auto > file > builtin).
         if self.config_obj.output.auto_structure:
             init_fmt = "auto"
         elif _cfg_tpl:
@@ -95,30 +96,31 @@ class MainPresenter:
         return t(key, self.language, default=default, **kwargs)
 
     def _log(self, text: str) -> None:
-        """画面のログ欄に出しつつ、実行中なら output/<動画名>/logs/gui.log にも追記する。
-        View（画面表示）は変更しない。ファイル書き込みの失敗は GUI 動作に影響させない。"""
+        """Write to the on-screen log area, and while running, also append to output/<video name>/logs/gui.log.
+        Does not change the View (the on-screen display). A file-write failure does not affect the GUI's operation."""
         self.view.append_log(text)
         if self._log_path is not None:
             try:
                 with open(self._log_path, "a", encoding="utf-8") as f:
                     f.write(text + "\n")
             except OSError:
-                pass  # ログファイル書き込み失敗は握りつぶす（画面表示は済んでいる）
+                pass  # swallow a log-file write failure (the on-screen display already succeeded)
 
-    # --- 設定表示 -------------------------------------------------
+    # --- Displaying the configuration -------------------------------------------------
     def _config_summary(self) -> str:
         ai = self.config_obj.ai
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
-        # backend=auto（や未知の値）は resolve_backend が実際の値へ読み替える。
-        # 「auto を mlx と読み替えた」ことが伝わる文言にする（明示指定時は素の表示）。
+        # backend=auto (or an unknown value) is resolved to the real value by
+        # resolve_backend. Word it so "auto was resolved to mlx" comes across
+        # (an explicitly-set value is shown plainly).
         if tr.backend == backend:
             backend_note = self._t("cfg.backend_explicit", backend=tr.backend)
         else:
             backend_note = self._t(
                 "cfg.backend_resolved", configured=tr.backend, actual=backend
             )
-        # 実際に使う順番（文字起こし → VLM → LLM）で縦に並べる。
+        # Listed vertically in the order they're actually used (transcription -> VLM -> LLM).
         return "\n".join(
             (
                 self._t("cfg.transcribe", model=tr.model, note=backend_note),
@@ -128,7 +130,7 @@ class MainPresenter:
             )
         )
 
-    # --- 操作 -------------------------------------------------------
+    # --- Actions -------------------------------------------------------
     def _choose_file(self) -> None:
         path = self.view.ask_video_path()
         if not path:
@@ -137,7 +139,7 @@ class MainPresenter:
         self.view.set_video_name(self.video_path.name)
         self.view.set_start_enabled(True)
 
-    # --- 議事録フォーマットの選択 ---------------------------------------
+    # --- Choosing the minutes format ---------------------------------------
     def _pick_template_file(self) -> None:
         path = self.view.ask_template_path()
         if not path:
@@ -147,7 +149,7 @@ class MainPresenter:
         self.view.set_template_name(Path(path).name)
 
     def _selected_template_path(self) -> str:
-        """この回で使うテンプレートのパス（内蔵なら空文字）。"""
+        """The template path to use for this run (an empty string for the built-in template)."""
         if self.view.get_format_mode() == "file" and self._template_path:
             return self._template_path
         return ""
@@ -155,8 +157,9 @@ class MainPresenter:
     def _start(self) -> None:
         if self.video_path is None or self._worker is not None:
             return
-        # 「ファイルを選択」なのに未選択のまま開始 → 無警告で内蔵にフォールバックさせず、
-        # ここで止めて気づかせる。
+        # Starting with "Choose a file" selected but nothing actually chosen
+        # -> rather than silently falling back to the built-in template, stop
+        # here and make the user notice.
         if self.view.get_format_mode() == "file" and not self._template_path:
             self.view.show_error(
                 self._t("dialog.format_error.title"),
@@ -164,10 +167,11 @@ class MainPresenter:
             )
             return
 
-        # この回のログ書き出し先。pipeline.run() は video_path を
-        # expanduser().resolve() してから out_dir を決めるので、こちらも同じ正規化を
-        # 通す（シンボリックリンク等でリンク名と実体名が違うと、logs/gui.log と
-        # transcript/ ・ minutes.md が別フォルダに分かれてしまうのを防ぐ）。
+        # Where this run's log is written. pipeline.run() determines out_dir
+        # after calling expanduser().resolve() on video_path, so apply the
+        # same normalization here too (otherwise, if a symlink's name differs
+        # from the real name, logs/gui.log could end up in a different folder
+        # from transcript/ and minutes.md).
         resolved_video = self.video_path.expanduser().resolve()
         out_dir = self.config_obj.output_root / resolved_video.stem
         try:
@@ -175,18 +179,20 @@ class MainPresenter:
             log_dir.mkdir(parents=True, exist_ok=True)
             self._log_path = log_dir / "gui.log"
         except OSError:
-            self._log_path = None  # 作れなくても GUI は動かす
+            self._log_path = None  # run the GUI anyway even if this can't be created
 
         self.view.set_start_enabled(False)
         self.view.set_stop_enabled(True)
         self.view.set_open_minutes_enabled(False)
         self.view.set_open_folder_enabled(False)
         self.view.set_progress(0)
-        self._reuse = self.view.get_reuse()  # UI スレッドで読んでおく
+        self._reuse = self.view.get_reuse()  # read it now, on the UI thread
         self._cancel_event = threading.Event()
-        # この回で使う議事録フォーマット（GUI の選択で config.toml をその回だけ上書き）。
-        # 3 つのラジオが排他的に 1 状態を表す。config.toml で auto_structure=true でも
-        # GUI で「内蔵」「ファイルを選択」を選んだらそちらが勝つよう、両フラグを毎回セット。
+        # The minutes format used for this run (the GUI's selection overrides
+        # config.toml for just this run). The three radios exclusively
+        # represent one state. Even if config.toml has auto_structure=true,
+        # if the GUI has "Built-in" or "Choose a file" selected, that should
+        # win — so both flags are set every time.
         fmt_mode = self.view.get_format_mode()
         tpl = self._selected_template_path()
         self.config_obj.output.auto_structure = fmt_mode == "auto"
@@ -207,11 +213,11 @@ class MainPresenter:
         self._worker.start()
 
     def _stop(self) -> None:
-        """中断ボタン。フラグを立てるだけ（協調的キャンセル）。"""
+        """The Stop button. Just sets a flag (cooperative cancellation)."""
         if self._cancel_event is None:
             return
         self._cancel_event.set()
-        self.view.set_stop_enabled(False)  # 二重クリック防止
+        self.view.set_stop_enabled(False)  # prevent a double click
         self._log(self._t("log.stop_requested"))
 
     def _work(self) -> None:
@@ -233,7 +239,7 @@ class MainPresenter:
         except Exception as exc:
             self._events.put(("error", exc, traceback.format_exc()))
 
-    # --- queue 消化（UI スレッド） --------------------------------
+    # --- Draining the queue (on the UI thread) --------------------------------
     def _poll_events(self) -> None:
         try:
             while True:
@@ -263,7 +269,7 @@ class MainPresenter:
             self.view.set_progress(1000)
             self.view.set_stage_text(self._t("stage_text.done"))
             return
-        # 直前工程までの重み合計 + 現工程内の進捗割合
+        # sum of the weights of prior stages + progress fraction within the current stage
         if stage in _STAGE_ORDER:
             prior = _STAGE_ORDER[: _STAGE_ORDER.index(stage)]
             base = sum(_STAGE_WEIGHT[s] for s in prior)
@@ -312,7 +318,7 @@ class MainPresenter:
         self.view.set_stop_enabled(False)
         self._cancel_event = None
         self.view.show_error(self._t("dialog.error.title"), str(exc))
-        # 詳細はログにだけ残す
+        # keep the details in the log only
         self._log(tb)
 
     def _on_cancelled(self) -> None:
@@ -323,11 +329,12 @@ class MainPresenter:
         self.view.set_stop_enabled(False)
         self._cancel_event = None
 
-    # --- 外部を開く ---------------------------------------------
+    # --- Opening things externally ---------------------------------------
     def _open_minutes(self) -> None:
-        # Word 版を優先。docx 変換が失敗したランでは result.minutes_docx_path が
-        # None（pipeline は警告して継続）。過去実行後に .md だけ手で消された等の
-        # 保険として、最後は出力フォルダーにフォールバックする。
+        # Prefer the Word version. On a run where the docx conversion failed,
+        # result.minutes_docx_path is None (the pipeline warns and continues).
+        # As a safety net — e.g. if only the .md was manually deleted after a
+        # past run — falls back to the output folder as a last resort.
         if self.minutes_docx_path and Path(self.minutes_docx_path).is_file():
             self.view.open_in_file_manager(Path(self.minutes_docx_path))
         elif self.minutes_path and Path(self.minutes_path).is_file():
