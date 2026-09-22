@@ -1,17 +1,18 @@
 # 推奨モデルと必要スペックの目安
 
-環境（Mac のメモリ、Apple Silicon の世代）に合わせて選ぶ。ここに挙げるのは
-2026 年時点で入手しやすく日本語をそれなりに扱えるものの例。**モデル名は、使う LLM
-サーバーが返すモデル ID に合わせて `config.toml` に書く** 必要がある（LM Studio なら
-**Library** のモデルキー、汎用には `curl <base_url>/models` の `id`）。
+- 環境（Mac のメモリ、Apple Silicon の世代）に合わせて選ぶ。ここに挙げるのは
+  2026 年時点で入手しやすく日本語をそれなりに扱えるものの例
+- **モデル名は、使う LLM サーバーが返すモデル ID に合わせて `config.toml` に書く**
+  必要がある（LM Studio なら **Library** のモデルキー、汎用には
+  `curl <base_url>/models` の `id`）
 
 ## 文字起こし
 
-文字起こしは **OpenAI Whisper**（オープンソースの音声認識モデル）を使う。`config.toml`
-の `[transcribe] model` には Whisper の **サイズ名**を書く: `tiny` / `base` / `small` /
-`medium` / `large-v3` / `large-v3-turbo`（`large-v3-turbo` は `large-v3` の高速版）。
-
-サイズ名は各バックエンド（下記）が HuggingFace から取得する。モデル名の解決ルール:
+- 文字起こしは **OpenAI Whisper**（オープンソースの音声認識モデル）を使う
+- `config.toml` の `[transcribe] model` には Whisper の **サイズ名**を書く:
+  `tiny` / `base` / `small` / `medium` / `large-v3` / `large-v3-turbo`
+  （`large-v3-turbo` は `large-v3` の高速版）
+- サイズ名は各バックエンド（下記）が HuggingFace から取得する。モデル名の解決ルール:
 
 - `mlx` — サイズ名を `mlx-community/whisper-<size>` に読み替える
 - `faster-whisper` — サイズ名をそのまま `faster_whisper` ライブラリに渡し、
@@ -34,8 +35,8 @@
 | `mlx` | Apple Silicon の GPU | 速い | Mac 専用（`mlx-whisper`）。既定の `auto` は Apple Silicon でこれを選ぶ |
 | `faster-whisper` | CPU（Mac の場合） | 遅い | どの OS でも動く。`auto` のフォールバック |
 
-faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "auto"` で任せる。
-これらは `mlx` バックエンドでは無視される。
+- faster-whisper のとき、`compute_type` は CPU なら `int8`、`device = "auto"` で任せる
+- これらは `mlx` バックエンドでは無視される
 
 ### モデルの取得と置き場所
 
@@ -88,22 +89,21 @@ VLM を使わず OCR だけで済ませたい要望が出たら、`vision.descri
 | 14B 前後 | `qwen2.5-14b-instruct` | 12〜20GB |
 | 32B 前後 | `qwen2.5-32b-instruct` | 24GB 以上 |
 
-議事録は「決まった型を埋める」タスクなので、7〜8B でも実用になる。決定事項の
-取りこぼしや表記の乱れが気になる場合は 14B 以上を検討する。
+- 議事録は「決まった型を埋める」タスクなので、7〜8B でも実用になる
+- 決定事項の取りこぼしや表記の乱れが気になる場合は 14B 以上を検討する
 
 ### コンテキスト長の設定（重要）
 
 （[`setup.md`](setup.md) §3 でこの設定を促している。ここはその詳細版。）
 
-以下の操作説明は **LM Studio 前提**。ロード中モデルのコンテキスト長の自動検出
-（`/api/v0/models`）も LM Studio 専用。他の OpenAI 互換サーバーでは、下の「それでも
-収まらない／LM Studio 以外の基盤の場合」のとおり `chunk_*` / `context_tokens` の
-手動設定で対応する。
-
-議事録生成は、文字起こし全体＋フレーム要点をできるだけ **1 回のリクエスト**で
-LLM に渡す（分割すると「要約の要約」になり具体性が落ちるため）。
-LM Studio は **モデルをロードするときに Context Length を明示しないと小さい既定値**
-で読み込むため、そのままだと次のエラーで議事録生成が失敗する:
+- 以下の操作説明は **LM Studio 前提**。ロード中モデルのコンテキスト長の自動検出
+  （`/api/v0/models`）も LM Studio 専用。他の OpenAI 互換サーバーでは、下の
+  「それでも収まらない／LM Studio 以外の基盤の場合」のとおり
+  `chunk_*` / `context_tokens` の手動設定で対応する
+- 議事録生成は、文字起こし全体＋フレーム要点をできるだけ **1 回のリクエスト**で
+  LLM に渡す（分割すると「要約の要約」になり具体性が落ちるため）
+- LM Studio は **モデルをロードするときに Context Length を明示しないと小さい既定値**
+  で読み込むため、そのままだと次のエラーで議事録生成が失敗する:
 
 ```
 LLM サーバーがエラーを返しました (HTTP 400):
@@ -142,10 +142,10 @@ or provide a shorter input"}
 | 24GB | `large-v3-turbo` or `large-v3` | `qwen2-vl-7b` | 7〜8B |
 | 32GB 以上 | `large-v3` | `qwen2-vl-7b` | 14B |
 
-LLM と VLM を **同時にロードしておく** と切り替えが速いが、その分メモリを食う。
-1 つずつロードする運用なら、上表より少ないメモリでも回せる。
-
-**「Just-in-time model loading」（LM Studio の機能）を ON**（Settings → Local Model API）に
-しておくと、API 呼び出し時に `config.toml` で指定したモデルを自動でロード／切り替えして
-くれるため、工程ごとの手動ロードは不要。メモリが厳しい環境ではこれを使い、
-VLM と LLM を必要なときだけ入れ替える運用が楽。
+- LLM と VLM を **同時にロードしておく**と切り替えが速いが、その分メモリを食う。
+  1 つずつロードする運用なら、上表より少ないメモリでも回せる
+- **「Just-in-time model loading」（LM Studio の機能）を ON**
+  （Settings → Local Model API）にしておくと、API 呼び出し時に `config.toml` で
+  指定したモデルを自動でロード／切り替えしてくれるため、工程ごとの手動ロードは
+  不要。メモリが厳しい環境ではこれを使い、VLM と LLM を必要なときだけ入れ替える
+  運用が楽

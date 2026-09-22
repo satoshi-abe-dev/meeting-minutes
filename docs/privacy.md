@@ -14,12 +14,11 @@
 | フレーム解析・議事録生成 | **手元で動かすローカル LLM サーバー**（LM Studio 等）へ `localhost` で送信 | なし（PC 内で完結） |
 | 議事録の出力（`output/<動画名>/minutes.docx` と `minutes.md`） | ローカル（`.docx` は python-docx で `.md` から変換。外部バイナリ不使用） | なし |
 
-実行時に外部ドメインへ HTTP リクエストを送るコードはない。接続先は
-`config.toml` の `[ai] base_url` のみで、既定値は `http://localhost:1234/v1`。
-
-唯一の外部通信は **セットアップ時のモデル取得**。`scripts/setup.sh`（内部の
-`python src/meeting_minutes/download_transcribe_model.py`）が HuggingFace から Whisper
-モデルの重みをダウンロードする。会議の音声・映像・テキストは送らない。
+- 実行時に外部ドメインへ HTTP リクエストを送るコードはない。接続先は
+  `config.toml` の `[ai] base_url` のみで、既定値は `http://localhost:1234/v1`
+- 唯一の外部通信は**セットアップ時のモデル取得**。`scripts/setup.sh`（内部の
+  `python src/meeting_minutes/download_transcribe_model.py`）が HuggingFace から
+  Whisper モデルの重みをダウンロードする。会議の音声・映像・テキストは送らない
 
 アプリ本体（`cli.py` / `gui.py`）は実行時に外部通信しない。
 
@@ -40,8 +39,8 @@
 3. LM Studio のローカルサーバーを起動したまま、`python src/meeting_minutes/cli.py sample.mp4` を実行。
 4. `output/sample/minutes.md` まで生成されれば、外部通信なしで完走している。
 
-必要なら実行中に `nettop` や `Little Snitch` などで、このプロセスからの
-外向き通信が `localhost` 以外に出ていないことを確認できる。
+- 必要なら実行中に `nettop` や `Little Snitch` などで、このプロセスからの
+  外向き通信が `localhost` 以外に出ていないことを確認できる
 
 ## その他
 
