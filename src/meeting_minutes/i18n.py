@@ -1,12 +1,13 @@
-"""GUI 表示文言の ja / en カタログ（3 層共通の小さな基盤モジュール）。
+"""The ja / en catalog of GUI display text (a small foundational module shared by all 3 layers).
 
-view（`view/tk_main_window.py`）と presenter（`presenter/main.py`）の両方から
-`t(key, language, **kwargs)` で引く。対象は GUI の画面文言だけ（文字起こし言語・
-LLM プロンプト・議事録内容・CLI 出力は対象外）。
+Looked up via `t(key, language, **kwargs)` from both the view
+(`view/tk_main_window.py`) and the presenter (`presenter/main.py`). Only
+covers the GUI's on-screen text (the transcription language, LLM prompts,
+minutes content, and CLI output are out of scope).
 
-言語は起動時に 1 回決まる（実行中の切替はしない）。`ja` 側の文言は i18n 化前の
-コードのリテラルを一字一句そのままコピーしてあり、`language="ja"`（既定）のときの
-表示は従来と完全に一致する。
+The language is decided once at launch (not switchable while running). The
+`ja` side's text is copied verbatim from the pre-i18n code's literals, so the
+display when `language="ja"` (the default) matches the original exactly.
 """
 
 from __future__ import annotations
@@ -16,12 +17,12 @@ DEFAULT_LANGUAGE = "ja"
 
 
 def normalize_language(language: str | None) -> str:
-    """対応外・None・空は既定（ja）に丸める（他の設定項目のフォールバック方針に合わせる）。"""
+    """Round an unsupported value, None, or empty string to the default (ja) (matching the fallback policy of other config items)."""
     return language if language in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
 
 
-# key -> {language -> テンプレート文字列}
-# 動的な文（ログ等）は ja / en それぞれで自然な語順になるようテンプレートごと持つ。
+# key -> {language -> template string}
+# Dynamic sentences (log messages, etc.) keep a separate template per language (ja / en) so the word order reads naturally in each.
 _STRINGS: dict[str, dict[str, str]] = {
     # --- ウィンドウ / 静的ラベル（view）------------------------------
     "window.title": {
@@ -572,8 +573,8 @@ _STRINGS: dict[str, dict[str, str]] = {
 
 
 def format_elapsed(seconds: float, language: str = DEFAULT_LANGUAGE) -> str:
-    """処理にかかった時間の表示用。旧: 各 model モジュールの `_format_elapsed`
-    （日本語ハードコード）を i18n 対応で一本化した。"""
+    """For displaying elapsed processing time. Formerly: each model module had
+    its own `_format_elapsed` (hardcoded to Japanese); this consolidates them with i18n support."""
     if seconds < 60:
         return f"{seconds:.1f}秒" if language != "en" else f"{seconds:.1f}s"
     minutes, sec = divmod(round(seconds), 60)
@@ -586,11 +587,12 @@ def format_elapsed(seconds: float, language: str = DEFAULT_LANGUAGE) -> str:
 
 
 def t(key: str, language: str, *, default: str | None = None, **kwargs: object) -> str:
-    """カタログから文言を引く。
+    """Look up text from the catalog.
 
-    language が対応外なら ja にフォールバック。key 自体が無い場合は default
-    （指定なければ key 文字列）を返す（旧 `_STAGE_LABEL.get(stage, stage)` のように
-    未知値でも壊れないようにするため）。kwargs があれば str.format で差し込む。
+    Falls back to ja if language isn't supported. If the key itself doesn't
+    exist, returns default (or the key string itself if not given) — so that,
+    like the old `_STAGE_LABEL.get(stage, stage)`, an unknown value doesn't
+    break anything. If kwargs are given, substitutes them in via str.format.
     """
     entry = _STRINGS.get(key)
     if entry is None:
