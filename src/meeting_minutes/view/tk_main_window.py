@@ -1,9 +1,9 @@
-"""View（Tkinter 実装層）— メインウィンドウ
+"""View (the Tkinter implementation layer) — the main window
 
-現行 gui.py の ``_build_ui`` 以下（ウィジェット構築・イベントバインド・
-ファイルダイアログ・ウィンドウ配置）をそのまま担う。ビジネスロジックは持たず、
-操作は名前付きコールバックとして Presenter へ渡し、表示更新は MainView の
-メソッドとして受ける。
+Carries over what used to be under gui.py's ``_build_ui`` as-is (widget
+construction, event binding, file dialogs, window layout). Holds no business
+logic; user actions are handed to the Presenter as named callbacks, and
+display updates come in as MainView methods.
 """
 
 from __future__ import annotations
@@ -19,15 +19,16 @@ from meeting_minutes.i18n import DEFAULT_LANGUAGE, normalize_language, t
 from meeting_minutes.view.contract import MainView
 
 _WINDOW_WIDTH = 760
-# 議事録フォーマットのラジオ 3 択ぶんの高さを見込む（内容の必要高に合わせる）。
+# Sized to accommodate the height of the minutes-format radio's 3 options
+# (matched to the content's required height).
 _WINDOW_HEIGHT = 590
 
 
 class _Tooltip:
-    """ttk ウィジェットにマウスオーバーで出す簡易ツールチップ。
+    """A lightweight tooltip shown on mouseover for a ttk widget.
 
-    tkinter/ttk には標準のツールチップが無いため、枠なしの Toplevel を
-    ウィジェットの直下に出す最小実装にしている。
+    tkinter/ttk has no built-in tooltip, so this is a minimal implementation
+    that shows a borderless Toplevel right under the widget.
     """
 
     def __init__(self, widget: tk.Widget, text: str, *, delay_ms: int = 400):
@@ -55,13 +56,13 @@ class _Tooltip:
         x = self._widget.winfo_rootx() + 4
         y = self._widget.winfo_rooty() + self._widget.winfo_height() + 4
         self._tip = tk.Toplevel(self._widget)
-        self._tip.wm_overrideredirect(True)  # ウィンドウ枠・タイトルバーを出さない
+        self._tip.wm_overrideredirect(True)  # no window border or title bar
         self._tip.wm_geometry(f"+{x}+{y}")
         tk.Label(
             self._tip,
             text=self._text,
             justify="left",
-            wraplength=340,  # 長文ツールチップを自動折り返し（全ツールチップ共通）
+            wraplength=340,  # auto-wraps a long tooltip (applies to all tooltips)
             background="#ffffe0",
             relief="solid",
             borderwidth=1,
@@ -77,7 +78,7 @@ class _Tooltip:
 
 
 def _open_in_finder(path: Path) -> None:
-    """macOS の Finder / 既定アプリで開く。他 OS でも一応フォールバック。"""
+    """Open with macOS's Finder / the default app. Falls back on other OSes too, best-effort."""
     try:
         if sys.platform == "darwin":
             subprocess.run(["open", str(path)], check=False)
@@ -101,7 +102,7 @@ class TkMainWindow(MainView):
         self.root.geometry(f"{_WINDOW_WIDTH}x{_WINDOW_HEIGHT}")
         self.root.minsize(640, 480)
 
-        # 議事録フォーマット。初期値は Presenter が set_format_mode() で上書きする。
+        # Minutes format. The initial value is overwritten by the Presenter via set_format_mode().
         self._fmt_mode = tk.StringVar(value="builtin")
         self.reuse_var = tk.BooleanVar(value=True)
 
@@ -115,25 +116,30 @@ class TkMainWindow(MainView):
         if handler is not None:
             handler()
 
-    # --- UI 構築 -------------------------------------------------------
+    # --- Building the UI -------------------------------------------------------
     def _build_ui(self) -> None:
-        # レイアウトは pack ではなく grid で統一する（`fill="x"` の有無で中央/左揃えが
-        # 暗黙に変わる pack より、grid で配置意図を明示するほうが読みやすい）。
-        # self.root は 1 列（column=0, weight=1）に各ブロックを縦積みする。横いっぱいに
-        # 広げたいものは sticky="ew"、ログ欄だけ縦にも伸ばすので sticky="nsew" ＋
-        # その行に rowconfigure(weight=1)。中身に合わせて縮めて中央寄せしたい run_bar /
-        # done_bar は sticky を付けない（grid 既定でセル内中央）。
+        # Use grid consistently for layout rather than pack (grid makes the
+        # placement intent explicit, which is easier to read than pack, where
+        # centering vs. left-alignment implicitly changes depending on
+        # whether `fill="x"` is set). self.root stacks each block vertically
+        # in a single column (column=0, weight=1). Anything meant to stretch
+        # the full width gets sticky="ew"; only the log area also stretches
+        # vertically, so it gets sticky="nsew" plus rowconfigure(weight=1) on
+        # its row. run_bar / done_bar, which should shrink to their content
+        # and stay centered, get no sticky (grid's default centers within the cell).
         pad = {"padx": 10, "pady": 6}
         self.root.columnconfigure(0, weight=1)
 
-        # 各行を「列0＝説明ラベル、列1＝操作」で統一する。列0 の幅は grid 自動
-        # （行内で広い方＝「議事録フォーマット:」に合う）に任せ、列1 の開始位置は
-        # 共有列なので全行で自動的に揃う。
+        # Every row is kept consistent as "column 0 = description label,
+        # column 1 = control." Column 0's width is left to grid's automatic
+        # sizing (matching the widest in the row, "議事録フォーマット:"), and
+        # column 1's starting position is a shared column, so it lines up
+        # automatically across every row.
         head = ttk.Frame(self.root)
         head.grid(row=0, column=0, sticky="ew", **pad)
         head.columnconfigure(1, weight=1)
 
-        # 行0: 動画ファイル
+        # Row 0: video file
         ttk.Label(head, text=self._t("label.video_file")).grid(
             row=0, column=0, sticky="w"
         )
@@ -148,9 +154,9 @@ class TkMainWindow(MainView):
         )
         self.file_label.grid(row=0, column=1, padx=(8, 0))
 
-        # 行1〜3: 議事録フォーマット（見出し・構成）の選択。ラジオ 3 択。
-        # ラベルは「内蔵（既定）」と同じ行（row=1）に置く。row=2（おまかせ）と
-        # row=3（ファイルを選択）の列0 は空欄のまま。
+        # Rows 1-3: choosing the minutes format (heading structure). A 3-way radio choice.
+        # The label sits on the same row (row=1) as "Built-in (default)."
+        # Column 0 is left blank on row=2 (Auto) and row=3 (Choose a file).
         ttk.Label(head, text=self._t("label.format")).grid(
             row=1, column=0, sticky="w", pady=(6, 0)
         )
@@ -185,19 +191,22 @@ class TkMainWindow(MainView):
         _Tooltip(auto_radio, self._t("tooltip.auto"))
         self._sync_fmt_widgets()
 
-        # ttk の relief 枠線（groove/solid いずれも）は macOS(aqua) テーマで薄すぎ／
-        # 描画されず、実画面で見えなかった（PR #33/#40/#41）。テーマ非依存で Tk コアが
-        # 直接描く tk.Frame の highlightthickness（1px の枠）に切り替える。
-        # 見出しラベルは text= の小フォント問題を避けるため引き続き枠の上に別置き。
-        # 色は明るい背景（systemWindowBackgroundColor ≒ 白〜淡灰）に対して WCAG 非テキスト
-        # UI 基準 3:1 を満たす #808080（対白 約 4.0:1 / 対 #ECECEC 約 3.3:1）。
+        # ttk's relief border (groove or solid) rendered too faint or not at
+        # all under the macOS (aqua) theme, so it wasn't visible on a real
+        # screen (PRs #33/#40/#41). Switched to a tk.Frame's highlightthickness
+        # (a 1px border), which Tk's core draws directly and is theme-independent.
+        # The heading label is still placed separately on top of the border to
+        # avoid a small-font issue with text=.
+        # Color: #808080, which meets the WCAG non-text UI contrast ratio of
+        # 3:1 against a light background (systemWindowBackgroundColor, roughly
+        # white to pale gray) — about 4.0:1 against white / 3.3:1 against #ECECEC.
         cfg_label = ttk.Label(self.root, text=self._t("label.settings"))
         cfg_label.grid(row=1, column=0, sticky="w", padx=10, pady=(6, 2))
         cfg = tk.Frame(
             self.root, highlightbackground="#808080", highlightthickness=1, bd=0
         )
         cfg.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 6))
-        # 本文は Presenter が set_config_summary() で流し込む（config + resolve_backend）。
+        # The Presenter pours in the body text via set_config_summary() (config + resolve_backend).
         self._cfg_summary_label = ttk.Label(cfg, text="", justify="left")
         self._cfg_summary_label.grid(row=0, column=0, sticky="w", padx=8, pady=6)
 
@@ -236,7 +245,7 @@ class TkMainWindow(MainView):
         self.progress = ttk.Progressbar(self.root, mode="determinate", maximum=1000)
         self.progress.grid(row=7, column=0, sticky="ew", padx=10, pady=(0, 6))
 
-        # ログ欄だけウィンドウのリサイズで縦にも伸びる（行8 に weight）。
+        # Only the log area also grows vertically when the window is resized (weight is on row 8).
         self.root.rowconfigure(8, weight=1)
         logframe = ttk.Frame(self.root)
         logframe.grid(row=8, column=0, sticky="nsew", **pad)
@@ -249,7 +258,7 @@ class TkMainWindow(MainView):
         self.log.configure(yscrollcommand=sb.set)
 
         self.done_bar = ttk.Frame(self.root)
-        # sticky を付けない → run_bar と同じくフレームが中身に合わせて縮み、セル内で中央に配置される
+        # no sticky -> same as run_bar, the frame shrinks to its content and is centered within the cell
         self.done_bar.grid(row=9, column=0, **pad)
         self.open_minutes_btn = ttk.Button(
             self.done_bar,
@@ -270,12 +279,13 @@ class TkMainWindow(MainView):
         self._center_on_screen(_WINDOW_WIDTH, _WINDOW_HEIGHT)
 
     def _center_on_screen(self, width: int, height: int) -> None:
-        """ウィンドウを画面中央に配置する。
+        """Place the window in the center of the screen.
 
-        macOS では、ウィンドウが実体化する前に座標付き geometry() を渡しても
-        初回表示時にウィンドウマネージャの既定位置（左下寄り）で上書きされる。
-        全ウィジェットを組んだ後 update_idletasks() で一度実体化させてから
-        "WxH+X+Y" 形式で座標を明示する。
+        On macOS, passing geometry() with coordinates before the window is
+        realized gets overwritten on first display by the window manager's
+        default position (toward the lower left). After all widgets are
+        built, realize it once with update_idletasks(), then set the
+        coordinates explicitly in "WxH+X+Y" form.
         """
         self.root.update_idletasks()
         screen_width = self.root.winfo_screenwidth()
@@ -285,13 +295,13 @@ class TkMainWindow(MainView):
         self.root.geometry(f"{width}x{height}+{x}+{y}")
 
     def _sync_fmt_widgets(self) -> None:
-        """ラジオの状態に合わせて「選択...」ボタンとファイル名表示の有効／無効を切り替える。"""
+        """Toggle the "Choose..." button and filename display enabled/disabled to match the radio state."""
         file_mode = self._fmt_mode.get() == "file"
         state = ["!disabled"] if file_mode else ["disabled"]
         self._tpl_pick_btn.state(state)
         self._tpl_name_label.state(state)
 
-    # --- MainView 実装: ハンドラ登録 --------------------------------
+    # --- MainView implementation: handler registration --------------------------------
     def set_on_choose_video(self, handler: Callable[[], None]) -> None:
         self._callbacks["choose_video"] = handler
 
@@ -310,14 +320,14 @@ class TkMainWindow(MainView):
     def set_on_open_folder(self, handler: Callable[[], None]) -> None:
         self._callbacks["open_folder"] = handler
 
-    # --- MainView 実装: 入力状態 -----------------------------------
+    # --- MainView implementation: input state -----------------------------------
     def get_format_mode(self) -> str:
         return self._fmt_mode.get()
 
     def get_reuse(self) -> bool:
         return self.reuse_var.get()
 
-    # --- MainView 実装: 画面更新 ---------------------------------
+    # --- MainView implementation: display updates ---------------------------------
     def set_format_mode(self, mode: str) -> None:
         self._fmt_mode.set(mode)
         self._sync_fmt_widgets()
@@ -358,7 +368,7 @@ class TkMainWindow(MainView):
     def show_error(self, title: str, message: str) -> None:
         messagebox.showerror(title, message)
 
-    # --- MainView 実装: ダイアログ / OS 連携 --------------------
+    # --- MainView implementation: dialogs / OS integration --------------------
     def ask_video_path(self) -> str | None:
         path = filedialog.askopenfilename(
             title=self._t("dialog.choose_video.title"),
@@ -382,7 +392,7 @@ class TkMainWindow(MainView):
     def open_in_file_manager(self, path: Path) -> None:
         _open_in_finder(path)
 
-    # --- MainView 実装: イベントループ -------------------------
+    # --- MainView implementation: the event loop -------------------------
     def schedule(self, delay_ms: int, callback: Callable[[], None]) -> None:
         self.root.after(delay_ms, callback)
 

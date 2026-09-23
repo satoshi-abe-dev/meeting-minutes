@@ -1,4 +1,4 @@
-"""i18n カタログの整合性と t() の挙動のテスト。"""
+"""Tests for the consistency of the i18n catalog and t()'s behavior."""
 
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ from meeting_minutes.i18n import (
 
 
 def test_every_key_has_all_languages():
-    """全キーが SUPPORTED_LANGUAGES ぶんの訳をそろえている（ja だけ足して en 忘れ防止）。"""
+    """Every key has a translation for each of SUPPORTED_LANGUAGES (guards
+    against adding ja and forgetting en)."""
     missing: list[str] = []
     for key, entry in _STRINGS.items():
         for lang in SUPPORTED_LANGUAGES:
@@ -40,7 +41,8 @@ def test_normalize_language(given, expected):
 def test_t_returns_language_specific_text():
     assert t("button.stop", "ja") == "中断"
     assert t("button.stop", "en") == "Stop"
-    # 進捗ラベルの起動直後の表示（Issue #102 で「ログ」→「準備完了」/「Ready」）
+    # the progress label's display right after launch (Issue #102 changed it
+    # from "ログ" to "準備完了" / "Ready")
     assert t("label.waiting", "ja") == "準備完了"
     assert t("label.waiting", "en") == "Ready"
 
@@ -64,7 +66,7 @@ def test_t_formats_kwargs():
 
 
 def test_ja_side_matches_pre_i18n_literals():
-    """ja 側は i18n 化前のリテラルと一致していること（挙動保証の要）。"""
+    """The ja side matches the pre-i18n literals (the core guarantee of unchanged behavior)."""
     assert t("window.title", "ja") == "議事録生成AI（ローカル処理）"
     assert t("stage.transcribe", "ja") == "文字起こし"
     assert t("stage_text.error", "ja") == "エラー"

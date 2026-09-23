@@ -1,7 +1,8 @@
-"""文字起こし＋フレーム解析から議事録（Markdown）を生成する。
+"""Generate minutes (Markdown) from the transcript + frame analysis.
 
-自由文の要約ではなく、決まった型（日時・出席者・議題・決定事項・宿題／担当・期限）
-を LLM に埋めさせる。文字起こしが長い場合は「チャンク要約 → 統合」の 2 段で処理する。
+Rather than a free-form summary, the LLM fills in a fixed structure (date/time,
+attendees, agenda, decisions, action items/owners, due dates). For long
+transcripts, this is done in two stages: "chunk summarization → merge."
 """
 
 from __future__ import annotations
@@ -22,43 +23,50 @@ from .llm_client import LLMClient
 from .transcribe import Segment, transcript_to_text
 from .vision import FrameNote, notes_to_text
 
-# 進捗コールバック: (完了ステップ, 総ステップ, メッセージ)
+# Progress callback: (completed steps, total steps, message)
 ProgressFn = Callable[[int, int, str], None]
 
-# --- 一発生成 / 分割生成の切り替え --------------------------------------
-# 分割すると「要約の要約」から議事録を作ることになり具体性が落ちるため、コンテキスト
-# 長に収まる限りは一発生成を優先する。収まるかの判定は、可能なら実コンテキスト長
-# （`context_tokens`。pipeline が LM Studio の /api/v0/models から取得）に対する
-# 概算トークン数で行い、取れないときだけ下の文字数しきい値にフォールバックする。
+# --- Switching between one-shot and split generation --------------------
+# Splitting turns the minutes into a "summary of a summary," which loses
+# specificity, so one-shot generation is preferred whenever it fits within
+# the context length. Whether it fits is judged by an estimated token count
+# against the real context length when available (`context_tokens`, fetched
+# by the pipeline from LM Studio's /api/v0/models), falling back to the
+# character-count threshold below only when that isn't available.
 #
-# Qwen 系トークナイザでの日本語の実測は約 0.74 トークン/文字
-# （かな 0.52 / 漢字かな交じり 0.75〜0.80 / 逐語の話し言葉 0.52）。安全側に少し盛る。
+# Measured Japanese-text behavior of the Qwen tokenizer family is about 0.74
+# tokens/character (kana 0.52 / mixed kanji+kana 0.75-0.80 / verbatim spoken
+# language 0.52). Rounded up a bit to stay on the safe side.
 _TOKENS_PER_CHAR = 0.8
-# system プロンプト＋テンプレ雛形＋不確実性のマージン（トークン）。
+# Margin (in tokens) for the system prompt + template skeleton + uncertainty.
 _PROMPT_MARGIN_TOKENS = 1500
-# 議事録本文（＝最終 chat の出力）に見込む上限トークン。context 予約に使う。
-# 型を埋めるタスクなので実運用ではこの範囲に収まる。推論モデル用の大きい
-# max_tokens はここでは使わない（docs/models_ja.md のとおり推論モデルは非対象）。
+# Upper bound on tokens expected for the minutes body (the final chat output).
+# Used to reserve context budget. Since this is a fill-in-the-template task, real
+# usage stays within this range. The larger max_tokens needed for reasoning
+# models isn't used here (per docs/models_ja.md, reasoning models are out of scope).
 _MINUTES_RESPONSE_TOKENS = 5000
-# frames_text（フレーム解析の連結）がプロンプトを食い尽くさないための上限トークン。
-# 実コンテキスト長が分かるときは ctx/3 まで許容する。
+# Token cap so that frames_text (the concatenated frame analysis) doesn't eat
+# up the whole prompt. Allowed up to ctx/3 when the real context length is known.
 _FRAMES_TOKEN_BUDGET = 6000
 
-# 実コンテキスト長が取得できない基盤向けのフォールバック（文字数しきい値）。
-# 32k コンテキスト前提で frames 上限・応答予約・マージンを引いた残りに収まる
-# おおよその文字数。config.toml の [ai] chunk_trigger_chars / chunk_size_chars で
-# 上書きできる（Context Length を上げられない環境ではさらに小さくする）。
+# Fallback (character-count threshold) for backends where the real context
+# length can't be fetched. Roughly the character count that fits in what's
+# left after subtracting the frames cap, response reservation, and margin,
+# assuming a 32k context. Can be overridden via config.toml's
+# [ai] chunk_trigger_chars / chunk_size_chars (lower it further on setups that
+# can't raise the Context Length).
 _CHUNK_TRIGGER_CHARS = 20000
 _CHUNK_SIZE_CHARS = 12000
 
 
 def _approx_tokens(text: str) -> int:
-    """文字数からトークン数をざっくり見積もる（Qwen 系日本語の実測に基づく）。"""
+    """Roughly estimate the token count from the character count (based on
+    measured Qwen-family Japanese behavior)."""
     return int(len(text) * _TOKENS_PER_CHAR) + 1
 
 
 def _truncate_to_token_budget(text: str, budget_tokens: int) -> str:
-    """推定トークン数が budget を超えるなら文字単位で切り詰める。"""
+    """Truncate by character if the estimated token count exceeds the budget."""
     if _approx_tokens(text) <= budget_tokens:
         return text
     keep = max(0, int(budget_tokens / _TOKENS_PER_CHAR) - 40)
@@ -87,9 +95,10 @@ _MINUTES_PREAMBLE = (
     "ください（書くことが無ければ指示どおり「（記載なし）」等に）。\n\n"
 )
 
-# 議事録の「構造」だけ。config.toml の [output] template_path で丸ごと差し替え可能。
-# 使えるプレースホルダー: {title} {datetime_hint} {duration_hint}
-# （{transcript} / {frames} を書かなければ、末尾に入力セクションが自動で足される）
+# Only the minutes "structure." Can be swapped wholesale via config.toml's
+# [output] template_path.
+# Placeholders available: {title} {datetime_hint} {duration_hint}
+# (if {transcript} / {frames} aren't written, an input section is appended automatically)
 _MINUTES_STRUCTURE = """# 議事録: {title}
 
 - 日時: {datetime_hint}
@@ -124,31 +133,37 @@ _MINUTES_STRUCTURE = """# 議事録: {title}
 読み取れる情報が無ければ「（読み取れる資料なし）」）
 """
 
-# 入力セクション。カスタムテンプレートが該当プレースホルダーを書いていない場合、
-# 「足りない方だけ」を末尾に補う（{transcript} だけ書いて {frames} を忘れても、
-# フレーム情報が丸ごと消えないように個別に扱う）。
+# Input section. If a custom template doesn't write the corresponding
+# placeholder, only the "missing one" is appended at the end (handled
+# individually so that writing only {transcript} and forgetting {frames}
+# doesn't drop the frame information entirely).
 _INPUT_SEP = "\n---\n\n"
 _INPUT_TRANSCRIPT = "## 入力: 文字起こし\n{transcript}\n"
 _INPUT_FRAMES = "## 入力: 画面キャプチャの説明（時刻付き）\n{frames}\n"
-# トークン見積もり（skeleton_tokens）用: 両方補った最大ケース。
+# For token estimation (skeleton_tokens): the worst case where both are appended.
 _MINUTES_INPUT = _INPUT_SEP + _INPUT_TRANSCRIPT + "\n" + _INPUT_FRAMES
 
-# テンプレート内のプレースホルダー。ここに載っている名前だけ置換し、素の { } は触らない。
+# Placeholders inside the template. Only the names listed here are substituted;
+# a bare { } is left untouched.
 _PLACEHOLDER_RE = re.compile(
     r"\{(title|datetime_hint|duration_hint|transcript|frames)\}"
 )
 
-# テンプレートの丸括弧内「指示文」。全角 （ ）で囲まれ、内側に 1 段だけ入れ子
-# （例: 「…無ければ「（記載なし）」」）を許す。生成後の議事録にこの文言がそのまま
-# 残っていないかの検出に使う（プロンプトでモデルに禁止しているが、小さいモデル向けの保険）。
+# "Instruction text" inside a template's full-width parentheses （ ）, allowing
+# one level of nesting inside (e.g. "...if none, write '(not stated)'"). Used to
+# detect whether this wording leaked as-is into the generated minutes (the
+# prompt already tells the model not to do this; this is a safety net for
+# smaller models).
 _INSTRUCTION_RE = re.compile(r"（(?:[^（）]|（[^（）]*）)+）")
-# 「（記載なし）」「（該当なし）」など、実際の議事録に現れてよい短い丸括弧語は除外する。
+# Exclude short parenthetical phrases like "(not stated)" / "(not applicable)"
+# that are legitimately allowed to appear in the actual minutes.
 _INSTRUCTION_MIN_CHARS = 12
 
 
 def _leaked_instructions(structure: str, minutes_md: str) -> list[str]:
-    """structure（使用テンプレート）の丸括弧指示文のうち、生成議事録にそのまま
-    残っているものを返す。短い定型語（（記載なし）等）は対象外。"""
+    """Return the parenthetical instruction phrases from structure (the template in
+    use) that still remain as-is in the generated minutes. Short boilerplate
+    phrases like "(not stated)" are excluded."""
     seen: set[str] = set()
     leaks: list[str] = []
     for m in _INSTRUCTION_RE.finditer(structure):
@@ -187,18 +202,20 @@ def _minutes_budget(
     minutes_max_tokens: int,
     trigger_chars: int,
 ) -> tuple[str, bool]:
-    """(予算内に切り詰めた frames_text, 一発生成できるか) を返す。
+    """Return (frames_text truncated to fit the budget, whether one-shot generation fits).
 
-    テンプレート（structure）のサイズに依存するので、「おまかせ」モードで構造を
-    差し替えたら、生成後の構造でこれを呼び直す必要がある（構造の入れ替えで
-    最終リクエストが実コンテキスト長を超える PR #19 と同種の問題を防ぐ）。
+    This depends on the size of the template (structure), so if Auto mode swaps
+    in a generated structure, this must be recalculated against the resulting
+    structure (this prevents the same kind of problem as PR #19, where swapping
+    the structure made the final request exceed the real context length).
     """
     skeleton = (
         _approx_tokens(system) + _approx_tokens(structure) + _approx_tokens(_MINUTES_INPUT)
     )
-    # frames_text がプロンプトを食い尽くさないよう上限を設ける。ctx が分かるときは
-    # 「1/3」を狙いつつ、応答予約・マージン・雛形を引いた残りを超えないようにする
-    # （小さい ctx で下限 6000 を無理に確保して溢れるのを防ぐ）。
+    # Cap frames_text so it doesn't eat up the whole prompt. When ctx is known,
+    # aim for "1/3" of it while not exceeding what's left after the response
+    # reservation, margin, and skeleton (this avoids forcing the 6000 floor and
+    # overflowing on a small ctx).
     if ctx <= 0:
         frames_budget = _FRAMES_TOKEN_BUDGET
     else:
@@ -222,10 +239,11 @@ def load_minutes_structure(
     on_warning: Callable[[str], None] | None = None,
     language: str = DEFAULT_LANGUAGE,
 ) -> str:
-    """カスタム議事録テンプレート（構造のみ）を読む。
+    """Read a custom minutes template (structure only).
 
-    template_path が空／None なら内蔵テンプレート。指定があっても、存在しない・
-    読めない・空の場合はエラーで止めず内蔵にフォールバックし、on_warning で通知する。
+    If template_path is empty/None, use the built-in template. Even if given,
+    if the file doesn't exist, can't be read, or is empty, don't stop with an
+    error — fall back to the built-in template and notify via on_warning.
     """
     if not template_path:
         return _MINUTES_STRUCTURE
@@ -246,13 +264,14 @@ def load_minutes_structure(
 def _fill_minutes_template(
     structure: str, meta: MinutesMeta, transcript: str, frames: str
 ) -> str:
-    """テンプレート（構造）にメタ情報・入力を差し込んで完成プロンプトを返す。
+    """Fill the template (structure) with meta info and input, returning the finished prompt.
 
-    - 逐次 .replace ではなく、テンプレート文字列を1回だけ走査する一括置換
-      （re.sub + コールバック）。置換後の値（transcript 等）は再走査しないので、
-      文字起こし中に偶然 "{frames}" のような文字列があっても巻き込まれない。
-      素の { }（JSON 例など）は _PLACEHOLDER_RE に載っていないので触らない。
-    - 構造が {transcript} / {frames} を書いていない場合、「足りない方だけ」を末尾に補う。
+    - Rather than sequential .replace calls, this is a single-pass substitution
+      that scans the template string once (re.sub + a callback). Substituted
+      values (e.g. transcript) are not rescanned, so a string like "{frames}"
+      that happens to appear inside the transcript is not caught up in it. A
+      bare { } (e.g. in a JSON example) isn't in _PLACEHOLDER_RE, so it's left alone.
+    - If the structure doesn't write {transcript} / {frames}, only the "missing one" is appended at the end.
     """
     body = _MINUTES_PREAMBLE + structure
     tail: list[str] = []
@@ -283,7 +302,7 @@ _CHUNK_PROMPT = """次の会議の文字起こしの一部です。後で議事�
 """
 
 
-# --- 「おまかせ」モード: 議事録の型を会議内容から自動生成する ----------------
+# --- "Auto" mode: automatically generate the minutes structure from the meeting content ----------------
 _DEFAULT_STRUCTURE_SYSTEM = """あなたは議事録のフォーマット設計の専門家です。
 渡された会議の内容（全文または要約）から、その会議に合った議事録の「型」（見出し構成）
 だけを日本語で設計します。実際の議事録本文は書きません。
@@ -299,8 +318,9 @@ _DEFAULT_STRUCTURE_SYSTEM = """あなたは議事録のフォーマット設計�
   人名・日付・数値・期限を補わない」という趣旨を含める。
 - 前置き・後書き・自己言及・コードブロック囲みは書かない。"""
 
-# {material} だけを差し込む（.format は使わない。プロンプト本文中の {title} などの
-# リテラルを壊さないため str.replace で 1 箇所だけ置換する）。
+# Only {material} is substituted in (not via .format — a single str.replace is
+# used instead, so as not to break literals like {title} elsewhere in the
+# prompt body).
 _STRUCTURE_PROMPT = """次の会議の内容（全文またはその要約）を踏まえて、この会議に最も適した
 議事録の「型」（見出し構成）だけを作ってください。実際の議事録は書かないでください。
 
@@ -319,14 +339,16 @@ _STRUCTURE_PROMPT = """次の会議の内容（全文またはその要約）を
 {material}
 """
 
-# 自動生成された型が満たすべき必須プレースホルダー（すべてリテラルで含まれること）。
-# 1つでも欠けたら「実値が混じった使い回せない型」とみなし内蔵にフォールバックする。
+# Required placeholders that an auto-generated structure must satisfy (all must
+# be present as literals). If even one is missing, treat it as "a non-reusable
+# structure with real values mixed in" and fall back to the built-in one.
 _REQUIRED_PLACEHOLDERS = ("{title}", "{datetime_hint}", "{duration_hint}")
 
 _STRUCTURE_FILENAME = "structure_used.txt"
-# 中間生成物（自動生成した型・チャンク要約）の作業用サブフォルダ。out_dir 直下の
-# minutes.md（成果物）と名前がぶつからないよう work/ に置く。pipeline.py が eager
-# mkdir する。表示・FS join ともここから derive する。
+# Working subfolder for intermediate artifacts (the auto-generated structure,
+# chunk summaries). Placed under work/ so the name doesn't collide with
+# minutes.md (the deliverable) directly under out_dir. pipeline.py eagerly
+# mkdirs it. Both display and filesystem joins derive from this.
 _WORK_DIR = "work"
 
 
@@ -339,12 +361,15 @@ def _structure_system_prompt() -> str:
 
 
 def _structure_material_budget(ctx: int, response_tokens: int) -> int:
-    """構造生成リクエストで「材料」（全文 or チャンク要約連結）に使えるトークン予算。
+    """The token budget available for the "material" (full text or concatenated
+    chunk summaries) in a structure-generation request.
 
-    ctx > 0 前提。system プロンプト＋ユーザープロンプト雛形＋応答予約＋マージンを
-    引いた残り。負や 0 になり得る（極端に小さい ctx）。応答予約 response_tokens は
-    議事録本文と同じ minutes_max_tokens を使う（推論モデルが"思考"で使い切って空応答に
-    なるのを防ぐ。PR #19 で受け入れた上限をここでも共有する）。
+    Assumes ctx > 0. What's left after subtracting the system prompt + user
+    prompt skeleton + response reservation + margin. Can go negative or zero
+    (with an extremely small ctx). The response reservation, response_tokens,
+    uses the same minutes_max_tokens as the minutes body (this prevents a
+    reasoning model from burning it all on "thinking" and returning an empty
+    response — sharing the same cap accepted in PR #19).
     """
     skeleton = _approx_tokens(_structure_system_prompt()) + _approx_tokens(_STRUCTURE_PROMPT)
     return ctx - skeleton - response_tokens - _PROMPT_MARGIN_TOKENS
@@ -353,10 +378,12 @@ def _structure_material_budget(ctx: int, response_tokens: int) -> int:
 def _struct_fits_one_pass(
     text: str, ctx: int, trigger_chars: int, response_tokens: int
 ) -> bool:
-    """会議全文をそのまま「型」生成の入力に使えるか（軽い予算に収まるか）。
+    """Whether the full meeting transcript can be used as-is as input to
+    structure generation (whether it fits the light budget).
 
-    収まらなければ呼び出し側は既存のチャンク要約を材料にする（新たな全文読み込み
-    パスを増やさない）。ctx 不明時は議事録一発生成と同じ文字数しきい値で判断する。
+    If it doesn't fit, the caller uses the existing chunk summaries as material
+    instead (no new full-text-read path is added). When ctx is unknown, judged
+    by the same character-count threshold as one-shot minutes generation.
     """
     if ctx <= 0:
         return len(text) <= trigger_chars
@@ -364,11 +391,14 @@ def _struct_fits_one_pass(
 
 
 def _fit_structure_material(material: str, ctx: int, response_tokens: int) -> str:
-    """構造生成の材料が予算を超えるなら末尾を切り詰める（ctx 不明なら素通し）。
+    """Truncate the tail if the structure-generation material exceeds the budget
+    (pass through unchanged if ctx is unknown).
 
-    チャンク要約を全部連結した material は、非常に長い会議だとそれでも大きすぎて
-    構造生成リクエスト自体が溢れ得る。全文パス（_struct_fits_one_pass）と同じ予算に
-    対してチェックし、超える分は末尾を落とす（見出し設計には冒頭〜中盤で足りる）。
+    For a very long meeting, material — all chunk summaries concatenated — can
+    still be too large, overflowing the structure-generation request itself.
+    Checked against the same budget as the full-text path
+    (_struct_fits_one_pass), dropping the tail past what fits (the beginning
+    through the middle is enough to design the headings).
     """
     if ctx <= 0:
         return material
@@ -388,13 +418,15 @@ def _fit_merged_transcript(
     ctx: int,
     minutes_max_tokens: int,
 ) -> tuple[str, bool]:
-    """統合ステップの実プロンプトが ctx に収まるよう merged_transcript を切り詰める。
+    """Truncate merged_transcript so the merge step's real prompt fits within ctx.
 
-    _structure_fits_minutes_skeleton() は transcript/frames をゼロと仮定した最低限の
-    チェックなので、チャンク数が多い会議だと「構造単体は収まる」判定を通っても、
-    実際の merged_transcript（全 partials 連結）＋frames を足すと統合リクエストが
-    溢れることがある。ここで実際のトークン数で予算を取り、超える分は末尾を落とす。
-    戻り値は (収まる merged_transcript, 切り詰めたか)。ctx 不明時は素通し。
+    _structure_fits_minutes_skeleton() is only a minimal check that assumes
+    transcript/frames are zero, so for a meeting with many chunks, even if it
+    passes the "the structure alone fits" check, adding the real
+    merged_transcript (all partials concatenated) + frames can still overflow
+    the merge request. Here the budget is taken against the real token count,
+    dropping the tail past what fits. Returns (the merged_transcript that fits,
+    whether it was truncated). Passed through unchanged if ctx is unknown.
     """
     if ctx <= 0:
         return merged, False
@@ -415,12 +447,15 @@ def _fit_merged_transcript(
 def _structure_fits_minutes_skeleton(
     minutes_system: str, structure: str, ctx: int, minutes_max_tokens: int
 ) -> bool:
-    """生成された構造だけで統合ステップの最低限の予算を食い潰さないか。
+    """Whether the generated structure alone doesn't eat up the merge step's minimum budget.
 
-    transcript も frames もゼロと仮定して、system＋構造＋入力節の雛形＋応答予約＋
-    マージンが ctx に収まるか。収まらなければ「分割生成に切り替えても救えない」＝
-    構造自体が大きすぎる（プレースホルダー欠落と同様、不正な構造として扱う）。
-    ctx 不明（<=0）のときは判定しない（True。既存の文字数しきい値の経路に任せる）。
+    Assuming both transcript and frames are zero, checks whether system +
+    structure + input-section skeleton + response reservation + margin fit
+    within ctx. If it doesn't fit, that means "switching to split generation
+    can't save it either" — the structure itself is too large (treated as an
+    invalid structure, the same as a missing placeholder). When ctx is unknown
+    (<=0), no judgment is made (returns True, deferring to the existing
+    character-count-threshold path).
     """
     if ctx <= 0:
         return True
@@ -446,12 +481,14 @@ def _generate_structure(
     cancel_event: threading.Event | None,
     language: str = DEFAULT_LANGUAGE,
 ) -> str | None:
-    """会議内容（全文または要約）から議事録の型を 1 回の chat で作る。
+    """Build the minutes structure from the meeting content (full text or
+    summary) with a single chat call.
 
-    max_tokens は議事録本文と同じ minutes_max_tokens を渡すこと（推論モデル耐性を
-    メイン生成と揃える）。失敗（例外・空応答・必須プレースホルダー欠落・構造自体が
-    大きすぎて統合ステップに収まらない）なら None を返す。呼び出し側は None のとき
-    内蔵テンプレートにフォールバックする。
+    Pass the same minutes_max_tokens for max_tokens as the minutes body (so
+    reasoning-model resilience matches the main generation). Returns None on
+    failure (an exception, an empty response, a missing required placeholder,
+    or the structure itself being too large to fit the merge step). The caller
+    falls back to the built-in template when this returns None.
     """
     check_cancel(cancel_event)
     if on_progress:
@@ -501,18 +538,21 @@ def _resolve_auto_structure(
     cancel_event: threading.Event | None,
     language: str = DEFAULT_LANGUAGE,
 ) -> str:
-    """型を自動生成し、成功したら out_dir に保存して返す。失敗時は fallback を返す。
+    """Auto-generate the structure, saving it to out_dir and returning it on
+    success. Returns fallback on failure.
 
-    失敗して内蔵にフォールバックする場合、同じ out_dir に前回実行時の
-    work/structure_used.txt が残っていると「今回使った型」と誤認される（気に入ったら
-    templates/ にコピーする運用で無関係な型をコピーしてしまう）。消しておく。
+    When falling back to the built-in template on failure, if a previous run's
+    work/structure_used.txt is still sitting in the same out_dir, it would be
+    mistaken for "the structure used this time" (and could get copied into
+    templates/ by mistake under the "copy it there if you like it" workflow).
+    Delete it.
     """
     generated = _generate_structure(
         client, material, model=model, max_tokens=max_tokens,
         minutes_system=minutes_system, ctx=ctx,
         on_progress=on_progress, cancel_event=cancel_event, language=language,
     )
-    struct_relpath = f"{_WORK_DIR}/{_STRUCTURE_FILENAME}"  # 表示用（/ 区切り）
+    struct_relpath = f"{_WORK_DIR}/{_STRUCTURE_FILENAME}"  # for display (/ separated)
     if generated is None:
         if out_dir is not None:
             try:
@@ -553,7 +593,7 @@ class MinutesMeta:
     duration_hint: str = "（不明）"
 
 
-# work/minutes_partials.json のフォーマット版。チャンク境界のシグネチャを持つ。
+# The format version of work/minutes_partials.json. Carries a signature of the chunk boundaries.
 _PARTIALS_FORMAT = 2
 
 
@@ -564,16 +604,20 @@ def _partials_path(out_dir: Path) -> Path:
 def _load_partials(
     out_dir: Path, *, size_chars: int, num_segments: int
 ) -> list[str]:
-    """中断・タイムアウトで途中まで進んだチャンク要約を読み戻す（無ければ空）。
+    """Read back chunk summaries that got partway through before an interruption
+    or timeout (empty if there are none).
 
-    再利用の可否は、要約を作ったときのチャンク分割条件（`chunk_size_chars` と
-    分割入力のセグメント総数）が今回と一致するかで判定する。一致しなければ
-    チャンク境界がずれて内容の重複・欠落が起きるため採用しない（作り直す）。
-    メタ情報の無い旧形式（JSON 配列）も、境界を検証できないので採用しない。
+    Whether they can be reused is judged by whether the chunking conditions
+    used when the summaries were made (`chunk_size_chars` and the total number
+    of segments in the split input) match this time. If they don't match, the
+    chunk boundaries would be shifted, causing duplicated or missing content, so
+    they aren't adopted (redone from scratch instead). The old format with no
+    metadata (a JSON array) is also not adopted, since its boundaries can't be verified.
 
-    見出し行（"### 部分 N"）しか無く本文が空のエントリは、LLM が空応答を返した
-    形跡（例: 推論モデルが思考だけで max_tokens を使い切った）とみなし無効にする。
-    そのエントリ以降は信用せず、そこから要約をやり直す。
+    An entry that has only a heading line ("### 部分 N") with an empty body is
+    treated as a sign the LLM returned an empty response (e.g. a reasoning
+    model used up max_tokens on thinking alone) and is invalidated. Nothing
+    from that entry onward is trusted; summarization is redone starting there.
     """
     path = _partials_path(out_dir)
     if not path.is_file():
@@ -583,10 +627,10 @@ def _load_partials(
     except (json.JSONDecodeError, OSError):
         return []
 
-    # 旧形式（配列）・未知形式は作り直す
+    # Old format (array) / unknown format: redo from scratch
     if not isinstance(data, dict) or data.get("format") != _PARTIALS_FORMAT:
         return []
-    # 分割条件が変わっている（例: Context Length 対策で chunk_size_chars を下げた）
+    # The chunking conditions have changed (e.g. chunk_size_chars was lowered to work around Context Length)
     if data.get("chunk_size_chars") != size_chars or data.get("num_segments") != num_segments:
         return []
 
@@ -611,10 +655,10 @@ def _save_partials(
     num_segments: int,
     num_chunks: int,
 ) -> None:
-    """チャンク要約を1つ終えるたびに呼び、その時点までを丸ごと書き直す。
+    """Called each time one chunk summary finishes, rewriting everything up to that point.
 
-    再開時に整合を検証できるよう、チャンク分割条件（`chunk_size_chars` と
-    分割入力のセグメント総数）を一緒に保存する。
+    Saves the chunking conditions (`chunk_size_chars` and the total number of
+    segments in the split input) alongside, so consistency can be verified on resume.
     """
     _partials_path(out_dir).parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -652,12 +696,13 @@ def _summarize_chunks(
     cancel_event: threading.Event | None,
     language: str = DEFAULT_LANGUAGE,
 ) -> list[str]:
-    """未処理のチャンクを順に要約し、埋めた partials を返す。
+    """Summarize the unprocessed chunks in order, returning partials filled in.
 
-    partials に既に入っている分（再開時の再利用、あるいは「おまかせ」モードで
-    型生成の材料として先に走らせた分）はスキップする。すべて済んでいれば何もしない。
-    1 つ終えるたびに out_path があれば work/minutes_partials.json を書き直す。
-    max_tokens は呼び出し側の予算計算（fit_chunk_size）と同じ値を渡すこと。
+    Skips anything already present in partials (reused on resume, or run ahead
+    of time as material for structure generation in Auto mode). Does nothing
+    if everything is already done. Each time one finishes, rewrites
+    work/minutes_partials.json if out_path is given. Pass the same value for
+    max_tokens as the caller's budget calculation (fit_chunk_size).
     """
     for i in range(len(partials) + 1, len(chunks) + 1):
         check_cancel(cancel_event)
@@ -696,7 +741,7 @@ def _split_segments(segments: list[Segment], size_chars: int) -> list[list[Segme
     cur: list[Segment] = []
     cur_len = 0
     for seg in segments:
-        seg_len = len(seg.text) + 12  # タイムスタンプ分の余白
+        seg_len = len(seg.text) + 12  # margin for the timestamp
         if cur and cur_len + seg_len > size_chars:
             chunks.append(cur)
             cur = []
@@ -724,31 +769,40 @@ def generate_minutes(
     auto_structure: bool = False,
     language: str = DEFAULT_LANGUAGE,
 ) -> str:
-    """議事録の Markdown 文字列を返す。
+    """Return the minutes as a Markdown string.
 
-    language: on_progress へ渡す進捗・警告メッセージの言語（"ja" / "en"、既定 "ja"）。
-        議事録本文・システムプロンプトは対象外（別途 LLM 側）。
+    language: the language of the progress/warning messages passed to
+        on_progress ("ja" / "en", default "ja"). Does not affect the minutes
+        body or system prompt (that's on the LLM side, separately).
 
-    cancel_event: セットされていれば、チャンク要約の合間（長い文字起こしの場合）で
-        中断する。短いパス（1 回の chat 呼び出し）は呼び出し中に反応できない。
-    out_dir: 指定すると、長い文字起こしのチャンク要約を1つ終えるたびに
-        `work/minutes_partials.json` として書き出す。タイムアウトや中断のあとの
-        再実行では、reuse=True ならここから再開し、終わっているチャンクを
-        summarize し直さない。
-    reuse: False なら out_dir に部分要約が残っていても無視して最初から。
-    context_tokens: 分かっていれば、ロード中モデルの実コンテキスト長（トークン）。
-        一発生成のプロンプトがこれに収まらないと推定される場合は、文字数しきい値に
-        関わらず分割生成にフォールバックする。None なら chunk_trigger_chars（文字）で判断。
-    template_path: 議事録の「構造」を差し替えるカスタムテンプレートのパス。空／None は
-        内蔵テンプレート。存在しない・読めない・空の場合は内蔵にフォールバックし警告する。
-        システムプロンプト（捏造しない等のルール）はテンプレートに関わらず常に適用する。
-        一発生成・分割生成の統合ステップの両方で同じテンプレートを使う。
-    auto_structure: True なら「おまかせ」モード。会議内容から議事録の型（見出し構成）を
-        LLM に 1 回だけ生成させ、それをテンプレートとして使う（template_path より優先）。
-        トークン予算に注意し、全文が軽い予算に収まればそのまま、収まらなければ既存の
-        チャンク要約を材料にする（新たな全文読み込みパスは増やさない）。生成した型は
-        out_dir/work/structure_used.txt に保存する。生成に失敗（例外・空・必須プレースホルダー
-        欠落）したら内蔵テンプレートにフォールバックし警告する。
+    cancel_event: if set, interrupts between chunk summaries (for long
+        transcripts). A short path (a single chat call) can't respond to it
+        mid-call.
+    out_dir: if given, writes out `work/minutes_partials.json` each time one
+        chunk summary of a long transcript finishes. On a re-run after a
+        timeout or interruption, if reuse=True, resumes from here and doesn't
+        re-summarize chunks that already finished.
+    reuse: if False, ignores any partial summaries left in out_dir and starts over from scratch.
+    context_tokens: the real context length (in tokens) of the loaded model, if
+        known. If the one-shot generation prompt is estimated not to fit
+        within it, falls back to split generation regardless of the
+        character-count threshold. If None, judged by chunk_trigger_chars
+        (characters) instead.
+    template_path: path to a custom template that replaces the minutes
+        "structure." Empty/None means the built-in template. If it doesn't
+        exist, can't be read, or is empty, falls back to the built-in template
+        with a warning. The system prompt (the rules against fabrication,
+        etc.) is always applied regardless of the template. The same template
+        is used for both the one-shot path and the merge step of split generation.
+    auto_structure: if True, Auto mode. Has the LLM generate the minutes
+        structure (heading layout) from the meeting content just once, and
+        uses that as the template (taking priority over template_path). Mindful
+        of the token budget: if the full text fits the light budget, it's used
+        as-is; if not, the existing chunk summaries are used as material
+        instead (no new full-text-read path is added). The generated structure
+        is saved to out_dir/work/structure_used.txt. If generation fails (an
+        exception, an empty response, or a missing required placeholder), falls
+        back to the built-in template with a warning.
     """
     check_cancel(cancel_event)
     system = _system_prompt()
@@ -768,17 +822,19 @@ def generate_minutes(
     trigger_chars = getattr(llm_config, "chunk_trigger_chars", None) or _CHUNK_TRIGGER_CHARS
     size_chars = getattr(llm_config, "chunk_size_chars", None) or _CHUNK_SIZE_CHARS
 
-    # 手動設定（config.toml の [ai] context_tokens）が 0 でなければそれを優先し、
-    # 0 のときだけ自動検出値（pipeline が渡す context_tokens 引数）を使う。
+    # If the manual setting (config.toml's [ai] context_tokens) is non-zero,
+    # prefer it; only use the auto-detected value (the context_tokens argument
+    # passed by the pipeline) when it's 0.
     ctx = int(getattr(llm_config, "context_tokens", 0) or 0) or int(context_tokens or 0)
-    # 議事録本文・チャンク要約の応答トークン上限。予算計算と実リクエストで同じ値を使う。
+    # Upper bound on response tokens for the minutes body / chunk summaries.
+    # Use the same value in the budget calculation and the real request.
     minutes_max_tokens = min(
         int(getattr(llm_config, "max_tokens", _MINUTES_RESPONSE_TOKENS)),
         _MINUTES_RESPONSE_TOKENS,
     )
 
     def fit_chunk_size(frames_text_now: str, *, warn: bool) -> None:
-        """個別チャンクのプロンプトも溢れないよう size_chars を絞る。"""
+        """Also narrow size_chars so an individual chunk's prompt doesn't overflow."""
         nonlocal size_chars
         if ctx <= 0:
             return
@@ -786,19 +842,22 @@ def generate_minutes(
         if safe > 500:
             size_chars = min(size_chars, int(safe / _TOKENS_PER_CHAR))
         elif warn and on_progress:
-            # frames を切り詰めてもチャンクを小さくできる余地がほぼ無い。
-            # そのまま進めるが（実 chat は 400 + 原因ヒントを返す）、先に警告する。
+            # Truncating frames leaves almost no room to shrink the chunk further.
+            # Proceed anyway (the real chat call will return a 400 plus a cause
+            # hint), but warn first.
             on_progress(0, 1, t("pmsg.ctx_too_small", language, ctx=ctx))
 
-    # まず現時点の構造（内蔵 or ファイル）で予算を見積もる。「おまかせ」で構造を
-    # 差し替えたら、生成後の構造でこれを計算し直す（下記）。
+    # First, estimate the budget with the current structure (built-in or a
+    # file). If Auto mode swaps in a generated structure, recalculate this
+    # against the resulting structure (below).
     frames_text, one_pass = _minutes_budget(
         system, structure, full_transcript, frames_text_raw,
         ctx=ctx, minutes_max_tokens=minutes_max_tokens, trigger_chars=trigger_chars,
     )
     fit_chunk_size(frames_text, warn=True)
 
-    # --- 長い場合の状態（チャンク分割・部分要約）。必要になった時点で一度だけ用意する。
+    # --- State for the long-transcript case (chunk splitting, partial
+    # summaries). Set up once, only when needed.
     chunks: list[list[Segment]] = []
     total_steps = 0
     out_path: Path | None = None
@@ -831,8 +890,9 @@ def generate_minutes(
                 )
 
     def summarize() -> list[str]:
-        # 予算計算（fit_chunk_size）と実リクエストで同じ max_tokens を使う。
-        # _MINUTES_RESPONSE_TOKENS(5000) 頭打ちなら要約には十分で、予算とも一致。
+        # Use the same max_tokens in the budget calculation (fit_chunk_size) and
+        # the real request. Capped at _MINUTES_RESPONSE_TOKENS (5000) is plenty
+        # for a summary and also matches the budget.
         nonlocal partials
         partials = _summarize_chunks(
             chunks, client, llm_config,
@@ -845,9 +905,11 @@ def generate_minutes(
         return partials
 
     if auto_structure:
-        # 全文が型生成の軽い予算に収まればそのまま、収まらなければ既存のチャンク要約を
-        # 材料にする（生の全文を再度読ませるパスは増やさない）。どちらの材料も
-        # 構造生成リクエストの予算に収まるよう、超える分は末尾を落とす。
+        # If the full text fits the light budget for structure generation, use
+        # it as-is; if not, use the existing chunk summaries as material
+        # instead (no path that re-reads the raw full text is added). Either
+        # way, the tail past what fits the structure-generation request's
+        # budget is dropped.
         if _struct_fits_one_pass(full_transcript, ctx, trigger_chars, minutes_max_tokens):
             material = full_transcript
             pre_summarized = False
@@ -857,20 +919,24 @@ def generate_minutes(
                 "\n\n".join(summarize()), ctx, minutes_max_tokens
             )
             pre_summarized = True
-        # フォールバック先は必ず「内蔵」（仕様・警告文と一致させる。ファイル指定時も内蔵）。
-        # 応答予約は議事録本文と同じ minutes_max_tokens（推論モデル耐性を揃える）。
-        # 生成構造が大きすぎて統合ステップに収まらない場合も内蔵にフォールバックする
-        # （分割生成への切り替えでは救えないため）。
+        # The fallback is always "built-in" (matching the spec and warning text
+        # — even when a file was specified). The response reservation is
+        # minutes_max_tokens, same as the minutes body (matches reasoning-model
+        # resilience). Also falls back to built-in when the generated structure
+        # is too large to fit the merge step (switching to split generation
+        # can't save it).
         structure = _resolve_auto_structure(
             client, material, _MINUTES_STRUCTURE, out_dir,
             model=llm_config.llm_model, max_tokens=minutes_max_tokens,
             minutes_system=system, ctx=ctx,
             on_progress=on_progress, cancel_event=cancel_event, language=language,
         )
-        # 構造生成（重い LLM 呼び出し）の後、次の議事録生成に進む前に中断を拾う。
+        # After structure generation (a heavy LLM call), check for a
+        # cancellation before moving on to minutes generation.
         check_cancel(cancel_event)
-        # 生成後の構造サイズで予算を計算し直す（構造の入れ替えで最終リクエストが
-        # コンテキスト長を超えないように）。既にチャンク分割済みなら分割設定は据え置く。
+        # Recalculate the budget against the resulting structure's size (so
+        # that swapping the structure doesn't push the final request over the
+        # context length). If already chunked, leave the chunking settings as-is.
         frames_text, one_pass = _minutes_budget(
             system, structure, full_transcript, frames_text_raw,
             ctx=ctx, minutes_max_tokens=minutes_max_tokens, trigger_chars=trigger_chars,
@@ -896,7 +962,7 @@ def generate_minutes(
         _warn_leaked_instructions(structure, md, on_progress, language)
         return md
 
-    # --- 長い場合: チャンク要約 -> 統合 ---
+    # --- The long-transcript case: chunk summarization -> merge ---
     if on_progress and ctx > 0 and not _long_ready:
         on_progress(0, 1, t("pmsg.switch_to_split", language, ctx=ctx))
     ensure_long_state()

@@ -1,6 +1,8 @@
-"""presenter — 画面ロジック（Presenter）層。フォルダ ＝ この名前空間。
+"""presenter — the screen-logic (Presenter) layer. This folder = this namespace.
 
-Presenter は View の契約（``meeting_minutes.view.MainView``）と Model
-（``meeting_minutes.model.config`` / ``meeting_minutes.model.pipeline`` ほか）にだけ依存し、
-tkinter を一切知らない。単体テストは FakeView を差し込んで行う。
+The Presenter depends only on the View's contract
+(``meeting_minutes.view.MainView``) and the Model
+(``meeting_minutes.model.config`` / ``meeting_minutes.model.pipeline``,
+etc.), and knows nothing about tkinter at all. Unit tests are done by
+plugging in a FakeView.
 """

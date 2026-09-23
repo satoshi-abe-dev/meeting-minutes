@@ -1,7 +1,7 @@
-"""transcribe のバックエンド選択・モデル名変換・各実装のテスト。
+"""Tests for transcribe's backend selection, model-name conversion, and each implementation.
 
-実際の mlx-whisper / faster-whisper は sys.modules にフェイクを注入して置き換える。
-ネットワークもモデルも要らない。
+The real mlx-whisper / faster-whisper are replaced by injecting fakes into
+sys.modules. Neither network access nor a real model is needed.
 """
 
 from __future__ import annotations
@@ -26,15 +26,17 @@ from meeting_minutes.model.transcribe import (
     save_transcript,
 )
 
-# fixture がスタブする前の本物（ローカルディレクトリ判定を実際に効かせたいテスト用）
+# The real thing, before the fixture stubs it (for tests that want the
+# local-directory check to actually take effect)
 _REAL_MLX_MODEL_CACHED = transcribe._mlx_model_cached
 _REAL_FW_MODEL_CACHED = transcribe._faster_whisper_model_cached
 
 
 @pytest.fixture(autouse=True)
 def _models_available(monkeypatch):
-    """既定では「モデルは取得済み」として扱う。未取得時の挙動を見るテストは
-    個別に False へ上書きする。実際の HF キャッシュ／ネットワークには触れない。"""
+    """By default, treats the model as "already fetched." Tests that examine
+    the not-yet-fetched behavior override this to False individually. Never
+    touches the real HF cache or network."""
     monkeypatch.setattr(transcribe, "_mlx_model_cached", lambda repo: True)
     monkeypatch.setattr(
         transcribe, "_faster_whisper_model_cached", lambda config: True
@@ -49,9 +51,9 @@ def test_mlx_model_repo_known_sizes():
 
 
 def test_mlx_model_repo_passthrough():
-    # フル HF リポジトリ名はそのまま
+    # a full HF repo name is passed through unchanged
     assert _mlx_model_repo("mlx-community/whisper-foo") == "mlx-community/whisper-foo"
-    # 未知のサイズ名もそのまま（利用者の指定を尊重）
+    # an unknown size name is also passed through unchanged (respecting the user's choice)
     assert _mlx_model_repo("distil-large-v3") == "distil-large-v3"
 
 
@@ -85,7 +87,7 @@ def test_resolve_backend_unknown_value():
     assert resolve_backend(TranscribeConfig(backend="whatever")) == "faster-whisper"
 
 
-# --- _transcribe_mlx（フェイク mlx_whisper）---------------------------
+# --- _transcribe_mlx (a fake mlx_whisper) ---------------------------
 
 def _fake_mlx_module(captured: dict):
     mod = types.ModuleType("mlx_whisper")
@@ -132,12 +134,12 @@ def test_transcribe_mlx_parses_segments_and_reports(monkeypatch):
         Segment(0.0, 2.0, "こんにちは"),
         Segment(2.0, 5.0, "本題です"),
     ]
-    # サイズ名がリポジトリへ変換されて渡る
+    # the size name is converted to the repo before being passed
     assert captured["repo"] == "mlx-community/whisper-large-v3-mlx"
     assert captured["language"] == "ja"
-    # repetition loop 幻覚対策（DESIGN.md 参照）
+    # the repetition-loop hallucination guard (see DESIGN.md)
     assert captured["condition_on_previous_text"] is False
-    # 開始時の説明 + セグメントごとの通知
+    # the explanation at the start + a notification per segment
     assert progress[0][0] == 0
     assert [p[0] for p in progress[1:]] == [1, 2]
 
@@ -153,7 +155,7 @@ def test_transcribe_wav_dispatches_to_mlx(monkeypatch):
     assert captured["repo"].startswith("mlx-community/")
 
 
-# --- _transcribe_faster_whisper（フェイク faster_whisper）------------
+# --- _transcribe_faster_whisper (a fake faster_whisper) ------------
 
 class _FWSeg:
     def __init__(self, start, end, text):
@@ -206,15 +208,15 @@ def test_transcribe_faster_whisper_streams_segments(monkeypatch):
     assert captured["model"] == "small"
     assert captured["vad_filter"] is True
     assert captured["condition_on_previous_text"] is False
-    # 環境変数に依存しない実行時ガード（自動ダウンロード禁止）
+    # a runtime guard that doesn't depend on the environment variable (no auto-download)
     assert captured["local_files_only"] is True
-    # 先頭は「モデル準備中」の通知（current=0）、その後セグメント確定ごとに逐次通知
+    # the first is the "model preparing" notification (current=0), followed by one per finalized segment
     assert progress[0][0] == 0
     assert [p[0] for p in progress[1:]] == [1, 2, 3]
 
 
 def test_transcribe_faster_whisper_missing_model_raises(monkeypatch):
-    # 事前取得されていない → 自動 DL せず ModelNotAvailableError で停止
+    # not fetched ahead of time -> stops with ModelNotAvailableError instead of auto-downloading
     monkeypatch.setattr(
         transcribe, "_faster_whisper_model_cached", lambda config: False
     )
@@ -226,7 +228,7 @@ def test_transcribe_faster_whisper_missing_model_raises(monkeypatch):
         _transcribe_faster_whisper("/tmp/a.wav", TranscribeConfig(model="small"))
     assert "small" in str(ei.value)
     assert "setup.sh" in str(ei.value)
-    # WhisperModel の生成まで到達していない
+    # never reaches constructing WhisperModel
     assert "model" not in captured
 
 
@@ -244,14 +246,14 @@ def test_transcribe_mlx_missing_model_raises(monkeypatch):
 
     with pytest.raises(ModelNotAvailableError) as ei:
         _transcribe_mlx("/tmp/a.wav", TranscribeConfig(model="large-v3"))
-    # サイズ名がリポジトリへ変換されてメッセージに載る
+    # the size name is converted to the repo and included in the message
     assert "mlx-community/whisper-large-v3-mlx" in str(ei.value)
-    assert called["n"] == 0  # 文字起こしは走らない
+    assert called["n"] == 0  # transcription never runs
 
 
 def test_faster_whisper_local_model_dir_reaches_body(monkeypatch, tmp_path):
-    # config.model がローカルのモデルディレクトリのとき、HF 解決をスキップして
-    # 本体に到達する（エアギャップ配布でモデルを同梱するユースケース）。
+    # when config.model is a local model directory, skips HF resolution and
+    # reaches the body (the use case for air-gapped distribution with the model bundled).
     monkeypatch.setattr(transcribe, "_faster_whisper_model_cached", _REAL_FW_MODEL_CACHED)
     captured: dict = {}
     monkeypatch.setitem(
@@ -271,7 +273,7 @@ def test_mlx_local_model_dir_reaches_body(monkeypatch, tmp_path):
     cfg = TranscribeConfig(backend="mlx", model=str(tmp_path), language="ja")
     segs = _transcribe_mlx("/tmp/a.wav", cfg, total_hint=10)
     assert [s.text for s in segs] == ["こんにちは", "本題です"]
-    # ローカルパスは _mlx_model_repo で素通しされ、そのまま path_or_hf_repo に渡る
+    # the local path is passed through unchanged by _mlx_model_repo and reaches path_or_hf_repo as-is
     assert captured["repo"] == str(tmp_path)
 
 
@@ -290,7 +292,7 @@ def test_transcribe_faster_whisper_message_translated_when_language_en(monkeypat
     )
     assert "Preparing the transcription model" in progress[0][2]
     assert "準備中" not in progress[0][2]
-    # 文字起こし対象言語（config.language）は表示言語と独立
+    # the transcribed language (config.language) is independent of the display language
     assert captured["language"] == "ja"
 
 
@@ -317,7 +319,7 @@ def test_save_then_load_transcript_roundtrip(tmp_path):
     assert loaded == segs
 
 
-# --- 中断（cancel_event）------------------------------------------------
+# --- Cancellation (cancel_event) ------------------------------------------------
 
 def test_transcribe_mlx_cancel_before_call_skips_transcribe(monkeypatch):
     called = {"n": 0}
@@ -336,7 +338,7 @@ def test_transcribe_mlx_cancel_before_call_skips_transcribe(monkeypatch):
         _transcribe_mlx(
             "/tmp/a.wav", TranscribeConfig(model="large-v3"), cancel_event=cancel_event
         )
-    assert called["n"] == 0  # 呼ばれる前に中断される
+    assert called["n"] == 0  # cancelled before it's called
 
 
 def test_transcribe_faster_whisper_cancel_stops_after_first_segment(monkeypatch):
@@ -349,7 +351,9 @@ def test_transcribe_faster_whisper_cancel_stops_after_first_segment(monkeypatch)
 
     def on_progress(cur, tot, msg):
         if cur == 1:
-            cancel_event.set()  # 1 区間目が終わった直後に中断ボタンが押された想定
+            # simulate the Stop button being pressed right after the first
+            # segment finishes
+            cancel_event.set()
 
     with pytest.raises(PipelineCancelled):
         _transcribe_faster_whisper(

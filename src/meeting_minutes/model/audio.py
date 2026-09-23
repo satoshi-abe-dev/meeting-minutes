@@ -1,6 +1,6 @@
-"""動画から音声トラックを抽出する。
+"""Extract the audio track from a video.
 
-faster-whisper が扱いやすいよう 16kHz / モノラル / PCM wav に変換する。
+Converts to 16kHz / mono / PCM wav so faster-whisper can handle it easily.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from . import ffmpeg_utils
 
 
 def extract_audio(video_path: str | Path, out_wav: str | Path) -> Path:
-    """video_path の音声を 16kHz モノラル wav として out_wav に書き出す。
+    """Write video_path's audio out to out_wav as a 16kHz mono wav.
 
-    戻り値は書き出した wav の Path。
+    Returns the Path of the wav that was written.
     """
     video_path = Path(video_path)
     out_wav = Path(out_wav)
@@ -21,12 +21,12 @@ def extract_audio(video_path: str | Path, out_wav: str | Path) -> Path:
 
     args = [
         ffmpeg_utils.ffmpeg_path(),
-        "-y",  # 既存ファイルは上書き（out ディレクトリは output/ 配下のみ）
+        "-y",  # overwrite an existing file (the out directory is always under output/)
         "-i",
         str(video_path),
-        "-vn",  # 映像を捨てる
+        "-vn",  # discard the video
         "-ac",
-        "1",  # モノラル
+        "1",  # mono
         "-ar",
         "16000",  # 16kHz
         "-c:a",
@@ -34,6 +34,6 @@ def extract_audio(video_path: str | Path, out_wav: str | Path) -> Path:
         str(out_wav),
     ]
     ffmpeg_utils.run(args, desc="ffmpeg(音声抽出)")
-    if not out_wav.is_file():  # pragma: no cover - 通常は run が失敗を送出
+    if not out_wav.is_file():  # pragma: no cover - run normally raises on failure
         raise ffmpeg_utils.FFmpegError("音声抽出に失敗しました（出力ファイルが作られていません）")
     return out_wav

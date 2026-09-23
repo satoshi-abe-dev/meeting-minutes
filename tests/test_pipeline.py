@@ -1,6 +1,6 @@
-"""pipeline.run のテスト（ffmpeg も LLM も呼ばず、Deps を全差し替え）。
+"""Tests for pipeline.run (never calls ffmpeg or an LLM; all of Deps is swapped out).
 
-工程の順序・進捗コールバック・出力パスの組み立てを検証する。
+Verifies stage ordering, the progress callback, and how output paths are assembled.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class FakeClient:
 @pytest.fixture
 def config(tmp_path) -> Config:
     cfg = Config()
-    cfg.output.dir = str(tmp_path / "out")  # 絶対パスなのでそのまま使われる
+    cfg.output.dir = str(tmp_path / "out")  # an absolute path, so used as-is
     return cfg
 
 
@@ -186,19 +186,19 @@ def test_pipeline_runs_stages_in_order(config, video):
         "save_minutes_docx",
     ]
 
-    # 進捗の stage が定義順どおりに初出する
+    # progress stages first appear in their defined order
     seen_order: list[str] = []
     for stage, *_ in events:
         if stage not in seen_order:
             seen_order.append(stage)
     assert seen_order == [*STAGES, "done"]
 
-    # クライアントは最後に閉じられる
+    # the client is closed at the end
     assert client.closed is True
 
 
 def test_pipeline_messages_show_model_and_waiting(config, video):
-    """(5)(6): 各フェーズのメッセージにモデル名と「応答を待っています」が出る。"""
+    """(5)(6): each phase's message includes the model name and "waiting for a response"."""
     events: list[tuple] = []
     run(
         video, config,
@@ -222,7 +222,8 @@ def test_pipeline_messages_show_model_and_waiting(config, video):
 
 
 def test_pipeline_messages_translated_when_language_en(config, video):
-    """language="en" のとき進捗メッセージが英語で出る（既定 ja は別テストで担保）。"""
+    """When language="en", progress messages come out in English (the
+    default, ja, is covered by a separate test)."""
     events: list[tuple] = []
     run(
         video, config,
@@ -235,7 +236,7 @@ def test_pipeline_messages_translated_when_language_en(config, video):
     assert "Waiting for the LLM server" in joined
     assert "Extracting audio from the video" in joined
     assert any(m.startswith("Done: ") for m in msgs)
-    # 日本語の定型句が混ざっていないこと
+    # no Japanese boilerplate phrases are mixed in
     assert "応答を待っています" not in joined
     assert "音声を抽出" not in joined
 
@@ -255,18 +256,18 @@ def test_pipeline_result_paths(config, video):
     assert result.minutes_path.is_file()
     assert result.minutes_path.read_text(encoding="utf-8").startswith("# 議事録")
     assert result.transcript_txt.is_file()
-    # (1) 音声ファイルと文字起こしは1つの transcript/ フォルダーにまとまっている
+    # (1) the audio file and transcript are together in one transcript/ folder
     assert result.transcript_txt.parent.name == "transcript"
     assert result.transcript_json.parent == result.transcript_txt.parent
     assert result.n_segments == 2
     assert result.n_frames == 1
-    # .docx（Word）版も同じフォルダのルートに出て、結果に載る
+    # the .docx (Word) version is also written to the root of the same folder and appears in the result
     assert result.minutes_docx_path == result.out_dir / "minutes.docx"
     assert result.minutes_docx_path.is_file()
 
 
 def test_pipeline_writes_real_docx_from_markdown(config, video):
-    """save_minutes_docx を実変換にして、生成 .docx を python-docx で開き直せる。"""
+    """Use the real save_minutes_docx conversion so the generated .docx can be reopened with python-docx."""
     import docx
 
     from meeting_minutes.model.docx_export import save_minutes_docx
@@ -281,7 +282,8 @@ def test_pipeline_writes_real_docx_from_markdown(config, video):
 
 
 def test_pipeline_docx_failure_is_isolated(config, video):
-    """.docx 変換が例外でも run は完走し、minutes.md は出て warnings に警告が載る。"""
+    """Even if .docx conversion raises, run completes; minutes.md is
+    produced and a warning is added to warnings."""
     def boom(markdown, out_dir):
         raise RuntimeError("docx broke")
 
@@ -325,7 +327,7 @@ def test_pipeline_preflight_called_with_configured_models(config, video):
 
 
 def test_pipeline_reuses_existing_transcript_and_frames(config, video):
-    # 前回の生成物を用意
+    # set up the previous run's artifacts
     out_dir = config.output_root / "会議"
     (out_dir / "frames").mkdir(parents=True, exist_ok=True)
     (out_dir / "transcript").mkdir(parents=True, exist_ok=True)
@@ -336,12 +338,12 @@ def test_pipeline_reuses_existing_transcript_and_frames(config, video):
     client = FakeClient()
     result = run(video, config, deps=_fake_deps(recorder, client), reuse=True)
 
-    # 文字起こし・フレーム抽出はスキップ、load_* が使われる
+    # transcription/frame extraction are skipped; load_* are used instead
     assert "transcribe_wav" not in recorder
     assert "extract_frames" not in recorder
     assert "load_transcript" in recorder
     assert "load_frames" in recorder
-    # VLM・議事録は通常どおり実行
+    # VLM and minutes generation run as usual
     assert recorder[-3:] == ["generate_minutes", "save_minutes", "save_minutes_docx"]
     assert result.n_segments == 2
     assert result.n_frames == 1
@@ -372,12 +374,12 @@ def test_pipeline_cancel_during_vision_stops_and_closes_client(config, video):
         language=None,
     ):
         recorder.append("describe_frames")
-        # VLM ステージに入った直後にユーザーが中断ボタンを押した状況を再現
+        # simulate the user pressing Stop right after entering the VLM stage
         from meeting_minutes.model.cancel import check_cancel
 
         cancel_event.set()
         check_cancel(cancel_event)
-        return []  # ここには到達しない想定
+        return []  # this point is not expected to be reached
 
     deps = _fake_deps(recorder, client)
     deps.describe_frames = describe_frames
@@ -385,18 +387,18 @@ def test_pipeline_cancel_during_vision_stops_and_closes_client(config, video):
     with pytest.raises(PipelineCancelled):
         run(video, config, deps=deps, cancel_event=cancel_event)
 
-    assert "generate_minutes" not in recorder  # 議事録生成までは進まない
-    assert client.closed is True  # finally で必ず閉じる
+    assert "generate_minutes" not in recorder  # doesn't proceed as far as minutes generation
+    assert client.closed is True  # always closed in the finally block
 
 
 def test_pipeline_cancel_before_start_raises_immediately(config, video):
     recorder: list[str] = []
     client = FakeClient()
     cancel_event = threading.Event()
-    cancel_event.set()  # 開始前から中断要求済み
+    cancel_event.set()  # cancellation was already requested before starting
 
     with pytest.raises(PipelineCancelled):
         run(video, config, deps=_fake_deps(recorder, client), cancel_event=cancel_event)
 
-    assert recorder == []  # 何も実行されない
+    assert recorder == []  # nothing is executed
     assert client.closed is True

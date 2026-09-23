@@ -1,7 +1,8 @@
-"""model — 実処理（Model）層。フォルダ ＝ この名前空間。
+"""model — the actual-processing (Model) layer. This folder = this namespace.
 
-動画 → 音声 → 文字起こし → フレーム → VLM → 議事録 のパイプラインと、その各工程
-（`audio` / `transcribe` / `frames` / `vision` / `minutes` / `pipeline`）、共通部品
-（`config` / `cancel` / `ffmpeg_utils` / `llm_client`）を持つ。tkinter を知らず、
-GUI（`view/` + `presenter/`）や CLI からは `pipeline.run` を呼ぶだけ。
+Holds the video -> audio -> transcription -> frames -> VLM -> minutes
+pipeline, each of its stages (`audio` / `transcribe` / `frames` / `vision` /
+`minutes` / `pipeline`), and shared components (`config` / `cancel` /
+`ffmpeg_utils` / `llm_client`). Knows nothing about tkinter; the GUI
+(`view/` + `presenter/`) and CLI just call `pipeline.run`.
 """

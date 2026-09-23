@@ -1,7 +1,8 @@
-"""打ち合わせ動画から議事録（Markdown）を生成する、完全ローカルなツール。
+"""A fully local tool that generates minutes (Markdown) from a meeting recording.
 
-音声・映像・文字起こし・要約のいずれもマシン内で完結し、外部サービスへは
-送信しない。LLM / VLM だけはローカルサーバー（LM Studio 等）を localhost 経由で呼ぶ。
+Audio, video, transcription, and summarization all run entirely on the
+machine; nothing is sent to an external service. Only the LLM/VLM are
+called, over localhost, on a local server (LM Studio, etc.).
 """
 
 __version__ = "0.1.0"

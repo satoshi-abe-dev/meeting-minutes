@@ -1,9 +1,10 @@
-"""全工程のオーケストレーション。
+"""Orchestrates every stage.
 
-    動画 → 音声抽出 → 文字起こし → フレーム抽出 → フレーム解析(VLM) → 議事録生成
+    video -> audio extraction -> transcription -> frame extraction ->
+    frame analysis (VLM) -> minutes generation
 
-各工程の依存を Deps 経由で差し替えられるようにしてあり、GUI / CLI / テストの
-いずれからも同じ run() を呼ぶ。進捗は on_progress コールバックで通知する。
+Each stage's dependency is swappable via Deps, and the GUI / CLI / tests all
+call the same run(). Progress is reported via the on_progress callback.
 """
 
 from __future__ import annotations
@@ -24,13 +25,13 @@ from . import frames as _frames
 from . import minutes as _minutes
 from . import transcribe as _transcribe
 from . import vision as _vision
-from .cancel import PipelineCancelled, check_cancel  # noqa: F401 - 呼び出し側の再export
+from .cancel import PipelineCancelled, check_cancel  # noqa: F401 - re-exported for callers
 from .config import Config
 from .llm_client import LLMClient
 
 # on_progress(stage, current, total, message)
 #   stage: "preflight" | "audio" | "transcribe" | "frames" | "vision" | "minutes" | "done"
-#   current/total: その工程内の進捗（total=0 は不定）
+#   current/total: progress within that stage (total=0 means unknown)
 ProgressFn = Callable[[str, int, int, str], None]
 
 STAGES = ("preflight", "audio", "transcribe", "frames", "vision", "minutes")
@@ -42,10 +43,11 @@ def _default_make_client(cfg: Config) -> LLMClient:
 
 @dataclass
 class Deps:
-    """各工程の実装。テストではここを差し替える。
+    """Each stage's implementation. Tests swap these out.
 
-    dataclass の生成する __init__ が各値をインスタンス属性へ代入するため、
-    関数を直接デフォルトに置いても記述子（bound method）化されない。
+    Because the __init__ the dataclass generates assigns each value to an
+    instance attribute, plain functions can be used directly as defaults
+    without turning into bound methods (descriptors).
     """
 
     extract_audio: Callable = _audio.extract_audio
@@ -106,17 +108,22 @@ def run(
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
 ) -> PipelineResult:
-    """動画 1 本を処理して議事録を書き出す。
+    """Process one video and write out the minutes.
 
-    reuse: True なら `output/<動画名>/` に前回の transcript/transcript.json /
-        frames/frames.json があれば再利用し、文字起こし・フレーム抽出をやり直さない（VLM 段階などで
-        失敗したあとの再実行を速くする）。False で常に最初から。
-    cancel_event: セットされていれば PipelineCancelled を送出して中断する。
-        各ステージの開始前・フレーム解析の1枚ごと・議事録のチャンクごとで反応する。
-        mlx-whisper の呼び出し中と ffmpeg 実行中は反応できない（docs/DESIGN_ja.md 参照）。
-    language: on_progress へ渡す進捗メッセージ・エラーヒントの言語（"ja" / "en"）。
-        既定 "ja"。GUI が --lang en のとき "en" を渡す。CLI は渡さない（＝ja）。
-        文字起こし言語（config.transcribe.language）や議事録の中身は対象外。
+    reuse: if True, reuses the previous run's transcript/transcript.json /
+        frames/frames.json under `output/<video name>/` if present, and
+        doesn't redo transcription/frame extraction (speeds up a re-run after
+        a failure at, say, the VLM stage). With False, always starts from
+        scratch.
+    cancel_event: if set, raises PipelineCancelled to interrupt. Responds
+        before each stage starts, per frame during frame analysis, and per
+        chunk during minutes generation. Cannot respond while an mlx-whisper
+        call or an ffmpeg run is in progress (see docs/DESIGN_ja.md).
+    language: the language of the progress messages / error hints passed to
+        on_progress ("ja" / "en"). Defaults to "ja". The GUI passes "en" when
+        run with --lang en; the CLI doesn't pass it (so it's ja). Does not
+        affect the transcription language (config.transcribe.language) or the
+        content of the minutes.
     """
     language = normalize_language(language)
     video_path = Path(video_path).expanduser().resolve()
@@ -128,14 +135,16 @@ def run(
     warnings: list[str] = []
 
     out_dir = config.output_root / video_path.stem
-    # 中間生成物は種類ごとにサブフォルダへ。frames 画像は frames/、音声・文字起こしは
-    # transcript/、議事録の型・チャンク要約は work/（gui.log は GUI 側で logs/ に作る）。
+    # Intermediate artifacts go into a subfolder per kind: frame images under
+    # frames/, audio and transcript under transcript/, the minutes structure
+    # and chunk summaries under work/ (gui.log is created under logs/ by the
+    # GUI side).
     transcript_dir = out_dir / "transcript"
     (out_dir / "frames").mkdir(parents=True, exist_ok=True)
     (out_dir / "work").mkdir(parents=True, exist_ok=True)
     transcript_dir.mkdir(parents=True, exist_ok=True)
 
-    # LLM サーバーを一度作り、以降ずっと使う。接続エラーヒントも language に従わせる。
+    # Create the LLM server client once and use it throughout. Connection error hints also follow language.
     client = deps.make_client(config)
     with contextlib.suppress(AttributeError):
         client.language = language
@@ -143,7 +152,7 @@ def run(
     minutes_docx_path: Path | None = None
     frame_notes_path: Path | None = None
     try:
-        # 0) 起動前チェック（重い処理の前に LLM サーバーとモデルを確認） --------
+        # 0) Preflight check (verify the LLM server and models before heavy processing) --------
         check_cancel(cancel_event)
         progress(
             "preflight", 0, 1,
@@ -155,7 +164,7 @@ def run(
             preflight([config.ai.llm_model, config.ai.vlm_model])
         progress("preflight", 1, 1, t("pmsg.pre_ok", language))
 
-        # 1) 音声抽出 --------------------------------------------------------
+        # 1) Audio extraction --------------------------------------------------------
         check_cancel(cancel_event)
         progress("audio", 0, 1, t("pmsg.audio_extracting", language))
         t0 = time.monotonic()
@@ -172,8 +181,8 @@ def run(
               elapsed=format_elapsed(audio_elapsed, language)),
         )
 
-        # 2) 文字起こし（再利用可）--------------------------------------
-        total_hint = int(duration / 4) if duration else 0  # 1 区間 ≒ 4 秒と仮定
+        # 2) Transcription (reusable) --------------------------------------
+        total_hint = int(duration / 4) if duration else 0  # assumes ~4 seconds per segment
         transcript_json = transcript_dir / "transcript.json"
         transcript_txt = transcript_dir / "transcript.txt"
         segments = None
@@ -216,7 +225,7 @@ def run(
                   elapsed=format_elapsed(transcribe_elapsed, language)),
             )
 
-        # 3) フレーム抽出（再利用可）--------------------------------
+        # 3) Frame extraction (reusable) --------------------------------
         frames_index: Path = out_dir / "frames" / "frames.json"
         frames = None
         if reuse and frames_index.is_file():
@@ -243,7 +252,7 @@ def run(
                   elapsed=format_elapsed(frames_elapsed, language)),
             )
 
-        # 4) フレーム解析（VLM）+ 5) 議事録生成 ----------------------
+        # 4) Frame analysis (VLM) + 5) Minutes generation ----------------------
         check_cancel(cancel_event)
 
         def _vp(cur: int, tot: int, msg: str) -> None:
@@ -276,8 +285,9 @@ def run(
         def _mp(cur: int, tot: int, msg: str) -> None:
             progress("minutes", cur, tot, msg)
 
-        # ロード中モデルの実コンテキスト長（LM Studio なら取得可）。取れなければ
-        # generate_minutes 側は文字数しきい値にフォールバックする。
+        # The loaded model's real context length (fetchable if it's LM
+        # Studio). If it can't be fetched, generate_minutes falls back to the
+        # character-count threshold.
         ctx_tokens: int | None = None
         _lcl = getattr(client, "loaded_context_length", None)
         if callable(_lcl):
@@ -286,8 +296,9 @@ def run(
             except Exception:
                 ctx_tokens = None
 
-        # 開始メッセージは generate_minutes 自身が _mp 経由ですぐ出す
-        # （短いパスは「議事録を生成中」、長いパスは「部分要約 1/N…」等）。
+        # The start message is emitted right away by generate_minutes itself
+        # via _mp (the short path says "generating minutes," the long path
+        # says "partial summary 1/N...", etc.).
         markdown = deps.generate_minutes(
             segments,
             notes,
@@ -304,11 +315,13 @@ def run(
             language=language,
         )
         minutes_path = deps.save_minutes(markdown, out_dir)
-        # 完了メッセージ（所要時間つき）は generate_minutes 自身が _mp 経由で
-        # 既に通知済みなので、ここで重ねて出さない。
+        # The completion message (with elapsed time) was already reported by
+        # generate_minutes itself via _mp, so it's not repeated here.
 
-        # .docx（Word）版も同じ内容で書き出す。副次成果物なので、変換や書き出しが
-        # 失敗しても警告を出して続行する（minutes.md が主成果物なので落とさない）。
+        # Also write out a .docx (Word) version with the same content. Since
+        # this is a secondary artifact, a conversion/write failure only warns
+        # and continues (minutes.md is the primary artifact, so this doesn't
+        # abort the run).
         try:
             minutes_docx_path = deps.save_minutes_docx(markdown, out_dir)
             progress(

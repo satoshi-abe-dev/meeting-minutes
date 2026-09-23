@@ -1,8 +1,8 @@
-"""vision.describe_frames のテスト（LLM は呼ばずフェイククライアント注入）。
+"""Tests for vision.describe_frames (a fake client is injected instead of calling the LLM).
 
-out_dir は必ず tmp_path（テストごとに独立した実ディレクトリ）を使う。
-describe_frames は frames/frame_notes.json への実ファイル書き込み（再開用の永続化）を
-行うため、共有パスを使うとテスト間で状態が漏れる。
+out_dir always uses tmp_path (a real directory independent per test).
+describe_frames does a real file write to frames/frame_notes.json (persisted
+for resuming), so using a shared path would leak state between tests.
 """
 
 from __future__ import annotations
@@ -35,8 +35,9 @@ def _frames(n: int) -> list[Frame]:
 
 
 def _frame_path_str(i: int) -> str:
-    """`_frames` が作るパスを str 化したもの。OS のパス区切りに追従させる
-    （Windows では ``\\tmp\\frame_0.jpg`` になるため、リテラル比較だと落ちる）。"""
+    """The str form of the path `_frames` creates. Follows the OS's path
+    separator (on Windows this becomes ``\\tmp\\frame_0.jpg``, so a literal
+    comparison would fail)."""
     return str(Path(f"/tmp/frame_{i}.jpg"))
 
 
@@ -81,7 +82,7 @@ def test_describe_frames_cancel_stops_before_next_frame(tmp_path):
 
     def on_progress(cur, total, msg):
         if cur == 1:
-            cancel_event.set()  # 1 枚目が終わった直後に中断ボタンが押された想定
+            cancel_event.set()  # simulate the Stop button being pressed right after the first frame finishes
 
     with pytest.raises(PipelineCancelled):
         describe_frames(
@@ -92,7 +93,7 @@ def test_describe_frames_cancel_stops_before_next_frame(tmp_path):
             cancel_event=cancel_event,
         )
 
-    # 2 枚目に取り掛かる前に止まる
+    # stops before starting on the 2nd frame
     assert len(client.calls) == 1
 
 
@@ -127,7 +128,7 @@ def test_describe_frames_resumes_from_saved_notes(tmp_path):
     notes = describe_frames(_frames(3), client, tmp_path, reuse=True)
 
     assert [n.description for n in notes] == ["既存の解析", "B", "C"]
-    # 1 枚目はやり直していない
+    # the 1st frame wasn't redone
     assert client.calls == [_frame_path_str(1), _frame_path_str(2)]
 
 

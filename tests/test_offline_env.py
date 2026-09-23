@@ -1,9 +1,11 @@
-"""エントリポイント（cli.py / gui.py）が、HuggingFace 系ライブラリの import より
-前に実行時オフライン（HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE）を強制することの検証。
+"""Verifies that the entry points (cli.py / gui.py) force runtime offline mode
+(HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE) before the HuggingFace-family
+libraries are imported.
 
-モジュールを import するだけ（main() は呼ばない）で環境変数が立つ ＝ モジュール
-レベルで設定されている、を別プロセスで確認する。download_transcribe_model は
-対象外なので、そちら経由では立たないことも確認する。
+Confirms, in a separate process, that just importing the module (without
+calling main()) sets the environment variables — i.e. that it's set at the
+module level. download_transcribe_model is out of scope for this, so also
+confirms it's not set via that route.
 """
 
 from __future__ import annotations
@@ -16,9 +18,10 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = str(_ROOT / "src")
 
-# gui.py はモジュールレベルで tkinter を import する（view 層経由）。CI ランナーに
-# tkinter が無くてもこのテストが成立するよう、サブプロセス側で軽量スタブを入れる。
-# 検証したいのは「meeting_minutes を import する前に環境変数を立てているか」だけ。
+# gui.py imports tkinter at the module level (via the view layer). So this
+# test still works on a CI runner without tkinter, install a lightweight
+# stub on the subprocess side. All we want to verify is "is the env var set
+# before meeting_minutes gets imported."
 _TK_STUB = (
     "import sys, types\n"
     "tk = types.ModuleType('tkinter')\n"
@@ -39,7 +42,7 @@ def _import_and_report(
     module: str, *, extra_env: dict | None = None, stub_tk: bool = False
 ) -> str:
     env = dict(os.environ)
-    # サブプロセスにパッケージを見せる（このリポジトリは src レイアウト・未インストール）。
+    # Expose the package to the subprocess (this repo uses the src layout and isn't installed).
     env["PYTHONPATH"] = _SRC + os.pathsep + env.get("PYTHONPATH", "")
     env.pop("HF_HUB_OFFLINE", None)
     env.pop("TRANSFORMERS_OFFLINE", None)
@@ -65,7 +68,7 @@ def test_gui_import_forces_offline():
 
 
 def test_download_transcribe_model_import_does_not_force_offline():
-    # download_transcribe_model はモデルを取得する側。オフラインは立てない。
+    # download_transcribe_model is the side that fetches the model; it doesn't set offline mode.
     assert (
         _import_and_report("meeting_minutes.download_transcribe_model")
         == "None None"
@@ -73,8 +76,8 @@ def test_download_transcribe_model_import_does_not_force_offline():
 
 
 def test_entrypoint_respects_explicit_offline_opt_out():
-    # setdefault なので、利用者が明示的に "0" を指定していれば尊重する
-    # （社内ミラー等でオンラインにしたいケース）。
+    # Uses setdefault, so if the user has explicitly set "0" it's respected
+    # (e.g. the case of wanting to go online for an internal mirror).
     out = _import_and_report(
         "meeting_minutes.cli",
         extra_env={"HF_HUB_OFFLINE": "0", "TRANSFORMERS_OFFLINE": "0"},

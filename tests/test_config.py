@@ -1,4 +1,4 @@
-"""config.load_config のテスト（デフォルト / TOML / 環境変数の優先順位）。"""
+"""Tests for config.load_config (the priority of defaults / TOML / environment variables)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from meeting_minutes.model.config import Config, load_config
 
 
 def test_defaults_when_no_file(tmp_path, monkeypatch):
-    # デフォルト探索を空ディレクトリに向けて「ファイルなし」状態にする
+    # point the default search at an empty directory to simulate "no file"
     monkeypatch.setattr("meeting_minutes.model.config.REPO_ROOT", tmp_path)
     monkeypatch.setattr(
         "meeting_minutes.model.config.default_config_path", lambda: None
@@ -49,7 +49,7 @@ def test_load_from_toml(tmp_path):
     assert cfg.transcribe.backend == "mlx"
     assert cfg.transcribe.model == "small"
     assert cfg.frames.interval_sec == 30.0
-    # 未知キーは無視され、他のデフォルトは維持される
+    # unknown keys are ignored, and the other defaults are kept
     assert cfg.ai.vlm_model == "qwen2-vl-7b-instruct"
 
 
@@ -77,7 +77,7 @@ def test_output_root_relative_to_repo(tmp_path, monkeypatch):
 
 
 def test_output_template_path_default_and_toml_and_env(tmp_path, monkeypatch):
-    # 既定は空文字（内蔵テンプレート）
+    # default is an empty string (the built-in template)
     monkeypatch.setattr("meeting_minutes.model.config.default_config_path", lambda: None)
     assert load_config(None).output.template_path == ""
 
@@ -91,23 +91,23 @@ def test_output_template_path_default_and_toml_and_env(tmp_path, monkeypatch):
 
 def test_gui_language_default_toml_env_and_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr("meeting_minutes.model.config.default_config_path", lambda: None)
-    # 既定は "ja"
+    # the default is "ja"
     assert load_config(None).gui.language == "ja"
 
     p = tmp_path / "config.toml"
     p.write_text('[gui]\nlanguage = "en"\n', encoding="utf-8")
     assert load_config(p).gui.language == "en"
 
-    # 環境変数が TOML を上書き
+    # environment variable overrides TOML
     monkeypatch.setenv("MM_GUI_LANGUAGE", "ja")
     assert load_config(p).gui.language == "ja"
     monkeypatch.delenv("MM_GUI_LANGUAGE")
 
-    # 対応外の値は "ja" にフォールバック（TOML 経由）
+    # an unsupported value falls back to "ja" (via TOML)
     p.write_text('[gui]\nlanguage = "fr"\n', encoding="utf-8")
     assert load_config(p).gui.language == "ja"
 
-    # 対応外の値は "ja" にフォールバック（環境変数経由）
+    # an unsupported value falls back to "ja" (via environment variable)
     p.write_text('[gui]\nlanguage = "en"\n', encoding="utf-8")
     monkeypatch.setenv("MM_GUI_LANGUAGE", "de")
     assert load_config(p).gui.language == "ja"

@@ -1,8 +1,9 @@
-"""MainPresenter の単体テスト（tkinter を一切起動しない）。
+"""Unit tests for MainPresenter (never starts tkinter).
 
-FakeMainView（MainView 抽象クラスの偽実装）を差し込み、フォーマット3択の解決・
-開始時のガード・進捗率計算・成功/エラー/中断時のボタン状態遷移を検証する。
-View の Tkinter 実装（view/tk_main_window.py）は読み込まないため tkinter 不要。
+Injects FakeMainView (a fake implementation of the MainView abstract class)
+and verifies resolving the 3-way format choice, guards on start, the progress
+fraction calculation, and button state transitions on success/error/cancellation.
+View's Tkinter implementation (view/tk_main_window.py) is never loaded, so tkinter isn't required.
 """
 
 from __future__ import annotations
@@ -106,13 +107,13 @@ def _make(cfg=None, run_pipeline=None, language="ja"):
 
 @pytest.fixture(autouse=True)
 def _redirect_output(tmp_path, monkeypatch):
-    """`_start()` は output/<動画名>/logs/ を作り gui.log を書く。実リポジトリの output/ を
-    汚さないよう、出力ルートをテストごとの tmp_path 配下へ寄せる。"""
+    """`_start()` creates output/<video name>/logs/ and writes gui.log. To avoid
+    polluting the real repo's output/, redirect the output root to each test's tmp_path."""
     monkeypatch.setattr("meeting_minutes.model.config.REPO_ROOT", tmp_path)
     return tmp_path
 
 
-# --- 初期化 ---------------------------------------------------------
+# --- Initialization ---------------------------------------------------------
 
 def test_init_registers_handlers_and_pushes_initial_state():
     view, _ = _make()
@@ -123,11 +124,11 @@ def test_init_registers_handlers_and_pushes_initial_state():
     assert view._format_mode == "builtin"
     assert view.template_name == "未選択"
     assert "文字起こし:" in view.config_summary
-    assert view.scheduled and view.scheduled[0][0] == 100  # ポーリング開始
+    assert view.scheduled and view.scheduled[0][0] == 100  # polling started
 
 
 def test_config_summary_backend_note_auto_is_readable(monkeypatch):
-    # backend=auto は実際の値へ読み替えられる。「auto を mlx と読み替えた」と分かる文言。
+    # backend=auto gets resolved to the real value. Worded so it's clear "auto was resolved to mlx."
     monkeypatch.setattr(
         "meeting_minutes.presenter.main.resolve_backend", lambda tr: "mlx"
     )
@@ -161,7 +162,7 @@ def test_initial_format_mode_follows_config_priority(cfg, expected_mode):
     assert view._format_mode == expected_mode
 
 
-# --- 動画選択 ------------------------------------------------------
+# --- Choosing a video ------------------------------------------------------
 
 def test_choose_video_sets_name_and_enables_start():
     view, presenter = _make()
@@ -181,7 +182,7 @@ def test_choose_video_cancelled_does_nothing():
     assert presenter.video_path is None
 
 
-# --- フォーマット3択の解決 → config への反映 ----------------------
+# --- Resolving the 3-way format choice -> reflecting it into config ----------------------
 
 def _start_with_video(view, presenter, mode):
     view.next_video_path = "/v/m.mp4"
@@ -201,7 +202,7 @@ def test_start_builtin_sets_config_flags():
 
 
 def test_start_auto_sets_config_flags():
-    view, presenter = _make(_config(template_path="/pre/set.txt"))  # auto が優先
+    view, presenter = _make(_config(template_path="/pre/set.txt"))  # auto takes priority
     _start_with_video(view, presenter, "auto")
     assert presenter.config_obj.output.auto_structure is True
     assert presenter.config_obj.output.template_path == ""
@@ -211,7 +212,7 @@ def test_start_auto_sets_config_flags():
 def test_start_file_with_template_sets_config_flags():
     view, presenter = _make()
     view.next_template_path = "/tpl/客先.txt"
-    view.handlers["pick_template"]()  # → mode="file", _template_path セット
+    view.handlers["pick_template"]()  # -> mode="file", _template_path is set
     assert view._format_mode == "file"
     assert view.template_name == "客先.txt"
     _start_with_video(view, presenter, "file")
@@ -224,11 +225,11 @@ def test_start_file_without_template_is_blocked():
     view, presenter = _make()
     view.next_video_path = "/v/m.mp4"
     view.handlers["choose_video"]()
-    view._format_mode = "file"  # ファイル未選択のまま
+    view._format_mode = "file"  # left with no file selected
     view.handlers["start"]()
     assert view.errors and view.errors[0][0] == "議事録フォーマット"
-    assert presenter._worker is None  # ワーカーは起動していない
-    assert view.enabled["start"] is True  # ボタンは有効のまま
+    assert presenter._worker is None  # the worker did not start
+    assert view.enabled["start"] is True  # the button stays enabled
 
 
 def test_start_without_video_does_nothing():
@@ -238,7 +239,7 @@ def test_start_without_video_does_nothing():
     assert view.log == []
 
 
-# --- gui.log への書き出し（Issue #98）--------------------------------
+# --- Writing to gui.log (Issue #98) --------------------------------
 
 def test_start_computes_log_path_and_writes_file(tmp_path):
     view, presenter = _make()
@@ -247,7 +248,7 @@ def test_start_computes_log_path_and_writes_file(tmp_path):
     expected = tmp_path / "output" / "m" / "logs" / "gui.log"
     assert presenter._log_path == expected
     assert expected.is_file()
-    # 画面のログ欄と同じ内容がファイルにも入っている
+    # the file has the same content as the on-screen log area
     written = expected.read_text(encoding="utf-8")
     for line in view.log:
         assert line in written
@@ -257,10 +258,10 @@ def test_gui_log_is_appended_not_overwritten(tmp_path):
     view, presenter = _make()
     _start_with_video(view, presenter, "builtin")
     log_path = presenter._log_path
-    presenter._poll_events()  # ワーカー完了イベントを処理して _worker を None に戻す
+    presenter._poll_events()  # process the worker-completion event, resetting _worker to None
     first = log_path.read_text(encoding="utf-8")
 
-    # 同じ動画をもう一度実行しても過去分が残る
+    # running the same video again leaves the earlier content in place
     view.handlers["start"]()
     if presenter._worker:
         presenter._worker.join(timeout=2)
@@ -273,15 +274,15 @@ def test_gui_log_is_appended_not_overwritten(tmp_path):
 
 def test_log_write_failure_does_not_break_gui(tmp_path):
     view, presenter = _make()
-    # ディレクトリを log_path に据えると open(..., "a") が IsADirectoryError（OSError）
+    # setting log_path to a directory makes open(..., "a") raise IsADirectoryError (an OSError)
     presenter._log_path = tmp_path
     presenter._log("画面には出る")
-    assert "画面には出る" in view.log  # 例外は握りつぶされ、表示は行われる
+    assert "画面には出る" in view.log  # the exception is swallowed and the display still happens
 
 
 def test_log_path_uses_resolved_video_stem_for_symlink(tmp_path):
-    """シンボリックリンクを選んだとき、gui.log は pipeline と同じ「実体名」の
-    フォルダに出る（Codex 指摘: リンク名だと別フォルダに分かれてしまう）。"""
+    """When a symlink is chosen, gui.log lands in the same "real name" folder
+    as the pipeline (a Codex finding: using the link name would split it into a different folder)."""
     real = tmp_path / "real_video.mp4"
     real.write_bytes(b"x")
     link = tmp_path / "shortcut.mp4"
@@ -297,11 +298,11 @@ def test_log_path_uses_resolved_video_stem_for_symlink(tmp_path):
     assert presenter._log_path == tmp_path / "output" / "real_video" / "logs" / "gui.log"
 
 
-# --- 進捗率計算（_STAGE_ORDER / _STAGE_WEIGHT）--------------------
+# --- Progress fraction calculation (_STAGE_ORDER / _STAGE_WEIGHT) --------------------
 
 def test_update_progress_matches_stage_weight_formula():
     view, presenter = _make()
-    # transcribe 工程の 50% 地点
+    # the 50% point of the transcribe stage
     presenter._update_progress("transcribe", 1, 2, "認識中")
     base = _STAGE_WEIGHT["preflight"] + _STAGE_WEIGHT["audio"]
     expected = int((base + _STAGE_WEIGHT["transcribe"] * 0.5) * 1000)
@@ -316,7 +317,7 @@ def test_update_progress_total_zero_no_counter():
     base = sum(_STAGE_WEIGHT[s] for s in _STAGE_ORDER[: _STAGE_ORDER.index("vision")])
     assert view.progress == int(base * 1000)
     assert view.stage_text == "フレーム解析 "
-    assert view.log == []  # message 空ならログ追記なし
+    assert view.log == []  # no log entry is added when message is empty
 
 
 def test_update_progress_done_sets_full_bar():
@@ -326,7 +327,7 @@ def test_update_progress_done_sets_full_bar():
     assert view.stage_text == "完了"
 
 
-# --- 成功 / エラー / 中断 のボタン状態遷移 ----------------------
+# --- Button state transitions on success / error / cancellation ----------------------
 
 def test_on_success_button_states_and_log():
     view, presenter = _make()
@@ -381,7 +382,7 @@ def test_stop_without_active_run_is_noop():
     assert view.log == []
 
 
-# --- 外部を開く --------------------------------------------------
+# --- Opening things externally --------------------------------------------------
 
 def test_open_minutes_prefers_docx_then_md_then_folder(tmp_path):
     view, presenter = _make()
@@ -390,27 +391,27 @@ def test_open_minutes_prefers_docx_then_md_then_folder(tmp_path):
     md.write_text("x", encoding="utf-8")
     docx.write_text("x", encoding="utf-8")
 
-    # docx が実ファイルなら docx を開く
+    # if docx is a real file, open the docx
     presenter.minutes_docx_path = str(docx)
     presenter.minutes_path = str(md)
     presenter.result_dir = str(tmp_path)
     view.handlers["open_minutes"]()
     assert view.opened == [docx]
 
-    # docx が None なら .md に落ちる
+    # falls back to .md if docx is None
     view.opened.clear()
     presenter.minutes_docx_path = None
     view.handlers["open_minutes"]()
     assert view.opened == [md]
 
-    # docx も .md も無ければ出力フォルダー
+    # falls back to the output folder if neither docx nor .md exists
     view.opened.clear()
     presenter.minutes_docx_path = str(tmp_path / "missing.docx")
     presenter.minutes_path = str(tmp_path / "missing.md")
     view.handlers["open_minutes"]()
     assert view.opened == [tmp_path]
 
-    # どれも無ければ何も開かない
+    # opens nothing if none of them exist
     view.opened.clear()
     presenter.result_dir = str(tmp_path / "missing_dir")
     view.handlers["open_minutes"]()
@@ -428,7 +429,7 @@ def test_open_folder_only_when_dir_exists(tmp_path):
     assert view.opened == [tmp_path]
 
 
-# --- 表示言語 en（Issue #55）------------------------------------------
+# --- Display language en (Issue #55) ------------------------------------------
 
 def test_english_initial_state():
     view, _ = _make(language="en")

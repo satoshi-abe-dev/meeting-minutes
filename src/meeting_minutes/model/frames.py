@@ -1,10 +1,12 @@
-"""動画からフレーム画像を抜き出す。
+"""Extract frame images from a video.
 
-方針:
-    - シーンが切り替わったフレーム（スライド送り・画面共有の切替）を拾う
-    - かつ、一定間隔でも 1 枚拾う（動きが少ない会議で取りこぼさないため）
-ffmpeg の select フィルタでこの両方を 1 パスで選び、showinfo の出力から
-各フレームの動画内タイムスタンプ（秒）を取り出す。
+Policy:
+    - Pick up frames where the scene changed (slide advance, screen-share switch)
+    - Also pick up one frame at a fixed interval regardless (so a low-motion
+      meeting doesn't get missed)
+ffmpeg's select filter picks both of these in a single pass, and each
+frame's timestamp within the video (in seconds) is pulled from showinfo's
+output.
 """
 
 from __future__ import annotations
@@ -18,15 +20,15 @@ from pathlib import Path
 from . import ffmpeg_utils
 from .config import FramesConfig
 
-# showinfo が stderr に出す "pts_time:123.456" を拾う
+# Picks up the "pts_time:123.456" that showinfo writes to stderr
 _PTS_RE = re.compile(r"pts_time:([0-9]+(?:\.[0-9]+)?)")
 
 
 @dataclass
 class Frame:
-    """抽出した 1 フレーム。"""
+    """One extracted frame."""
 
-    timestamp: float  # 動画内の秒
+    timestamp: float  # seconds within the video
     path: Path
 
 
@@ -38,7 +40,7 @@ def _hhmmss(seconds: float) -> str:
 
 
 def _thin_by_gap(timestamps: list[float], min_gap: float) -> list[int]:
-    """近すぎるフレームを間引き、残すインデックスを返す。"""
+    """Thin out frames that are too close together and return the indices to keep."""
     kept: list[int] = []
     last_t = -1e9
     for i, t in enumerate(timestamps):
@@ -49,12 +51,12 @@ def _thin_by_gap(timestamps: list[float], min_gap: float) -> list[int]:
 
 
 def _cap_count(indices: list[int], max_frames: int) -> list[int]:
-    """max_frames を超えるなら等間隔で絞る。"""
+    """If over max_frames, thin down at even intervals."""
     if max_frames <= 0 or len(indices) <= max_frames:
         return indices
     step = len(indices) / max_frames
     picked = [indices[int(i * step)] for i in range(max_frames)]
-    # 重複除去（step が小さいと同じ index を拾いうる）
+    # Deduplicate (a small step can pick up the same index more than once)
     seen: set[int] = set()
     result = []
     for idx in picked:
@@ -69,17 +71,18 @@ def extract_frames(
     out_dir: str | Path,
     config: FramesConfig,
 ) -> list[Frame]:
-    """フレームを out_dir/frames/ に書き出し、Frame のリストを返す。"""
+    """Write frames out to out_dir/frames/ and return a list of Frame."""
     video_path = Path(video_path)
     frames_dir = Path(out_dir) / "frames"
     raw_dir = frames_dir / "_raw"
     if frames_dir.exists():
-        shutil.rmtree(frames_dir)  # 前回の生成物（このツール自身の出力）を作り直す
+        shutil.rmtree(frames_dir)  # regenerate the previous output (this tool's own output)
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     th = config.scene_threshold
     interval = config.interval_sec
-    # 1フレーム目 / シーン変化 / 前回選択から interval 秒経過 のいずれかで選ぶ
+    # Pick whichever comes first: the 1st frame / a scene change / interval
+    # seconds elapsed since the last pick
     select_expr = (
         f"select='isnan(prev_selected_t)+gt(scene\\,{th})+gte(t-prev_selected_t\\,{interval})'"
     )
@@ -90,7 +93,8 @@ def extract_frames(
         str(video_path),
         "-vf",
         f"{select_expr},showinfo",
-        # 選ばれたフレームだけを可変レートで書き出す（ffmpeg 5.1+ の -vsync 後継）
+        # Write out only the selected frames at a variable rate (the
+        # successor to -vsync in ffmpeg 5.1+)
         "-fps_mode",
         "vfr",
         "-q:v",
@@ -99,7 +103,7 @@ def extract_frames(
     ]
     proc = ffmpeg_utils.run(args, desc="ffmpeg(フレーム抽出)")
 
-    # showinfo は stderr。出た順が raw_00001, raw_00002, ... に対応する。
+    # showinfo goes to stderr; the order it appears in matches raw_00001, raw_00002, ...
     timestamps = [float(m) for m in _PTS_RE.findall(proc.stderr or "")]
     raw_files = sorted(raw_dir.glob("raw_*.jpg"))
 
@@ -125,9 +129,10 @@ def extract_frames(
 
 
 def save_frame_index(frames: list[Frame], out_dir: str | Path) -> Path:
-    """フレーム一覧（時刻とパス）を JSON で保存する。
+    """Save the frame list (timestamp and path) as JSON.
 
-    索引はフレーム画像と同じ `out_dir/frames/` に置く（パスは out_dir 基準の相対のまま）。
+    The index is placed in the same `out_dir/frames/` as the frame images
+    (paths stay relative to out_dir).
     """
     out_dir = Path(out_dir)
     index_path = out_dir / "frames" / "frames.json"
@@ -145,9 +150,9 @@ def save_frame_index(frames: list[Frame], out_dir: str | Path) -> Path:
 
 
 def load_frames(out_dir: str | Path) -> list[Frame]:
-    """save_frame_index が書いた frames/frames.json を読み戻す（再開用）。
+    """Read back frames/frames.json as written by save_frame_index (for resuming).
 
-    実ファイルが欠けているフレームは除外する。
+    Excludes frames whose actual file is missing.
     """
     out_dir = Path(out_dir)
     data = json.loads((out_dir / "frames" / "frames.json").read_text(encoding="utf-8"))
