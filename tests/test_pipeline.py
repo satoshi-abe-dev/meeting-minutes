@@ -534,5 +534,5 @@ def test_pipeline_logs_extraction_and_minutes_language(config, video):
     run(video, config, on_progress=lambda *a: events.append(a), deps=deps)
 
     messages = [m for *_rest, m in events]
-    assert any("Extracting frame descriptions in: en" in m for m in messages)
-    assert any("Writing the minutes in: ko" in m for m in messages)
+    assert any("extraction language: en" in m for m in messages)
+    assert any("writing the minutes in ko" in m for m in messages)

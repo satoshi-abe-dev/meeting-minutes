@@ -270,14 +270,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": "録画の言語を自動検出: {lang}",
         "en": "Auto-detected the recording's language: {lang}",
     },
-    "pmsg.extract_language": {
-        "ja": "画面キャプチャの説明をこの言語で抽出します: {lang}",
-        "en": "Extracting frame descriptions in: {lang}",
-    },
-    "pmsg.minutes_language_used": {
-        "ja": "議事録をこの言語で作成します: {lang}",
-        "en": "Writing the minutes in: {lang}",
-    },
     "pmsg.frames_reuse": {
         "ja": "既存のフレームを再利用（{n} 枚）",
         "en": "Reusing the existing frames ({n})",
@@ -292,12 +284,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Frame extraction done ({n}, elapsed {elapsed})",
     },
     "pmsg.vision_analyzing": {
-        "ja": "フレームを解析中（モデル: {vlm}）",
-        "en": "Analyzing frames (model: {vlm})",
+        "ja": "フレームを解析中（モデル: {vlm} / 抽出言語: {lang}）",
+        "en": "Analyzing frames (model: {vlm}, extraction language: {lang})",
     },
     "pmsg.vision_done": {
-        "ja": "フレーム解析完了（所要 {elapsed}）",
-        "en": "Frame analysis done (elapsed {elapsed})",
+        "ja": "フレーム解析完了（所要 {elapsed}）。次は{lang}で議事録を作成します",
+        "en": "Frame analysis done (elapsed {elapsed}). Next, writing the minutes in {lang}",
     },
     "pmsg.done": {"ja": "完了: {path}", "en": "Done: {path}"},
     "pmsg.err_video_not_found": {

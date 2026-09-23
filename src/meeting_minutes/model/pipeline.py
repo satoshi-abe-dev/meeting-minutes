@@ -187,12 +187,31 @@ def run(
         transcript_txt = transcript_dir / "transcript.txt"
         segments = None
         detected_language = ""
+
+        def _with_detected_suffix(base_msg: str) -> str:
+            # Appended to the same progress() call as the transcription
+            # completion message (rather than emitted as its own tick right
+            # after) since a separate same-stage tick fired immediately
+            # afterward would be silently dropped by the CLI's same-stage
+            # throttle (cli.py's _make_reporter). Only shown when
+            # config.transcribe.language was left empty AND we actually have
+            # a real detection result (not the "ja" fallback used when
+            # nothing is known — e.g. reusing a pre-feature transcript.json
+            # with no persisted language).
+            if (config.transcribe.language or "").strip() or not detected_language:
+                return base_msg
+            return base_msg + " / " + t(
+                "pmsg.language_detected", language, lang=detected_language
+            )
+
         if reuse and transcript_json.is_file():
             try:
                 segments, detected_language = deps.load_transcript(transcript_dir)
                 progress(
                     "transcribe", len(segments), len(segments),
-                    t("pmsg.transcribe_reuse", language, n=len(segments)),
+                    _with_detected_suffix(
+                        t("pmsg.transcribe_reuse", language, n=len(segments))
+                    ),
                 )
             except Exception as exc:
                 warnings.append(t("pmsg.warn_transcript_reuse", language, exc=exc))
@@ -225,8 +244,10 @@ def run(
             )
             progress(
                 "transcribe", len(segments), len(segments),
-                t("pmsg.transcribe_done", language, n=len(segments),
-                  elapsed=format_elapsed(transcribe_elapsed, language)),
+                _with_detected_suffix(
+                    t("pmsg.transcribe_done", language, n=len(segments),
+                      elapsed=format_elapsed(transcribe_elapsed, language))
+                ),
             )
 
         # The recording's own actual/detected transcription language, used to
@@ -236,15 +257,6 @@ def run(
         source_language = (
             detected_language or (config.transcribe.language or "").strip() or "ja"
         )
-        # Only log this when config.transcribe.language was left empty AND we
-        # actually have a real detection result (not the "ja" fallback used
-        # when nothing is known — e.g. reusing a pre-feature transcript.json
-        # with no persisted language).
-        if not (config.transcribe.language or "").strip() and detected_language:
-            progress(
-                "transcribe", len(segments), len(segments),
-                t("pmsg.language_detected", language, lang=detected_language),
-            )
 
         # 3) Frame extraction (reusable) --------------------------------
         frames_index: Path = out_dir / "frames" / "frames.json"
@@ -281,11 +293,8 @@ def run(
 
         progress(
             "vision", 0, len(frames),
-            t("pmsg.extract_language", language, lang=source_language),
-        )
-        progress(
-            "vision", 0, len(frames),
-            t("pmsg.vision_analyzing", language, vlm=config.ai.vlm_model),
+            t("pmsg.vision_analyzing", language,
+              vlm=config.ai.vlm_model, lang=source_language),
         )
         t0 = time.monotonic()
         notes = deps.describe_frames(
@@ -296,10 +305,15 @@ def run(
         )
         vision_elapsed = time.monotonic() - t0
         frame_notes_path = deps.save_frame_notes(notes, out_dir)
+        # Includes the minutes language here (rather than as its own tick
+        # right before generate_minutes()) since a separate same-stage tick
+        # immediately preceding generate_minutes()'s own first message would
+        # be silently dropped by the CLI's same-stage throttle.
         progress(
             "vision", len(notes), len(notes),
             t("pmsg.vision_done", language,
-              elapsed=format_elapsed(vision_elapsed, language)),
+              elapsed=format_elapsed(vision_elapsed, language),
+              lang=config.output.minutes_language or "ja"),
         )
 
         check_cancel(cancel_event)
@@ -322,11 +336,6 @@ def run(
             except Exception:
                 ctx_tokens = None
 
-        progress(
-            "minutes", 0, 0,
-            t("pmsg.minutes_language_used", language,
-              lang=config.output.minutes_language or "ja"),
-        )
         # The start message is emitted right away by generate_minutes itself
         # via _mp (the short path says "generating minutes," the long path
         # says "partial summary 1/N...", etc.).
