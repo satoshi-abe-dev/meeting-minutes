@@ -117,11 +117,11 @@ cp config.example.toml config.toml
 
 ```bash
 python src/meeting_minutes/gui.py                 # GUI: pick a video and click "Create minutes". Shows a progress bar and log
-python src/meeting_minutes/gui.py --lang en       # Show the GUI text in English (default is Japanese)
+python src/meeting_minutes/gui.py --lang ja       # Show the GUI text in Japanese (default is English)
 python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / automation
 ```
 
-- The GUI display language can also be set via `[gui] language` in `config.toml` (`"ja"` / `"en"`, default `"ja"`); `--lang` overrides it just for that run
+- The GUI display language can also be set via `[gui] language` in `config.toml` (`"ja"` / `"en"`, default `"en"`); `--lang` overrides it just for that run
 - Only the **GUI screen text** changes; the transcription language and the content of the generated minutes are separate (`[transcribe] language` / the LLM side)
 
 (For developers, `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` also work. In that case, either `cd src` or set `PYTHONPATH=src`.)

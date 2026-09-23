@@ -26,7 +26,7 @@ class LLMConnectionError(RuntimeError):
 class LLMClient:
     def __init__(self, config: AIConfig, *, language: str = DEFAULT_LANGUAGE):
         self.config = config
-        # The language of exception messages (connection-error hints). Defaults to "ja".
+        # The language of exception messages (connection-error hints). Defaults to "en".
         # pipeline.run() swaps it to "en" when the GUI is run with --lang en.
         self.language = normalize_language(language)
         # Imported here once rather than inside a function (httpx is a required dependency)

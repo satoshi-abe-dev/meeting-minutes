@@ -112,10 +112,10 @@ auto_structure = false
 # --------------------------------------
 [gui]
 
-# GUI の表示言語。"ja" / "en"。既定 "ja"。それ以外の値は "ja" として扱う。
+# GUI の表示言語。"ja" / "en"。既定 "en"。それ以外の値は "en" として扱う。
 # 影響するのは GUI の画面文言だけ（文字起こし言語は [transcribe] language、
 # 議事録の中身は LLM 側の設定）。起動時に上書きするには:
-#   python src/meeting_minutes/gui.py --lang en
-language = "ja"
+#   python src/meeting_minutes/gui.py --lang ja
+language = "en"
 
 # --------------------------------------

@@ -66,25 +66,25 @@
 | `model/vision.py` | `Frame` → `FrameNote`（要点テキスト） | `llm_client` |
 | `model/minutes.py` | `Segment`＋`FrameNote` → 議事録 Markdown。長文はチャンク要約→統合 | `llm_client` |
 | `model/pipeline.py` | 全工程のオーケストレーション、進捗、`Deps` による差し替え | 上記すべて |
-| `i18n.py` | GUI 表示文言のカタログ（`{key: {"ja", "en"}}`）と `t(key, language, **kwargs)`。`view/` と `presenter/` が共有（→ `DESIGN.md` 8.5 節） | なし |
+| `i18n.py` | GUI 表示文言のカタログ（`{key: {"ja", "en"}}`）と `t(key, language, **kwargs)`。`view/` と `presenter/` が共有（→ `DESIGN_ja.md` 8.5 節） | なし |
 | `download_transcribe_model.py` | 解決後バックエンドの Whisper モデルを取得（`scripts/setup.sh` から） | huggingface_hub / faster-whisper |
 
 ## エントリポイント
 
 `src/meeting_minutes/` 配下の `gui.py` / `cli.py` / `download_transcribe_model.py` が実行の入口。
 
-- GUI は `view/` + `presenter/` を組み立てて起動する薄いラッパー（→ `DESIGN.md` 8.5 節）
+- GUI は `view/` + `presenter/` を組み立てて起動する薄いラッパー（→ `DESIGN_ja.md` 8.5 節）
 - CLI / モデル取得は argparse + `meeting_minutes.model.*`（取得スクリプトは自身が
   model 外）の呼び出し
 - いずれも冒頭に `__package__` ブートストラップがあり、`python src/meeting_minutes/gui.py`
   のようなファイル指定でも `python -m meeting_minutes.gui`（`cd src` か
-  `PYTHONPATH=src` が要る）でも動く（→ `DESIGN.md` 8.5 節）
+  `PYTHONPATH=src` が要る）でも動く（→ `DESIGN_ja.md` 8.5 節）
 
 `gui.py` は `--lang {ja,en}` を受け付ける。
 
 - 指定があればその回だけ表示言語を上書きする
-- 省略時は `config.toml` の `[gui] language`（既定 `ja`、不正値は `ja` 扱い）に従う
-- 影響するのは GUI の画面文言だけ（→ `DESIGN.md` 8.5 節）
+- 省略時は `config.toml` の `[gui] language`（既定 `en`、不正値は `en` 扱い）に従う
+- 影響するのは GUI の画面文言だけ（→ `DESIGN_ja.md` 8.5 節）
 
 ## 進捗通知
 

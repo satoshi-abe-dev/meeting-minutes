@@ -80,8 +80,8 @@ def test_timeout_gets_dedicated_hint_not_server_down_hint(monkeypatch):
     with pytest.raises(LLMConnectionError) as ei:
         c.chat("", "hi")
     msg = str(ei.value)
-    assert "タイムアウト" in msg  # the error kind is stated explicitly
-    assert "timeout を増やして" in msg
+    assert "[Timeout]" in msg  # the error kind is stated explicitly
+    assert "Increase [ai] timeout" in msg
     assert "Local API server" not in msg  # doesn't show the server-not-running hint
 
 

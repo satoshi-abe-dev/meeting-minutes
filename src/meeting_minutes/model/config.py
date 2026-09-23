@@ -113,12 +113,12 @@ class OutputConfig:
 @dataclass
 class GuiConfig:
     # The GUI's display language. "ja" / "en". Anything else is rounded to
-    # "ja" by load_config.
+    # "en" by load_config.
     # Can be overridden per launch via gui.py's --lang (priority order:
     # --lang > config/env > default).
     # Only affects the GUI's on-screen text (the transcription language, LLM
     # prompts, and minutes content are separate).
-    language: str = "ja"
+    language: str = "en"
 
 
 @dataclass
@@ -234,7 +234,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
             casted = raw
         setattr(sections[section], key, casted)
 
-    # Round an unsupported GUI language value to the default (ja), whether
+    # Round an unsupported GUI language value to the default (en), whether
     # it came via TOML or an environment variable.
     gui = cast(GuiConfig, sections["gui"])
     gui.language = normalize_language(getattr(gui, "language", None))

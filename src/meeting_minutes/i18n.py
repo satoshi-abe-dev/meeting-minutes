@@ -6,18 +6,18 @@ covers the GUI's on-screen text (the transcription language, LLM prompts,
 minutes content, and CLI output are out of scope).
 
 The language is decided once at launch (not switchable while running). The
-`ja` side's text is copied verbatim from the pre-i18n code's literals, so the
-display when `language="ja"` (the default) matches the original exactly.
+`ja` side's text is copied verbatim from the pre-i18n code's literals, so
+selecting `language="ja"` still matches that original text exactly.
 """
 
 from __future__ import annotations
 
 SUPPORTED_LANGUAGES = ("ja", "en")
-DEFAULT_LANGUAGE = "ja"
+DEFAULT_LANGUAGE = "en"
 
 
 def normalize_language(language: str | None) -> str:
-    """Round an unsupported value, None, or empty string to the default (ja)
+    """Round an unsupported value, None, or empty string to the default (en)
     (matching the fallback policy of other config items)."""
     return language if language in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
 

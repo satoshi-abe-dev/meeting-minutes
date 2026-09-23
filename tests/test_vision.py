@@ -56,9 +56,9 @@ def test_describe_frames_reports_waiting_then_done_per_frame(tmp_path):
         on_progress=lambda c, t, m: events.append((c, t, m)),
     )
     assert len(events) == 2
-    assert "応答を待っています" in events[0][2]
+    assert "waiting for a response" in events[0][2]
     assert events[0][0] == 0
-    assert "完了" in events[1][2] and "所要" in events[1][2]
+    assert "analyzed" in events[1][2] and "elapsed" in events[1][2]
     assert events[1][0] == 1
 
 

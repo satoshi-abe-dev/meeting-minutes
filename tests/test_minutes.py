@@ -473,7 +473,7 @@ def test_load_minutes_structure_missing_file_falls_back_with_warning(tmp_path):
     warnings: list[str] = []
     got = load_minutes_structure(str(tmp_path / "nope.txt"), on_warning=warnings.append)
     assert got is _MINUTES_STRUCTURE
-    assert warnings and "内蔵テンプレート" in warnings[0]
+    assert warnings and "using the built-in one" in warnings[0]
 
 
 def test_load_minutes_structure_empty_file_falls_back_with_warning(tmp_path):
@@ -481,7 +481,7 @@ def test_load_minutes_structure_empty_file_falls_back_with_warning(tmp_path):
     p.write_text("   \n", encoding="utf-8")
     warnings: list[str] = []
     assert load_minutes_structure(str(p), on_warning=warnings.append) is _MINUTES_STRUCTURE
-    assert warnings and "空です" in warnings[0]
+    assert warnings and "is empty" in warnings[0]
 
 
 def test_load_minutes_structure_warning_translated_when_language_en(tmp_path):
@@ -558,8 +558,8 @@ def test_generate_minutes_custom_template_missing_still_produces_minutes(tmp_pat
         on_progress=lambda c, t, m: msgs.append(m),
     )
     assert len(client.calls) == 1
-    assert "## 宿題・アクションアイテム" in client.calls[0]["user"]  # 内蔵テンプレ
-    assert any("テンプレート" in m and "内蔵" in m for m in msgs)
+    assert "## 宿題・アクションアイテム" in client.calls[0]["user"]  # built-in template
+    assert any("template" in m and "built-in" in m for m in msgs)
 
 
 def test_generate_minutes_system_prompt_unchanged_by_custom_template(tmp_path):
@@ -736,8 +736,8 @@ def test_auto_structure_fallback_on_missing_placeholder(tmp_path):
         on_progress=lambda c, t, m: msgs.append(m),
     )
 
-    assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # 内蔵テンプレート
-    assert any("プレースホルダー" in m and "内蔵" in m for m in msgs)
+    assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # built-in template
+    assert any("missing placeholders" in m and "built-in" in m for m in msgs)
     assert not (tmp_path / "work" / "structure_used.txt").exists()  # 失敗時は保存しない
 
 
@@ -752,7 +752,7 @@ def test_auto_structure_fallback_on_llm_error(tmp_path):
     )
 
     assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]
-    assert any("自動生成に失敗" in m for m in msgs)
+    assert any("auto-generating the minutes structure failed" in m for m in msgs)
     assert not (tmp_path / "work" / "structure_used.txt").exists()
 
 
@@ -870,7 +870,7 @@ def test_auto_structure_rejects_structure_too_large_for_merge(tmp_path):
 
     assert "## 宿題・アクションアイテム" in client.calls[-1]["user"]  # the built-in template
     assert not (tmp_path / "work" / "structure_used.txt").exists()  # rejected, so not saved
-    assert any("大きすぎ" in m for m in msgs)
+    assert any("too large" in m for m in msgs)
 
 
 def test_auto_structure_no_size_reject_when_ctx_unknown(tmp_path):
@@ -924,8 +924,8 @@ def test_auto_structure_cancel_after_generation_stops_before_minutes(tmp_path):
     cancel_event = threading.Event()
 
     def on_progress(cur, tot, msg):
-        if "型を自動生成しました" in msg:
-            cancel_event.set()  # 構造生成が終わった直後に「中断」
+        if "Auto-generated the minutes structure" in msg:
+            cancel_event.set()  # "cancel" right after structure generation finishes
 
     client = RoutingFakeClient(structure=_GEN_STRUCTURE)
     with pytest.raises(PipelineCancelled):
@@ -983,7 +983,7 @@ def test_generate_minutes_truncates_oversized_merged_transcript(tmp_path):
     reserve = min(AIConfig().max_tokens, _MINUTES_RESPONSE_TOKENS)
     # the merge request (user + response reservation + margin) fits within ctx
     assert _approx_tokens(merge_user) + reserve + _PROMPT_MARGIN_TOKENS <= ctx
-    assert any("統合入力の末尾を一部省略" in m for m in msgs)
+    assert any("tail of the merge input was truncated" in m for m in msgs)
 
 
 def test_auto_structure_failure_removes_stale_structure_file(tmp_path):
@@ -1058,7 +1058,7 @@ def test_generate_minutes_warns_when_template_instruction_leaks(tmp_path):
         _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         template_path=str(tpl), on_progress=lambda c, t, m: msgs.append(m),
     )
-    assert any("指示文" in m and "残っている" in m for m in msgs)
+    assert any("instruction text" in m and "left verbatim" in m for m in msgs)
 
 
 def test_generate_minutes_no_leak_warning_on_clean_output():
@@ -1068,4 +1068,4 @@ def test_generate_minutes_no_leak_warning_on_clean_output():
         _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
         on_progress=lambda c, t, m: msgs.append(m),
     )
-    assert not any("指示文" in m and "残っている" in m for m in msgs)
+    assert not any("instruction text" in m and "left verbatim" in m for m in msgs)
