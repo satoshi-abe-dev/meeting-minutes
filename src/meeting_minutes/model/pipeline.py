@@ -281,6 +281,10 @@ def run(
 
         progress(
             "vision", 0, len(frames),
+            t("pmsg.extract_language", language, lang=source_language),
+        )
+        progress(
+            "vision", 0, len(frames),
             t("pmsg.vision_analyzing", language, vlm=config.ai.vlm_model),
         )
         t0 = time.monotonic()
@@ -318,6 +322,11 @@ def run(
             except Exception:
                 ctx_tokens = None
 
+        progress(
+            "minutes", 0, 0,
+            t("pmsg.minutes_language_used", language,
+              lang=config.output.minutes_language or "ja"),
+        )
         # The start message is emitted right away by generate_minutes itself
         # via _mp (the short path says "generating minutes," the long path
         # says "partial summary 1/N...", etc.).
