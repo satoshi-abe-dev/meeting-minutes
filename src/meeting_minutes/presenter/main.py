@@ -55,9 +55,8 @@ class MainPresenter:
         self.result_dir = None
         self.minutes_path = None
         self.minutes_docx_path = None
-        # The minutes format. Respects the config.toml setting as the initial
-        # value; the GUI's radio/file selection is a one-time override for
-        # that run (config.toml itself is not rewritten).
+        # Minutes format: starts from config.toml, overridable per-run via
+        # the GUI radios/file selection (config.toml itself isn't rewritten).
         _cfg_tpl = self.config_obj.output.template_path
         self._template_path: str | None = _cfg_tpl or None  # the target for "Choose a file"
 
@@ -114,9 +113,8 @@ class MainPresenter:
         ai = self.config_obj.ai
         tr = self.config_obj.transcribe
         backend = resolve_backend(tr)
-        # backend=auto (or an unknown value) is resolved to the real value by
-        # resolve_backend. Word it so "auto was resolved to mlx" comes across
-        # (an explicitly-set value is shown plainly).
+        # backend=auto (or unknown) is resolved by resolve_backend; word it as
+        # "auto was resolved to mlx" (an explicit value is shown plainly).
         if tr.backend == backend:
             backend_note = self._t("cfg.backend_explicit", backend=tr.backend)
         else:
@@ -164,9 +162,8 @@ class MainPresenter:
     def _start(self) -> None:
         if self.video_path is None or self._worker is not None:
             return
-        # Starting with "Choose a file" selected but nothing actually chosen
-        # -> rather than silently falling back to the built-in template, stop
-        # here and make the user notice.
+        # "Choose a file" selected but nothing chosen -> stop and make the
+        # user notice, rather than silently falling back to built-in.
         if self.view.get_format_mode() == "file" and not self._template_path:
             self.view.show_error(
                 self._t("dialog.format_error.title"),
@@ -174,11 +171,9 @@ class MainPresenter:
             )
             return
 
-        # Where this run's log is written. pipeline.run() determines out_dir
-        # after calling expanduser().resolve() on video_path, so apply the
-        # same normalization here too (otherwise, if a symlink's name differs
-        # from the real name, logs/gui.log could end up in a different folder
-        # from transcript/ and minutes.md).
+        # Log path for this run. Must match pipeline.run()'s
+        # expanduser().resolve() normalization of video_path, or a symlink
+        # could put gui.log in a different folder than transcript/minutes.md.
         resolved_video = self.video_path.expanduser().resolve()
         out_dir = self.config_obj.output_root / resolved_video.stem
         try:
@@ -195,11 +190,9 @@ class MainPresenter:
         self.view.set_progress(0)
         self._reuse = self.view.get_reuse()  # read it now, on the UI thread
         self._cancel_event = threading.Event()
-        # The minutes format used for this run (the GUI's selection overrides
-        # config.toml for just this run). The three radios exclusively
-        # represent one state. Even if config.toml has auto_structure=true,
-        # if the GUI has "Built-in" or "Choose a file" selected, that should
-        # win — so both flags are set every time.
+        # This run's minutes format (GUI selection overrides config.toml).
+        # The three radios are exclusive, so both flags are always set —
+        # GUI's choice wins even if config.toml has auto_structure=true.
         fmt_mode = self.view.get_format_mode()
         tpl = self._selected_template_path()
         self.config_obj.output.auto_structure = fmt_mode == "auto"
@@ -338,10 +331,9 @@ class MainPresenter:
 
     # --- Opening things externally ---------------------------------------
     def _open_minutes(self) -> None:
-        # Prefer the Word version. On a run where the docx conversion failed,
-        # result.minutes_docx_path is None (the pipeline warns and continues).
-        # As a safety net — e.g. if only the .md was manually deleted after a
-        # past run — falls back to the output folder as a last resort.
+        # Prefer the Word version; result.minutes_docx_path is None if
+        # conversion failed (pipeline warns and continues). Falls back to the
+        # output folder as a last resort (e.g. .md manually deleted later).
         if self.minutes_docx_path and Path(self.minutes_docx_path).is_file():
             self.view.open_in_file_manager(Path(self.minutes_docx_path))
         elif self.minutes_path and Path(self.minutes_path).is_file():

@@ -44,9 +44,8 @@ class LLMClient:
         try:
             resp = self._client.post("/chat/completions", json=payload)
         except self._httpx.TimeoutException as exc:
-            # The server is up, but the response (usually still generating)
-            # took longer than the timeout. The "start the server" hint would
-            # be misleading here, so use a dedicated message.
+            # Server is up but generation is taking longer than the timeout —
+            # a "start the server" hint would be misleading here.
             raise LLMConnectionError(
                 t("pmsg.llm_hint_timeout", self.language, timeout=self.config.timeout)
                 + t("pmsg.llm_err_detail", self.language, exc=exc)
@@ -90,11 +89,10 @@ class LLMClient:
             ) from exc
 
         if not content:
-            # Reasoning models like the Qwen3 family split their response:
-            # <think>-equivalent content goes into message.reasoning_content,
-            # and the final answer into message.content. If max_tokens runs
-            # out purely on thinking, content comes back empty (easy to miss
-            # since the HTTP status is still 200).
+            # Reasoning models (Qwen3 family) split output: thinking into
+            # reasoning_content, the answer into content. content can come
+            # back empty (HTTP 200 still) if max_tokens is spent purely on
+            # thinking.
             reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
             if reasoning:
                 raise LLMConnectionError(

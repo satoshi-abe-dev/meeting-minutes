@@ -25,12 +25,9 @@ import argparse
 import os
 import sys
 
-# Launching directly by file path, e.g.
-# `python src/meeting_minutes/download_transcribe_model.py`, leaves
-# __package__ unset, so relative imports (from .config ...) can't be used.
-# Add the src layout's package parent — src/ (two levels above this file) —
-# to sys.path, and write imports as absolute. Absolute imports also resolve
-# fine when this is imported as a module (tests / `-m` / scripts).
+# Launching by file path leaves __package__ unset, breaking relative
+# imports. Add src/ (package parent) to sys.path and use absolute imports
+# instead (works fine as a module too — tests / -m / scripts).
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

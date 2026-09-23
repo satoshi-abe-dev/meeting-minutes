@@ -18,10 +18,9 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 _SRC = str(_ROOT / "src")
 
-# gui.py imports tkinter at the module level (via the view layer). So this
-# test still works on a CI runner without tkinter, install a lightweight
-# stub on the subprocess side. All we want to verify is "is the env var set
-# before meeting_minutes gets imported."
+# gui.py imports tkinter at module level (via the view layer); stub it on
+# the subprocess side so this runs on a CI runner without tkinter too — all
+# we verify is "is the env var set before meeting_minutes gets imported."
 _TK_STUB = (
     "import sys, types\n"
     "tk = types.ModuleType('tkinter')\n"

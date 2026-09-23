@@ -185,9 +185,8 @@ def markdown_to_docx(markdown: str) -> Document:
 
             m = _NUMBER_RE.match(line)
             if m:
-                # A plain paragraph that keeps the original Markdown number
-                # (`1.` / `3)` etc.) literally. Doesn't use Word's
-                # auto-numbering (List Number) — see the docstring.
+                # Plain paragraph keeping the literal Markdown number (`1.`/`3)`),
+                # not Word's auto-numbering (List Number) — see the docstring.
                 p = doc.add_paragraph()
                 p.add_run(m.group(1) + " ")
                 _add_runs(p, m.group(2).strip())

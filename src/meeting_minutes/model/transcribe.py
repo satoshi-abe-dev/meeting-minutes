@@ -232,9 +232,8 @@ def _transcribe_faster_whisper(
         config.model,
         device=device,
         compute_type=config.compute_type,
-        # A runtime guard that doesn't depend on the environment variable
-        # (HF_HUB_OFFLINE). Even if something slips past the preflight check
-        # above, no auto-download happens here.
+        # Runtime guard independent of HF_HUB_OFFLINE — no auto-download even
+        # if something slips past the preflight check above.
         local_files_only=True,
     )
 
@@ -244,10 +243,8 @@ def _transcribe_faster_whisper(
         str(wav_path),
         language=stt_lang,
         vad_filter=True,  # drop silent stretches to improve accuracy and speed
-        # Don't feed the previous (possibly wrong) output as context for the
-        # next window. Prevents a "repetition loop" hallucination where the
-        # same mis-heard phrase gets repeated endlessly during singing, BGM,
-        # or noisy stretches.
+        # Avoids feeding possibly-wrong prior output as context, which can
+        # cause a "repetition loop" hallucination during singing/BGM/noise.
         condition_on_previous_text=False,
     )
 
@@ -274,10 +271,9 @@ def _transcribe_mlx(
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
 ) -> tuple[list[Segment], str]:
-    # mlx-whisper returns its result all at once (not a generator), so there's
-    # no way to show incremental progress while it's working. Emit an
-    # explanation once at the start, then run on_progress while converting
-    # segments after completion (the progress bar jumps from 0 to 100).
+    # mlx-whisper returns everything at once (not a generator) — no
+    # incremental progress possible. Explain once at the start; on_progress
+    # then fires while converting segments after completion (bar jumps 0->100).
     import mlx_whisper
 
     repo = _mlx_model_repo(config.model)
@@ -285,9 +281,8 @@ def _transcribe_mlx(
     # Cancellation takes top priority — checked before the model check.
     check_cancel(cancel_event)
 
-    # If it wasn't fetched ahead of time (via scripts/setup.sh), stop here
-    # instead of going to HF. mlx_whisper.transcribe has no local_files_only
-    # equivalent, so this is checked explicitly.
+    # Stop here instead of going to HF if not pre-fetched (scripts/setup.sh)
+    # — mlx_whisper.transcribe has no local_files_only equivalent.
     if not _mlx_model_cached(repo):
         raise ModelNotAvailableError(
             t("pmsg.stt_model_missing", language, repo=repo)
@@ -307,12 +302,9 @@ def _transcribe_mlx(
         path_or_hf_repo=repo,
         language=stt_lang,
         word_timestamps=False,
-        # Don't feed the previous (possibly wrong) output as context for the
-        # next window. Prevents a "repetition loop" hallucination where the
-        # same mis-heard phrase gets repeated endlessly during singing, BGM,
-        # or noisy stretches. mlx-whisper has no silence-removal equivalent to
-        # faster-whisper's vad_filter, which makes this precaution more
-        # important here.
+        # Avoids feeding possibly-wrong prior output as context (repetition-
+        # loop hallucination risk). More important here since mlx-whisper has
+        # no vad_filter-equivalent silence removal.
         condition_on_previous_text=False,
     )
 

@@ -23,11 +23,9 @@ from meeting_minutes.i18n import normalize_language
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPTS_DIR = REPO_ROOT / "prompts"
 
-# Default language minutes content is written in, unless [output]
-# minutes_language overrides it, and the fallback for frame-analysis
-# source-language detection if nothing else is available. "ja" preserves
-# pre-existing hardcoded behavior. Imported by model/minutes.py and
-# model/vision.py.
+# Default minutes-content language, and the source-language fallback when
+# nothing else is known. "ja" preserves pre-existing behavior. Used by
+# model/minutes.py and model/vision.py.
 DEFAULT_MINUTES_LANGUAGE = "ja"
 
 
@@ -93,27 +91,21 @@ class AIConfig:
     api_key: str = "local-no-key"
     llm_model: str = "qwen2.5-7b-instruct"
     vlm_model: str = "qwen2-vl-7b-instruct"
-    # A large local model can take minutes for a single request (the final
-    # merge step of minutes generation especially, since it outputs many
-    # tokens and tends to take a while), so this is set generously.
+    # Set generously — a large local model can take minutes per request,
+    # especially the minutes-merge step (long output).
     timeout: float = 600.0
-    # Reasoning models like the Qwen3 family spend tokens from this cap on
-    # invisible "thinking" before writing the visible answer. If it's too
-    # small, they can use it all up on thinking and return an empty body, so
-    # this is set higher than for an ordinary model.
+    # Set higher than an ordinary model needs — reasoning models (Qwen3
+    # family) spend part of this cap on invisible "thinking" and can return
+    # an empty body if it's too small.
     max_tokens: int = 8192
-    # The upper bound (in characters) on a transcript for "one-shot"
-    # generation of the minutes. Beyond this, switches to the split mode of
-    # chunk summarization -> merge. The default 40000 assumes the LLM is run
-    # with a context of roughly 32k. If Context Length can't be raised on the
-    # LM Studio side, lower this (e.g. 8000). -> docs/models_ja.md "Setting the context length"
+    # Char cap for one-shot minutes generation; beyond this, switches to
+    # chunk-summarize -> merge. Default 40000 assumes ~32k context — lower it
+    # (e.g. 8000) if Context Length can't be raised. See docs/models_ja.md.
     chunk_trigger_chars: int = 20000
     # Character count of one chunk in split mode.
     chunk_size_chars: int = 12000
-    # The loaded model's real context length (in tokens). 0 means auto-detect
-    # (via LM Studio's /api/v0/models). On a backend where it can't be
-    # detected, and you're using something other than 32k, write the real
-    # value here.
+    # Loaded model's real context length in tokens. 0 = auto-detect (LM
+    # Studio's /api/v0/models); set manually if using non-32k elsewhere.
     context_tokens: int = 0
 
 
@@ -122,11 +114,9 @@ class TranscribeConfig:
     # Transcription engine: "auto" (mlx on Apple Silicon, faster-whisper
     # elsewhere) / "mlx" / "faster-whisper"
     backend: str = "auto"
-    # The model's size name (large-v3-turbo / large-v3 / medium / small ...).
-    # Converted per-backend into the actual thing to fetch (e.g. an HF repo
-    # name). A string containing "/" is used as-is as a full repo name.
-    # The default, large-v3-turbo, is nearly as accurate as large-v3 while
-    # running faster, and works on either the faster-whisper or mlx backend.
+    # Model size name (large-v3-turbo / large-v3 / medium / small...), or a
+    # full HF repo name (containing "/"). Default large-v3-turbo: nearly as
+    # accurate as large-v3, faster, works on both backends.
     model: str = "large-v3-turbo"
     # The next two only take effect with faster-whisper (ignored by mlx)
     compute_type: str = "int8"
@@ -147,44 +137,29 @@ class FramesConfig:
 @dataclass
 class OutputConfig:
     dir: str = "output"
-    # Path to a custom template that replaces the minutes "structure." Empty
-    # means the built-in template. Setting this makes it used automatically
-    # every time (it can also be overridden for a single run from the GUI's
-    # dropdown). If it doesn't exist, can't be read, or is empty, falls back
-    # to the built-in template with a warning.
+    # Custom template replacing the minutes "structure"; empty = built-in.
+    # Used automatically once set (overridable per run from the GUI). Falls
+    # back to built-in with a warning if missing/unreadable/empty.
     template_path: str = ""
-    # "Auto" mode: has the LLM auto-generate the minutes' heading structure to
-    # match the video content. If True, takes priority over template_path
-    # (priority order: auto > file > built-in). The generated structure is
-    # saved to output/<video name>/work/structure_used.txt, and if you like
-    # it, can be copied into templates/ to reuse as a fixed template. If
-    # generation fails, falls back to the built-in template with a warning.
+    # "Auto" mode: LLM generates the heading structure per video. Takes
+    # priority over template_path (auto > file > built-in). Saved to
+    # work/structure_used.txt; copy into templates/ to reuse as a fixed one.
+    # Falls back to built-in with a warning on failure.
     auto_structure: bool = False
-    # The language the minutes body is written in — and, in Auto mode, its
-    # auto-generated heading structure and intermediate chunk summaries.
-    # Default "ja" is today's hardcoded behavior, unchanged. Free-form, not
-    # validated like [gui] language's ja/en — any language name/code the
-    # local LLM can produce works. Independent of [transcribe] language
-    # (the recorded meeting's audio language) and [gui] language (the app's
-    # on-screen text): e.g. an English-language meeting recorded on a trip
-    # can still produce Japanese minutes for reporting back home. Does NOT
-    # control frame-analysis (VLM) output language — that's automatically
-    # derived per run from the recording's own detected language, for
-    # fidelity (see model/vision.py's describe_frames, source_language).
+    # Language the minutes body (and Auto mode's structure/chunk summaries)
+    # is written in. Default "ja", unchanged behavior. Free-form (not
+    # validated like [gui] language) — independent of [transcribe] language
+    # and [gui] language, e.g. an English meeting can still produce Japanese
+    # minutes. Does NOT control VLM output language — that follows the
+    # recording's own detected language (see vision.describe_frames).
     minutes_language: str = DEFAULT_MINUTES_LANGUAGE
 
 
 @dataclass
 class GuiConfig:
-    # The GUI's display language. "ja" / "en". Anything else is rounded to
-    # "en" by load_config.
-    # Can be overridden per launch via gui.py's --lang (priority order:
-    # --lang > config/env > default).
-    # Only affects the GUI's on-screen text. The transcription language is
-    # [transcribe] language; the minutes' content language is [output]
-    # minutes_language; the frame-analysis (VLM) language is derived
-    # automatically per run from the recording's own detected language —
-    # none of these are controlled by this setting.
+    # GUI display language: "ja" / "en" (anything else rounds to "en").
+    # Priority: --lang > config/env > default. Only affects on-screen text —
+    # transcription/minutes/VLM languages are controlled elsewhere.
     language: str = "en"
 
 

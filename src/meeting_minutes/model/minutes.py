@@ -32,35 +32,25 @@ from .vision import FrameNote, notes_to_text
 # Progress callback: (completed steps, total steps, message)
 ProgressFn = Callable[[int, int, str], None]
 
-# --- Switching between one-shot and split generation --------------------
-# Splitting turns the minutes into a "summary of a summary," which loses
-# specificity, so one-shot generation is preferred whenever it fits within
-# the context length. Whether it fits is judged by an estimated token count
-# against the real context length when available (`context_tokens`, fetched
-# by the pipeline from LM Studio's /api/v0/models), falling back to the
-# character-count threshold below only when that isn't available.
+# --- One-shot vs. split generation ---------------------------------------
+# One-shot is preferred (splitting = "summary of a summary," loses detail).
+# Judged by estimated tokens vs. the real context length when known
+# (context_tokens, from LM Studio's /api/v0/models), else the char-count
+# fallback below.
 #
-# Measured Japanese-text behavior of the Qwen tokenizer family is about 0.74
-# tokens/character (kana 0.52 / mixed kanji+kana 0.75-0.80 / verbatim spoken
-# language 0.52). Rounded up a bit to stay on the safe side.
+# Measured Qwen-tokenizer Japanese rate: ~0.74 tokens/char; rounded up for safety.
 _TOKENS_PER_CHAR = 0.8
-# Margin (in tokens) for the system prompt + template skeleton + uncertainty.
+# Margin (tokens) for the system prompt + template skeleton + uncertainty.
 _PROMPT_MARGIN_TOKENS = 1500
-# Upper bound on tokens expected for the minutes body (the final chat output).
-# Used to reserve context budget. Since this is a fill-in-the-template task, real
-# usage stays within this range. The larger max_tokens needed for reasoning
-# models isn't used here (per docs/models_ja.md, reasoning models are out of scope).
+# Response-token cap for the minutes body (reserves context budget;
+# reasoning models are out of scope — docs/models_en.md).
 _MINUTES_RESPONSE_TOKENS = 5000
-# Token cap so that frames_text (the concatenated frame analysis) doesn't eat
-# up the whole prompt. Allowed up to ctx/3 when the real context length is known.
+# Cap on frames_text so it doesn't eat the whole prompt; up to ctx/3 when
+# the real context length is known.
 _FRAMES_TOKEN_BUDGET = 6000
 
-# Fallback (character-count threshold) for backends where the real context
-# length can't be fetched. Roughly the character count that fits in what's
-# left after subtracting the frames cap, response reservation, and margin,
-# assuming a 32k context. Can be overridden via config.toml's
-# [ai] chunk_trigger_chars / chunk_size_chars (lower it further on setups that
-# can't raise the Context Length).
+# Char-count fallback when the real context length can't be fetched. Override
+# via config.toml's [ai] chunk_trigger_chars / chunk_size_chars.
 _CHUNK_TRIGGER_CHARS = 20000
 _CHUNK_SIZE_CHARS = 12000
 
@@ -101,25 +91,20 @@ _MINUTES_PREAMBLE = (
     "ください（書くことが無ければ指示どおり「（記載なし）」等に）。\n\n"
 )
 
-# Appended to _MINUTES_PREAMBLE when minutes_language isn't Japanese. The
-# structure/template below (built-in, a custom file, or even an
-# auto-generated one whose generation failed and fell back to built-in) is
-# written with Japanese heading labels — without this, a model tends to
-# translate the body content but leave the heading labels themselves in
-# Japanese verbatim (they read as fixed template formatting rather than text
-# to translate), producing minutes with mixed languages. The system prompt's
-# general "write consistently in {lang}" directive (config.apply_minutes_language)
-# alone isn't specific enough to reliably override that.
+# Appended when minutes_language isn't Japanese: the structure/template's own
+# heading labels are Japanese, and models tend to translate the body while
+# leaving headings as-is (read as fixed formatting, not text to translate).
+# The system prompt's general "write in {lang}" directive alone isn't
+# specific enough to override that.
 _HEADING_TRANSLATION_NOTE = (
     "このテンプレートの見出し（#・##・- で始まるラベル）はひな形として日本語で"
     "書かれていますが、そのまま使わず、見出し・本文とも{lang}に翻訳し、出力全体を"
     "{lang}で統一してください。日本語の見出しをそのまま残してはいけません。\n\n"
 )
 
-# Only the minutes "structure." Can be swapped wholesale via config.toml's
-# [output] template_path.
-# Placeholders available: {title} {datetime_hint} {duration_hint}
-# (if {transcript} / {frames} aren't written, an input section is appended automatically)
+# Only the minutes "structure" — swappable via config.toml's [output] template_path.
+# Placeholders: {title} {datetime_hint} {duration_hint} ({transcript}/{frames}
+# auto-appended if not written)
 _MINUTES_STRUCTURE = """# 議事録: {title}
 
 - 日時: {datetime_hint}
@@ -154,10 +139,8 @@ _MINUTES_STRUCTURE = """# 議事録: {title}
 読み取れる情報が無ければ「（読み取れる資料なし）」）
 """
 
-# Input section. If a custom template doesn't write the corresponding
-# placeholder, only the "missing one" is appended at the end (handled
-# individually so that writing only {transcript} and forgetting {frames}
-# doesn't drop the frame information entirely).
+# Input section, appended per-placeholder for whichever of {transcript}/
+# {frames} a custom template omits (so omitting one doesn't drop the other).
 _INPUT_SEP = "\n---\n\n"
 _INPUT_TRANSCRIPT = "## 入力: 文字起こし\n{transcript}\n"
 _INPUT_FRAMES = "## 入力: 画面キャプチャの説明（時刻付き）\n{frames}\n"
@@ -170,11 +153,9 @@ _PLACEHOLDER_RE = re.compile(
     r"\{(title|datetime_hint|duration_hint|transcript|frames)\}"
 )
 
-# "Instruction text" inside a template's full-width parentheses （ ）, allowing
-# one level of nesting inside (e.g. "...if none, write '(not stated)'"). Used to
-# detect whether this wording leaked as-is into the generated minutes (the
-# prompt already tells the model not to do this; this is a safety net for
-# smaller models).
+# Instruction text inside a template's （ ）, one level of nesting allowed.
+# Used to detect whether it leaked as-is into the output — a safety net for
+# smaller models (the prompt already tells them not to).
 _INSTRUCTION_RE = re.compile(r"（(?:[^（）]|（[^（）]*）)+）")
 # Exclude short parenthetical phrases like "(not stated)" / "(not applicable)"
 # that are legitimately allowed to appear in the actual minutes.
@@ -233,10 +214,8 @@ def _minutes_budget(
     skeleton = (
         _approx_tokens(system) + _approx_tokens(structure) + _approx_tokens(_MINUTES_INPUT)
     )
-    # Cap frames_text so it doesn't eat up the whole prompt. When ctx is known,
-    # aim for "1/3" of it while not exceeding what's left after the response
-    # reservation, margin, and skeleton (this avoids forcing the 6000 floor and
-    # overflowing on a small ctx).
+    # Cap frames_text at ~1/3 of ctx when known, without exceeding what's left
+    # after the response reservation/margin/skeleton (avoids overflow on a small ctx).
     if ctx <= 0:
         frames_budget = _FRAMES_TOKEN_BUDGET
     else:
@@ -352,9 +331,8 @@ _DEFAULT_STRUCTURE_SYSTEM = """あなたは議事録のフォーマット設計�
   人名・日付・数値・期限を補わない」という趣旨を含める。
 - 前置き・後書き・自己言及・コードブロック囲みは書かない。"""
 
-# Only {material} is substituted in (not via .format — a single str.replace is
-# used instead, so as not to break literals like {title} elsewhere in the
-# prompt body).
+# {material} substituted via str.replace, not .format, so literals like
+# {title} elsewhere in the prompt survive untouched.
 _STRUCTURE_PROMPT = """次の会議の内容（全文またはその要約）を踏まえて、この会議に最も適した
 議事録の「型」（見出し構成）だけを作ってください。実際の議事録は書かないでください。
 
@@ -373,16 +351,14 @@ _STRUCTURE_PROMPT = """次の会議の内容（全文またはその要約）を
 {material}
 """
 
-# Required placeholders that an auto-generated structure must satisfy (all must
-# be present as literals). If even one is missing, treat it as "a non-reusable
-# structure with real values mixed in" and fall back to the built-in one.
+# Placeholders an auto-generated structure must keep as literals; missing any
+# means real values leaked in, so fall back to the built-in structure.
 _REQUIRED_PLACEHOLDERS = ("{title}", "{datetime_hint}", "{duration_hint}")
 
 _STRUCTURE_FILENAME = "structure_used.txt"
-# Working subfolder for intermediate artifacts (the auto-generated structure,
-# chunk summaries). Placed under work/ so the name doesn't collide with
-# minutes.md (the deliverable) directly under out_dir. pipeline.py eagerly
-# mkdirs it. Both display and filesystem joins derive from this.
+# Subfolder for intermediate artifacts (generated structure, chunk
+# summaries), kept out of out_dir's root to avoid colliding with minutes.md.
+# pipeline.py creates it eagerly.
 _WORK_DIR = "work"
 
 
@@ -895,9 +871,8 @@ def generate_minutes(
     trigger_chars = getattr(llm_config, "chunk_trigger_chars", None) or _CHUNK_TRIGGER_CHARS
     size_chars = getattr(llm_config, "chunk_size_chars", None) or _CHUNK_SIZE_CHARS
 
-    # If the manual setting (config.toml's [ai] context_tokens) is non-zero,
-    # prefer it; only use the auto-detected value (the context_tokens argument
-    # passed by the pipeline) when it's 0.
+    # Prefer the manual config.toml [ai] context_tokens if set; else use the
+    # pipeline's auto-detected value.
     ctx = int(getattr(llm_config, "context_tokens", 0) or 0) or int(context_tokens or 0)
     # Upper bound on response tokens for the minutes body / chunk summaries.
     # Use the same value in the budget calculation and the real request.
@@ -915,14 +890,12 @@ def generate_minutes(
         if safe > 500:
             size_chars = min(size_chars, int(safe / _TOKENS_PER_CHAR))
         elif warn and on_progress:
-            # Truncating frames leaves almost no room to shrink the chunk further.
-            # Proceed anyway (the real chat call will return a 400 plus a cause
-            # hint), but warn first.
+            # Almost no room left to shrink further; proceed and warn (the real
+            # call will 400 with a cause hint if it truly doesn't fit).
             on_progress(0, 1, t("pmsg.ctx_too_small", language, ctx=ctx))
 
-    # First, estimate the budget with the current structure (built-in or a
-    # file). If Auto mode swaps in a generated structure, recalculate this
-    # against the resulting structure (below).
+    # Estimate against the current structure first; Auto mode recalculates
+    # below once it swaps in a generated one.
     frames_text, one_pass = _minutes_budget(
         system, structure, full_transcript, frames_text_raw,
         ctx=ctx, minutes_max_tokens=minutes_max_tokens, trigger_chars=trigger_chars,
@@ -966,9 +939,8 @@ def generate_minutes(
                 )
 
     def summarize() -> list[str]:
-        # Use the same max_tokens in the budget calculation (fit_chunk_size) and
-        # the real request. Capped at _MINUTES_RESPONSE_TOKENS (5000) is plenty
-        # for a summary and also matches the budget.
+        # Same max_tokens as the budget calculation (fit_chunk_size) — capped
+        # at _MINUTES_RESPONSE_TOKENS, plenty for a summary.
         nonlocal partials
         partials = _summarize_chunks(
             chunks, client, llm_config,
@@ -982,11 +954,9 @@ def generate_minutes(
         return partials
 
     if auto_structure:
-        # If the full text fits the light budget for structure generation, use
-        # it as-is; if not, use the existing chunk summaries as material
-        # instead (no path that re-reads the raw full text is added). Either
-        # way, the tail past what fits the structure-generation request's
-        # budget is dropped.
+        # Use the full text if it fits the structure-generation budget; else
+        # reuse existing chunk summaries (never re-reads the raw full text).
+        # Either way, anything past the budget is dropped.
         if _struct_fits_one_pass(full_transcript, ctx, trigger_chars, minutes_max_tokens):
             material = full_transcript
             pre_summarized = False
@@ -996,12 +966,8 @@ def generate_minutes(
                 "\n\n".join(summarize()), ctx, minutes_max_tokens
             )
             pre_summarized = True
-        # The fallback is always "built-in" (matching the spec and warning text
-        # — even when a file was specified). The response reservation is
-        # minutes_max_tokens, same as the minutes body (matches reasoning-model
-        # resilience). Also falls back to built-in when the generated structure
-        # is too large to fit the merge step (switching to split generation
-        # can't save it).
+        # Falls back to built-in (even if a file was specified) on failure, or
+        # if the generated structure is too large for the merge step.
         structure = _resolve_auto_structure(
             client, material, _MINUTES_STRUCTURE, out_dir,
             model=llm_config.llm_model, max_tokens=minutes_max_tokens,
@@ -1012,9 +978,9 @@ def generate_minutes(
         # After structure generation (a heavy LLM call), check for a
         # cancellation before moving on to minutes generation.
         check_cancel(cancel_event)
-        # Recalculate the budget against the resulting structure's size (so
-        # that swapping the structure doesn't push the final request over the
-        # context length). If already chunked, leave the chunking settings as-is.
+        # Recalculate the budget against the final structure's size, so
+        # swapping it doesn't push the request over context length. If already
+        # chunked, leave the chunking settings as-is.
         frames_text, one_pass = _minutes_budget(
             system, structure, full_transcript, frames_text_raw,
             ctx=ctx, minutes_max_tokens=minutes_max_tokens, trigger_chars=trigger_chars,
