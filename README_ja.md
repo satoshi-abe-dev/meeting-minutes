@@ -113,8 +113,9 @@ cp config.example.toml config.toml
 - `scripts/setup.sh` が仮想環境（`.venv`）作成・依存インストール・文字起こしモデル取得
   を 1 コマンドで行う。モデル取得はこのセットアップ時のみ（**アプリ実行は完全オフライン**。
   `cli.py` / `gui.py` が `HF_HUB_OFFLINE` を立て、モデル未取得なら自動DLせずエラーで停止）
-- 別途 **LM Studio** を起動する（Settings → Local Models → Local Model API で
-  「Local API server」を ON。「Just-in-time model loading」も ON 推奨）
+- 別途ローカル LLM サーバーを起動する。例: **LM Studio**（Settings → Local Models →
+  Local Model API で「Local API server」を ON。「Just-in-time model loading」も ON
+  推奨）。Ollama など他の OpenAI 互換サーバーでも動く → [`docs/setup_ja.md`](docs/setup_ja.md)
 - 議事録生成の LLM は **推論（thinking）をしない／オフにできる Instruct 系モデル** を選ぶ
   （推論モデルは極端に遅く、本文が空で返ることがある → [`docs/models_ja.md`](docs/models_ja.md)）
 - 詳しい手順・モデル選び・トラブルシューティングは [`docs/setup_ja.md`](docs/setup_ja.md) と
