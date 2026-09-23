@@ -50,21 +50,39 @@ _STAGE_LABEL = {
 def _make_reporter():
     last_stage: str | None = None
     last_t = 0.0
+    # The most recently suppressed call for the current stage, if any. A
+    # fast synchronous stage (e.g. mlx's post-decode per-segment loop, which
+    # has no real per-iteration delay) can produce many same-stage calls
+    # within one 0.5s window, including that stage's own completion message
+    # right at the end — leading-edge-only throttling would silently drop
+    # it forever. Instead, the latest suppressed call is remembered and
+    # flushed as soon as the stage actually changes, so the last word on a
+    # finished stage is never lost, only delayed.
+    pending: tuple[str, int, int, str] | None = None
 
-    def report(stage: str, current: int, total: int, message: str) -> None:
+    def _emit(stage: str, current: int, total: int, message: str) -> None:
         nonlocal last_stage, last_t
-        now = time.monotonic()
-        # Only print fine-grained progress within the same stage once every
-        # 0.5 seconds (to avoid flooding the log)
-        if stage == last_stage and now - last_t < 0.5 and stage != "done":
-            return
         last_stage = stage
-        last_t = now
+        last_t = time.monotonic()
         label = _STAGE_LABEL.get(stage, stage)
         if total:
             print(f"[{label}] {current}/{total}  {message}", flush=True)
         else:
             print(f"[{label}] {message}", flush=True)
+
+    def report(stage: str, current: int, total: int, message: str) -> None:
+        nonlocal pending
+        if stage != last_stage and pending is not None:
+            _emit(*pending)
+            pending = None
+        now = time.monotonic()
+        # Only print fine-grained progress within the same stage once every
+        # 0.5 seconds (to avoid flooding the log)
+        if stage == last_stage and now - last_t < 0.5 and stage != "done":
+            pending = (stage, current, total, message)
+            return
+        pending = None
+        _emit(stage, current, total, message)
 
     return report
 
