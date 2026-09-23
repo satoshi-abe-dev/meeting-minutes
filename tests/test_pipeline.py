@@ -477,3 +477,38 @@ def test_pipeline_does_not_log_detected_language_when_explicitly_configured(conf
 
     messages = [m for *_rest, m in events]
     assert not any("Auto-detected" in m for m in messages)
+
+
+def test_pipeline_does_not_log_when_reusing_pre_feature_transcript_with_no_language(
+    config, video
+):
+    """A transcript.json from before detected-language persistence existed
+    has no language field, so load_transcript reports detected_language=""
+    (see transcribe.load_transcript's backward-compat handling). In that
+    case source_language falls back to the hardcoded "ja" default — that's
+    not a real detection result, so it must not be logged as one (it would
+    misreport an English recording as "detected: ja")."""
+    out_dir = config.output_root / "会議"
+    (out_dir / "frames").mkdir(parents=True, exist_ok=True)
+    (out_dir / "transcript").mkdir(parents=True, exist_ok=True)
+    (out_dir / "transcript" / "transcript.json").write_text("[]", encoding="utf-8")
+    (out_dir / "frames" / "frames.json").write_text("[]", encoding="utf-8")
+
+    recorder: list[str] = []
+    client = FakeClient()
+    deps = _fake_deps(recorder, client)
+
+    orig_load_transcript = deps.load_transcript
+
+    def load_transcript(out_dir):
+        segs, _lang = orig_load_transcript(out_dir)
+        return segs, ""  # simulate a pre-feature transcript.json
+
+    deps.load_transcript = load_transcript
+
+    config.transcribe.language = ""  # auto-detect
+    events: list[tuple] = []
+    run(video, config, on_progress=lambda *a: events.append(a), reuse=True, deps=deps)
+
+    messages = [m for *_rest, m in events]
+    assert not any("Auto-detected" in m for m in messages)
