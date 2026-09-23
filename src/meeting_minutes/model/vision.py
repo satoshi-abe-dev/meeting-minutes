@@ -1,7 +1,8 @@
-"""抽出済みフレームをローカル VLM で説明させ、議事録の裏取り素材にする。
+"""Have the local VLM describe extracted frames, as supporting material for the minutes.
 
-各フレームについて「スライドの見出し・箇条書き・図表の要点」を短くテキスト化する。
-1 枚失敗しても全体は止めず、その枚だけスキップする。
+For each frame, turns "the slide's heading, bullet points, and the gist of
+any figures/tables" into short text. If one frame fails, the whole run
+doesn't stop — just that frame is skipped.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from .config import load_prompt
 from .frames import Frame
 from .llm_client import LLMClient, LLMConnectionError
 
-# 進捗コールバック: (完了枚数, 総枚数, 直近メッセージ)
+# Progress callback: (frames done, total frames, latest message)
 ProgressFn = Callable[[int, int, str], None]
 
 _DEFAULT_PROMPT = (
@@ -32,10 +33,10 @@ _DEFAULT_PROMPT = (
 
 @dataclass
 class FrameNote:
-    """フレーム 1 枚の解析結果。"""
+    """The analysis result for one frame."""
 
     timestamp: float
-    path: str  # out_dir からの相対パス（無理なら絶対）
+    path: str  # path relative to out_dir (absolute if that's not possible)
     description: str
 
 
@@ -54,7 +55,7 @@ def _load_prompt_text() -> str:
 
 
 def _load_frame_notes(out_dir: Path) -> list[FrameNote]:
-    """save_frame_notes が書いた frames/frame_notes.json を読み戻す（再開用）。"""
+    """Read back frames/frame_notes.json as written by save_frame_notes (for resuming)."""
     path = out_dir / "frames" / "frame_notes.json"
     if not path.is_file():
         return []
@@ -87,13 +88,16 @@ def describe_frames(
     reuse: bool = True,
     language: str = DEFAULT_LANGUAGE,
 ) -> list[FrameNote]:
-    """全フレームを VLM にかけて FrameNote のリストを返す。
+    """Run every frame through the VLM and return a list of FrameNote.
 
-    cancel_event: セットされていれば、次のフレームに取り掛かる前に中断する
-        （最大60回ある VLM 呼び出しの合間なので、中断ボタンが一番効くポイント）。
-    reuse: True（既定）なら out_dir に前回の frames/frame_notes.json が残っていれば
-        読み戻し、そこまでのフレームは解析し直さない。1 枚終えるたびに
-        frames/frame_notes.json を書き直すので、途中で落ちても続きから再開できる。
+    cancel_event: if set, cancels before starting the next frame (this is
+        between VLM calls, of which there can be up to 60, so it's the
+        point where the Stop button is most responsive).
+    reuse: if True (the default) and a previous frames/frame_notes.json
+        remains in out_dir, it's read back and those frames aren't
+        re-analyzed. frames/frame_notes.json is rewritten after each frame
+        finishes, so a crash partway through can resume from where it left
+        off.
     """
     out_dir = Path(out_dir)
     prompt = _load_prompt_text()
@@ -123,7 +127,7 @@ def describe_frames(
         try:
             desc = client.describe_image(frame.path, prompt)
         except LLMConnectionError:
-            # 接続そのものが死んでいる場合は続けても無駄なので中断
+            # If the connection itself is dead, there's no point continuing, so abort
             raise
         except Exception as exc:
             desc = f"(解析失敗: {exc})"
@@ -131,7 +135,8 @@ def describe_frames(
         notes.append(
             FrameNote(timestamp=frame.timestamp, path=rel, description=desc)
         )
-        save_frame_notes(notes, out_dir)  # 1枚ごとに保存し、途中再開できるようにする
+        # save after every frame, so a partial run can be resumed
+        save_frame_notes(notes, out_dir)
         if on_progress is not None:
             on_progress(
                 i, total,
@@ -154,7 +159,7 @@ def save_frame_notes(notes: list[FrameNote], out_dir: str | Path) -> Path:
 
 
 def notes_to_text(notes: list[FrameNote]) -> str:
-    """LLM に渡しやすい、時刻付きのプレーンテキストにする。"""
+    """Turn notes into plain text with timestamps, in a form that's easy to hand to the LLM."""
     blocks = []
     for n in notes:
         blocks.append(f"[{_hhmmss(n.timestamp)}] {n.description.strip()}")
