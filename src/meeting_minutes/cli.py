@@ -54,9 +54,19 @@ def _make_reporter():
     def report(stage: str, current: int, total: int, message: str) -> None:
         nonlocal last_stage, last_t
         now = time.monotonic()
-        # Only print fine-grained progress within the same stage once every
-        # 0.5 seconds (to avoid flooding the log)
-        if stage == last_stage and now - last_t < 0.5 and stage != "done":
+        # Only throttle genuine fine-grained, rapidly-repeating progress
+        # within the same stage (0 < current < total) to once every 0.5
+        # seconds, so as not to flood the log. A stage's first (current=0)
+        # and last (current=total) message — including one-off milestone
+        # announcements that share that same current/total, like the
+        # detected/extraction/minutes-language notices — always print, even
+        # if another message for the same stage was just printed.
+        if (
+            stage == last_stage
+            and now - last_t < 0.5
+            and stage != "done"
+            and 0 < current < total
+        ):
             return
         last_stage = stage
         last_t = now
