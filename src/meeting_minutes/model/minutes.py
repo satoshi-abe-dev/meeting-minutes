@@ -614,7 +614,11 @@ def _partials_path(out_dir: Path) -> Path:
 
 
 def _load_partials(
-    out_dir: Path, *, size_chars: int, num_segments: int
+    out_dir: Path,
+    *,
+    size_chars: int,
+    num_segments: int,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> list[str]:
     """Read back chunk summaries that got partway through before an interruption
     or timeout (empty if there are none).
@@ -625,6 +629,14 @@ def _load_partials(
     chunk boundaries would be shifted, causing duplicated or missing content, so
     they aren't adopted (redone from scratch instead). The old format with no
     metadata (a JSON array) is also not adopted, since its boundaries can't be verified.
+
+    Also discarded if the language the summaries were written in doesn't
+    match minutes_language for this run — otherwise a run resumed with a
+    different minutes_language would splice old-language partials together
+    with newly-generated ones, producing minutes with mixed languages.
+    Partials saved before this field existed have no "minutes_language" key;
+    they're treated as having been written in the default ("日本語"), same
+    as the pre-feature hardcoded behavior.
 
     An entry that has only a heading line ("### 部分 N") with an empty body is
     treated as a sign the LLM returned an empty response (e.g. a reasoning
@@ -644,6 +656,12 @@ def _load_partials(
         return []
     # The chunking conditions have changed (e.g. chunk_size_chars was lowered to work around Context Length)
     if data.get("chunk_size_chars") != size_chars or data.get("num_segments") != num_segments:
+        return []
+    # minutes_language changed since these partials were saved
+    default_lang_name = minutes_language_name(DEFAULT_MINUTES_LANGUAGE)
+    if data.get("minutes_language", default_lang_name) != minutes_language_name(
+        minutes_language
+    ):
         return []
 
     entries = data.get("partials")
@@ -666,11 +684,15 @@ def _save_partials(
     size_chars: int,
     num_segments: int,
     num_chunks: int,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> None:
     """Called each time one chunk summary finishes, rewriting everything up to that point.
 
     Saves the chunking conditions (`chunk_size_chars` and the total number of
-    segments in the split input) alongside, so consistency can be verified on resume.
+    segments in the split input) alongside, so consistency can be verified on
+    resume. Also saves the (normalized) language the summaries were written
+    in, so _load_partials can tell whether it still matches minutes_language
+    on a later run.
     """
     _partials_path(out_dir).parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -678,6 +700,7 @@ def _save_partials(
         "chunk_size_chars": size_chars,
         "num_segments": num_segments,
         "num_chunks": num_chunks,
+        "minutes_language": minutes_language_name(minutes_language),
         "partials": partials,
     }
     _partials_path(out_dir).write_text(
@@ -743,6 +766,7 @@ def _summarize_chunks(
                 size_chars=size_chars,
                 num_segments=num_segments,
                 num_chunks=len(chunks),
+                minutes_language=minutes_language,
             )
         if on_progress:
             on_progress(
@@ -897,7 +921,10 @@ def generate_minutes(
         out_path = Path(out_dir) if out_dir is not None else None
         if reuse and out_path is not None:
             existing = _load_partials(
-                out_path, size_chars=size_chars, num_segments=len(segments)
+                out_path,
+                size_chars=size_chars,
+                num_segments=len(segments),
+                minutes_language=minutes_language,
             )
             if 0 < len(existing) <= len(chunks):
                 partials = existing

@@ -331,7 +331,9 @@ def test_generate_minutes_cancel_before_start_raises_immediately():
 
 # --- Persisting and resuming partial summaries -----------------------------------------
 
-def _save_partials_matching(tmp_path, entries, chunking_config, long_segs):
+def _save_partials_matching(
+    tmp_path, entries, chunking_config, long_segs, *, minutes_language="ja"
+):
     """Write a partial-summaries file with a signature that matches long_segs / chunking_config."""
     _save_partials(
         entries,
@@ -339,6 +341,7 @@ def _save_partials_matching(tmp_path, entries, chunking_config, long_segs):
         size_chars=chunking_config.chunk_size_chars,
         num_segments=len(long_segs),
         num_chunks=len(_split_segments(long_segs, chunking_config.chunk_size_chars)),
+        minutes_language=minutes_language,
     )
 
 
@@ -458,6 +461,109 @@ def test_generate_minutes_discards_legacy_list_format_partials(tmp_path, chunkin
     )
 
     assert "旧形式の要約" not in client.calls[-1]["user"]
+
+
+def test_generate_minutes_discards_partials_when_minutes_language_changed(
+    tmp_path, chunking_config
+):
+    """Resuming with a different minutes_language must not splice old-language
+    partial summaries together with newly-generated ones — otherwise the
+    final minutes could mix languages."""
+    long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    _save_partials_matching(
+        tmp_path, ["### 部分 1\n既存の日本語要約"], chunking_config, long_segs,
+        minutes_language="ja",
+    )
+    client = FakeClient(reply="new summary")
+
+    generate_minutes(
+        long_segs, [], client, chunking_config, MinutesMeta(title="mtg"),
+        out_dir=tmp_path, reuse=True, minutes_language="English",
+    )
+
+    # the ja-language partial is discarded, not reused alongside English ones
+    assert "既存の日本語要約" not in client.calls[-1]["user"]
+
+
+def test_generate_minutes_reuses_partials_when_minutes_language_matches(
+    tmp_path, chunking_config
+):
+    long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    _save_partials_matching(
+        tmp_path, ["### 部分 1\nexisting summary"], chunking_config, long_segs,
+        minutes_language="English",
+    )
+    client = FakeClient(reply="final")
+
+    md = generate_minutes(
+        long_segs, [], client, chunking_config, MinutesMeta(title="mtg"),
+        out_dir=tmp_path, reuse=True, minutes_language="English",
+    )
+
+    assert md.strip() == "final"
+    chunk_calls = [
+        c for c in client.calls if c["user"].startswith("次の会議の文字起こしの一部です")
+    ]
+    assert all("existing summary" not in c["user"] for c in chunk_calls)
+    assert "existing summary" in client.calls[-1]["user"]
+
+
+def test_generate_minutes_pre_feature_partials_treated_as_ja(tmp_path, chunking_config):
+    """Partials saved before minutes_language existed have no
+    "minutes_language" key in the JSON. They must be treated as implicitly
+    "ja" (the pre-feature hardcoded behavior): reused when the current run
+    is also "ja" (the default), discarded otherwise."""
+    long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    (tmp_path / "work").mkdir()
+    (tmp_path / "work" / "minutes_partials.json").write_text(
+        json.dumps(
+            {
+                "format": 2,
+                "chunk_size_chars": chunking_config.chunk_size_chars,
+                "num_segments": len(long_segs),
+                "num_chunks": len(
+                    _split_segments(long_segs, chunking_config.chunk_size_chars)
+                ),
+                "partials": ["### 部分 1\n旧仕様の要約"],
+                # no "minutes_language" key: simulates a pre-feature file
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # default (ja) run: reused
+    client_ja = FakeClient(reply="final")
+    generate_minutes(
+        long_segs, [], client_ja, chunking_config, MinutesMeta(title="mtg"),
+        out_dir=tmp_path, reuse=True,
+    )
+    assert "旧仕様の要約" in client_ja.calls[-1]["user"]
+
+
+def test_generate_minutes_pre_feature_partials_discarded_for_non_ja(tmp_path, chunking_config):
+    long_segs = _segments(300, text="議題について長い発言をする" * 5)
+    (tmp_path / "work").mkdir()
+    (tmp_path / "work" / "minutes_partials.json").write_text(
+        json.dumps(
+            {
+                "format": 2,
+                "chunk_size_chars": chunking_config.chunk_size_chars,
+                "num_segments": len(long_segs),
+                "num_chunks": len(
+                    _split_segments(long_segs, chunking_config.chunk_size_chars)
+                ),
+                "partials": ["### 部分 1\n旧仕様の要約"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client_en = FakeClient(reply="final")
+    generate_minutes(
+        long_segs, [], client_en, chunking_config, MinutesMeta(title="mtg"),
+        out_dir=tmp_path, reuse=True, minutes_language="English",
+    )
+    assert "旧仕様の要約" not in client_en.calls[-1]["user"]
 
 
 def test_generate_minutes_chunk_max_tokens_matches_budget_cap(tmp_path):
