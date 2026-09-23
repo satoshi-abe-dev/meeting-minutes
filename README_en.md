@@ -121,7 +121,8 @@ python src/meeting_minutes/gui.py --lang ja       # Show the GUI text in Japanes
 python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / automation
 ```
 
-- The GUI display language can also be set via `[gui] language` in `config.toml` (`"ja"` / `"en"`, default `"en"`); `--lang` overrides it just for that run
+- GUI display language priority: `--lang` (that run only) > the `MM_GUI_LANGUAGE`
+  environment variable > `config.toml`'s `[gui] language` (`"ja"` / `"en"`) > default `"en"`
 - Only the **GUI screen text** changes; the transcription language (`[transcribe] language`) and the minutes' language (`[output] minutes_language`) are configured independently (frame-analysis description language automatically follows the recording's own detected language)
 
 (For developers, `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` also work. In that case, either `cd src` or set `PYTHONPATH=src`.)
