@@ -236,6 +236,15 @@ def run(
         source_language = (
             detected_language or (config.transcribe.language or "").strip() or "ja"
         )
+        # Only log this when config.transcribe.language was left empty AND we
+        # actually have a real detection result (not the "ja" fallback used
+        # when nothing is known — e.g. reusing a pre-feature transcript.json
+        # with no persisted language).
+        if not (config.transcribe.language or "").strip() and detected_language:
+            progress(
+                "transcribe", len(segments), len(segments),
+                t("pmsg.language_detected", language, lang=detected_language),
+            )
 
         # 3) Frame extraction (reusable) --------------------------------
         frames_index: Path = out_dir / "frames" / "frames.json"

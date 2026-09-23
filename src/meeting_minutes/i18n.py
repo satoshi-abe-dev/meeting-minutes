@@ -266,6 +266,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": "文字起こし完了（{n} 区間、所要 {elapsed}）",
         "en": "Transcription done ({n} segments, elapsed {elapsed})",
     },
+    "pmsg.language_detected": {
+        "ja": "録画の言語を自動検出: {lang}",
+        "en": "Auto-detected the recording's language: {lang}",
+    },
     "pmsg.frames_reuse": {
         "ja": "既存のフレームを再利用（{n} 枚）",
         "en": "Reusing the existing frames ({n})",
