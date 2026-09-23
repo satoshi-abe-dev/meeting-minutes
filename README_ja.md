@@ -125,6 +125,9 @@ python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・�
 
 - GUI の表示言語の優先順位: 既定 `"en"` < `config.toml` の `[gui] language`
   （`"ja"` / `"en"`）< 環境変数 `MM_GUI_LANGUAGE` < `--lang`（その回だけ）
+  - 例（bash/zsh）: `MM_GUI_LANGUAGE=ja python src/meeting_minutes/gui.py`
+    （Windows の cmd.exe は `set MM_GUI_LANGUAGE=ja && python ...`、PowerShell は
+    `$env:MM_GUI_LANGUAGE="ja"; python ...`）
 - 切り替わるのは **GUI の画面文言だけ**。文字起こし言語は `[transcribe] language`、議事録の言語は `[output] minutes_language` でそれぞれ独立に設定する（画面キャプチャの説明文の言語は録画の実際の言語に自動追従）
 
 （開発者向けに `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` も動く。
