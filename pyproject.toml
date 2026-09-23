@@ -1,9 +1,8 @@
 # pytest の設定だけを置く最小構成。パッケージング（build-system 等）は行わない。
 [tool.pytest.ini_options]
-# src レイアウト（PyPA 推奨）。パッケージをリポジトリ直下ではなく src/ 配下に置く
-# ことで、フラットレイアウトだと起こりがちな「テストがカレントディレクトリ経由で
-# 生のソースを偶然 import できてしまう」状態に依存せず、実際にインストールされた
-# 形に近い状態で動作確認できる。テストからは pythonpath 経由で src/ を通す。
+# src レイアウト（PyPA 推奨）。フラットレイアウトだとテストがカレント経由で
+# 生ソースを偶然 import できてしまうが、それに依存せずインストール済み相当で
+# 検証できる。テストからは pythonpath 経由で src/ を通す。
 pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
@@ -24,9 +23,8 @@ src = ["src", "tests"]
 # B: bugbear（バグになりやすい書き方）。C4: 内包表記。SIM: 冗長な条件の簡約。
 # RUF: ruff 固有。
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
-# RUF001-003（ambiguous-unicode）は、日本語の全角括弧・句読点・記号を軒並み
-# 「紛らわしい Unicode」と誤検知する。このコードベースは日本語コメント／文字列が
-# 主体なので、ルールごと無効化する（個別 noqa では数百箇所になり無意味）。
+# RUF001-003（ambiguous-unicode）は日本語の全角記号を誤検知するため無効化
+# （個別 noqa だと数百箇所になり非現実的）。
 ignore = ["RUF001", "RUF002", "RUF003"]
 
 # --- 型チェック（mypy）---------------------------------------------------------
@@ -41,18 +39,16 @@ check_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
-# numpy（faster-whisper / mlx-whisper が連れてくる）の同梱スタブは新しい構文
-# （3.12+ の type 文）を使っており、python_version=3.11 でパースすると落ちる。
-# 自コードは numpy に直接依存しないので、まるごと解析対象外にする。
+# numpy同梱スタブが3.12+構文を使い python_version=3.11 で落ちるため、
+# 直接依存しない numpy は解析対象外にする。
 [[tool.mypy.overrides]]
 module = ["numpy", "numpy.*"]
 follow_imports = "skip"
 follow_imports_for_stubs = true
 
-# view/tk_main_window.py は Tkinter アダプタ（MVP の View 層、ロジックを持たない）。
-# `widget.grid(**pad)` のような dict 展開が、tkinter スタブの多数のオーバーロードと
-# 噛み合わず arg-type エラーを量産する（既知の型スタブ相性問題）。この 1 ファイルだけ
-# arg-type を無効化する。name-defined / attr-defined 等の他のチェックは効かせる。
+# tk_main_window.py は Tkinter アダプタ。`grid(**pad)` 等の dict 展開が
+# tkinter スタブと噛み合わず arg-type を量産する（既知の相性問題）ため、この
+# ファイルのみ arg-type 無効化。他のチェックは有効のまま。
 [[tool.mypy.overrides]]
 module = "meeting_minutes.view.tk_main_window"
 disable_error_code = ["arg-type"]

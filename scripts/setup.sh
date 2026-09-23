@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
-# One-shot setup: create the virtualenv -> install dependencies -> fetch
-# the transcription model.
-# The only thing the user runs is this one script.
+# One-shot setup: virtualenv -> deps -> transcription model. The only
+# command the user runs.
 #
 #   bash scripts/setup.sh
 #
-# This script connects to the internet to download the Whisper model
-# (HuggingFace). Fetching it is mandatory; if it fails, setup itself exits
-# with a failure (at runtime, offline mode is forced so it never
-# auto-downloads — this is the only place it gets fetched).
+# Downloads the Whisper model from HuggingFace (mandatory; fails setup if it
+# can't). Runtime is offline-only, so this is the sole place it's fetched.
 #
-# Also needed separately:
-#   - ffmpeg (brew install ffmpeg)
-#   - Start a local server in LM Studio and load the LLM/VLM (docs/setup_ja.md)
+# Also needed separately: ffmpeg (brew install ffmpeg), and a running LM
+# Studio server with the LLM/VLM loaded (docs/setup_ja.md).
 
 set -euo pipefail
 

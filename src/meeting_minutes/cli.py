@@ -15,22 +15,15 @@ import os
 import sys
 import time
 
-# Launching directly by file path, e.g. `python src/meeting_minutes/cli.py`,
-# leaves __package__ unset, so absolute imports fail. Add the src layout's
-# package parent — src/ (two levels above this file) — to sys.path. Does
-# nothing when launched with -m.
+# Launching by file path leaves __package__ unset, breaking absolute
+# imports. Add src/ (package parent) to sys.path; no-op when launched via -m.
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Never let the app talk to the outside world while it's running. Force
-# offline mode before the HuggingFace-family libraries (huggingface_hub /
-# faster_whisper / mlx_whisper) get imported for the first time. This
-# assumes the Whisper model was already fetched during setup
-# (scripts/setup.sh -> meeting_minutes.download_transcribe_model). The fetch
-# script is a separate process/entry point, so it's unaffected by this
-# setting (fetching the model still works).
-# Uses setdefault, so a value the user set explicitly (e.g. for an internal
-# mirror) is respected.
+# Force offline mode before HF-family libraries (huggingface_hub /
+# faster_whisper / mlx_whisper) first import — assumes the model was already
+# fetched via scripts/setup.sh. The separate fetch script isn't affected.
+# setdefault respects a value the user set explicitly (e.g. an internal mirror).
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
@@ -50,14 +43,10 @@ _STAGE_LABEL = {
 def _make_reporter():
     last_stage: str | None = None
     last_t = 0.0
-    # The most recently suppressed call for the current stage, if any. A
-    # fast synchronous stage (e.g. mlx's post-decode per-segment loop, which
-    # has no real per-iteration delay) can produce many same-stage calls
-    # within one 0.5s window, including that stage's own completion message
-    # right at the end — leading-edge-only throttling would silently drop
-    # it forever. Instead, the latest suppressed call is remembered and
-    # flushed as soon as the stage actually changes, so the last word on a
-    # finished stage is never lost, only delayed.
+    # Most recently suppressed call for the current stage, if any. A fast
+    # synchronous stage (e.g. mlx's per-segment loop) can pack many same-
+    # stage calls — including its own completion message — into one 0.5s
+    # window; flushed on the next stage change so nothing is lost, only delayed.
     pending: tuple[str, int, int, str] | None = None
 
     def _emit(stage: str, current: int, total: int, message: str) -> None:

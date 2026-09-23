@@ -1,14 +1,10 @@
 # CI:
-#   tests … pytest を Linux / Windows / macOS で回す（Issue #8）
-#   lint  … ruff（lint）と mypy（型チェック）を Linux で回す（Issue #9）
+#   tests … pytest を Linux/Windows/macOS で（Issue #8）
+#   lint  … ruff・mypy を Linux で（Issue #9）
 #
-# meeting-minutes のテストは tkinter / 画面に依存しない（GUI ロジックのテストも
-# FakeMainView 経由で tkinter を import しないため）。Xvfb 等の追加設定は不要。
-#
-# 実物の ffmpeg を呼ぶテスト（tests/test_frames.py の needs_ffmpeg）は、ffmpeg が
-# 無い環境では skipif で自動 skip される。ローカル LLM を呼ぶテストは現状無い
-# （needs_llm マーカーは将来用に登録してあるだけ）。よって CI 側に ffmpeg / LLM を
-# 入れる必要はない。
+# tkinter/画面非依存（GUIロジックもFakeMainView経由）。Xvfb等は不要。
+# needs_ffmpeg は無い環境で自動skip。needs_llm は将来用の未使用マーカー。
+# よって CI に ffmpeg/LLM は不要。
 name: CI
 
 on:
@@ -36,9 +32,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
 
-      # python3 ではなく python（Windows に python3 は無い。python は全 OS で有効）。
-      # -ra で skip 理由をサマリに出す（ffmpeg が無い環境で needs_ffmpeg テストが
-      # skip されるのが見える）。
+      # python3 でなく python（Windows に python3 は無い）。-ra で skip 理由を表示。
       - name: Run pytest
         run: python -m pytest -ra
 

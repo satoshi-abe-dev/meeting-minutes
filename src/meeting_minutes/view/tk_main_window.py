@@ -118,23 +118,15 @@ class TkMainWindow(MainView):
 
     # --- Building the UI -------------------------------------------------------
     def _build_ui(self) -> None:
-        # Use grid consistently for layout rather than pack (grid makes the
-        # placement intent explicit, which is easier to read than pack, where
-        # centering vs. left-alignment implicitly changes depending on
-        # whether `fill="x"` is set). self.root stacks each block vertically
-        # in a single column (column=0, weight=1). Anything meant to stretch
-        # the full width gets sticky="ew"; only the log area also stretches
-        # vertically, so it gets sticky="nsew" plus rowconfigure(weight=1) on
-        # its row. run_bar / done_bar, which should shrink to their content
-        # and stay centered, get no sticky (grid's default centers within the cell).
+        # grid() throughout, not pack() (explicit placement intent). Single
+        # column (column=0, weight=1); full-width blocks get sticky="ew"; the
+        # log area also stretches vertically (sticky="nsew" + rowconfigure
+        # weight=1); run_bar/done_bar get no sticky (centers on content).
         pad = {"padx": 10, "pady": 6}
         self.root.columnconfigure(0, weight=1)
 
-        # Every row is kept consistent as "column 0 = description label,
-        # column 1 = control." Column 0's width is left to grid's automatic
-        # sizing (matching the widest in the row, "議事録フォーマット:"), and
-        # column 1's starting position is a shared column, so it lines up
-        # automatically across every row.
+        # Every row: column 0 = label, column 1 = control. Column 0's width
+        # auto-sizes to the widest label; column 1 lines up across rows.
         head = ttk.Frame(self.root)
         head.grid(row=0, column=0, sticky="ew", **pad)
         head.columnconfigure(1, weight=1)
@@ -154,9 +146,8 @@ class TkMainWindow(MainView):
         )
         self.file_label.grid(row=0, column=1, padx=(8, 0))
 
-        # Rows 1-3: choosing the minutes format (heading structure). A 3-way radio choice.
-        # The label sits on the same row (row=1) as "Built-in (default)."
-        # Column 0 is left blank on row=2 (Auto) and row=3 (Choose a file).
+        # Rows 1-3: minutes-format 3-way radio. Label shares row=1 with
+        # "Built-in"; column 0 is blank on rows 2-3 (Auto / Choose a file).
         ttk.Label(head, text=self._t("label.format")).grid(
             row=1, column=0, sticky="w", pady=(6, 0)
         )
@@ -191,15 +182,10 @@ class TkMainWindow(MainView):
         _Tooltip(auto_radio, self._t("tooltip.auto"))
         self._sync_fmt_widgets()
 
-        # ttk's relief border (groove or solid) rendered too faint or not at
-        # all under the macOS (aqua) theme, so it wasn't visible on a real
-        # screen (PRs #33/#40/#41). Switched to a tk.Frame's highlightthickness
-        # (a 1px border), which Tk's core draws directly and is theme-independent.
-        # The heading label is still placed separately on top of the border to
-        # avoid a small-font issue with text=.
-        # Color: #808080, which meets the WCAG non-text UI contrast ratio of
-        # 3:1 against a light background (systemWindowBackgroundColor, roughly
-        # white to pale gray) — about 4.0:1 against white / 3.3:1 against #ECECEC.
+        # ttk's relief border was too faint under macOS aqua (PRs #33/#40/#41)
+        # — switched to tk.Frame's highlightthickness (theme-independent).
+        # Heading label placed separately to avoid a small-font issue with text=.
+        # Color #808080 meets WCAG 3:1 UI contrast (~4.0:1 on white, ~3.3:1 on #ECECEC).
         cfg_label = ttk.Label(self.root, text=self._t("label.settings"))
         cfg_label.grid(row=1, column=0, sticky="w", padx=10, pady=(6, 2))
         cfg = tk.Frame(

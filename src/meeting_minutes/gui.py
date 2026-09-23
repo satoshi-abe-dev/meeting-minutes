@@ -21,23 +21,15 @@ import argparse
 import os
 import sys
 
-# Launching directly by file path, e.g. `python src/meeting_minutes/gui.py`,
-# leaves __package__ unset, so absolute imports (meeting_minutes.*) fail.
-# Add the src layout's package parent — src/ (two levels above this file) —
-# to sys.path. Launched via `python -m meeting_minutes.gui`, __package__ is
-# already set, so this does nothing.
+# Launching by file path leaves __package__ unset, breaking absolute
+# imports. Add src/ (package parent) to sys.path; no-op when launched via -m.
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Never let the app talk to the outside world while it's running. Force
-# offline mode before the HuggingFace-family libraries (huggingface_hub /
-# faster_whisper / mlx_whisper) get imported for the first time. This
-# assumes the Whisper model was already fetched during setup
-# (scripts/setup.sh -> meeting_minutes.download_transcribe_model). The fetch
-# script is a separate process/entry point, so it's unaffected by this
-# setting (fetching the model still works).
-# Uses setdefault, so a value the user set explicitly (e.g. for an internal
-# mirror) is respected.
+# Force offline mode before HF-family libraries (huggingface_hub /
+# faster_whisper / mlx_whisper) first import — assumes the model was already
+# fetched via scripts/setup.sh. The separate fetch script isn't affected.
+# setdefault respects a value the user set explicitly (e.g. an internal mirror).
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
@@ -58,9 +50,8 @@ def main() -> int:
     args = parser.parse_args()
 
     config = load_config(None)
-    # Priority: --lang > config.toml/[gui] language and env var > default en
-    # (load_config has already rounded an unsupported config.gui.language
-    # value to en.)
+    # Priority: --lang > config.toml/[gui] language + env var > default en
+    # (load_config already rounds an unsupported value to en).
     language = args.lang or config.gui.language
 
     view = TkMainWindow(language=language)

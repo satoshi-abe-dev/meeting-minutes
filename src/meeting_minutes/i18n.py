@@ -228,11 +228,9 @@ _STRINGS: dict[str, dict[str, str]] = {
             'will be reused on the next run (with "Reuse existing data" checked).'
         ),
     },
-    # --- Internal pipeline progress messages (model layer; on_progress's message argument) ---
-    # Issue #100: the message that pipeline.py / minutes.py / vision.py /
-    # transcribe.py pass to on_progress was out of scope for Issue #55. It
-    # is also made English here when the GUI runs with --lang en (the CLI
-    # leaves language unset, i.e. ja, as before).
+    # --- Internal pipeline progress messages (model layer's on_progress) ---
+    # Issue #100: extends Issue #55's ja/en switch to these messages too
+    # (CLI still defaults to ja, unchanged).
     "pmsg.pre_wait": {
         "ja": "LLM サーバーの応答を待っています…（LLM: {model} / VLM: {vlm}）",
         "en": "Waiting for the LLM server… (LLM: {model} / VLM: {vlm})",

@@ -135,10 +135,8 @@ def run(
     warnings: list[str] = []
 
     out_dir = config.output_root / video_path.stem
-    # Intermediate artifacts go into a subfolder per kind: frame images under
-    # frames/, audio and transcript under transcript/, the minutes structure
-    # and chunk summaries under work/ (gui.log is created under logs/ by the
-    # GUI side).
+    # Intermediate artifacts by kind: frames/ (images), transcript/ (audio +
+    # transcript), work/ (structure + chunk summaries). logs/ is GUI-side.
     transcript_dir = out_dir / "transcript"
     (out_dir / "frames").mkdir(parents=True, exist_ok=True)
     (out_dir / "work").mkdir(parents=True, exist_ok=True)
@@ -189,15 +187,11 @@ def run(
         detected_language = ""
 
         def _with_detected_suffix(base_msg: str) -> str:
-            # Appended to the same progress() call as the transcription
-            # completion message (rather than emitted as its own tick right
-            # after) since a separate same-stage tick fired immediately
-            # afterward would be silently dropped by the CLI's same-stage
-            # throttle (cli.py's _make_reporter). Only shown when
-            # config.transcribe.language was left empty AND we actually have
-            # a real detection result (not the "ja" fallback used when
-            # nothing is known — e.g. reusing a pre-feature transcript.json
-            # with no persisted language).
+            # Appended to the completion message, not a separate tick — a
+            # same-stage tick right after would be dropped by cli.py's
+            # throttle. Shown only when language was left empty AND a real
+            # detection result exists (not the "ja" fallback for a
+            # pre-feature transcript.json).
             if (config.transcribe.language or "").strip() or not detected_language:
                 return base_msg
             return base_msg + " / " + t(
@@ -250,10 +244,8 @@ def run(
                 ),
             )
 
-        # The recording's own actual/detected transcription language, used to
-        # drive frame-analysis (VLM) output language below — falls back to
-        # config.transcribe.language (for pre-feature transcript.json files
-        # with no persisted language) then "ja" if that's also empty.
+        # Recording's detected transcription language, driving VLM output
+        # below. Falls back to config.transcribe.language, then "ja".
         source_language = (
             detected_language or (config.transcribe.language or "").strip() or "ja"
         )
@@ -305,10 +297,9 @@ def run(
         )
         vision_elapsed = time.monotonic() - t0
         frame_notes_path = deps.save_frame_notes(notes, out_dir)
-        # Includes the minutes language here (rather than as its own tick
-        # right before generate_minutes()) since a separate same-stage tick
-        # immediately preceding generate_minutes()'s own first message would
-        # be silently dropped by the CLI's same-stage throttle.
+        # Minutes language included here rather than its own tick — one
+        # right before generate_minutes()'s first message would be dropped
+        # by cli.py's same-stage throttle.
         progress(
             "vision", len(notes), len(notes),
             t("pmsg.vision_done", language,
@@ -325,9 +316,8 @@ def run(
         def _mp(cur: int, tot: int, msg: str) -> None:
             progress("minutes", cur, tot, msg)
 
-        # The loaded model's real context length (fetchable if it's LM
-        # Studio). If it can't be fetched, generate_minutes falls back to the
-        # character-count threshold.
+        # Real context length, fetchable if it's LM Studio; else
+        # generate_minutes falls back to the character-count threshold.
         ctx_tokens: int | None = None
         _lcl = getattr(client, "loaded_context_length", None)
         if callable(_lcl):
@@ -336,9 +326,8 @@ def run(
             except Exception:
                 ctx_tokens = None
 
-        # The start message is emitted right away by generate_minutes itself
-        # via _mp (the short path says "generating minutes," the long path
-        # says "partial summary 1/N...", etc.).
+        # generate_minutes emits its own start message via _mp right away
+        # (short path: "generating minutes"; long path: "partial summary 1/N").
         markdown = deps.generate_minutes(
             segments,
             notes,
@@ -359,10 +348,8 @@ def run(
         # The completion message (with elapsed time) was already reported by
         # generate_minutes itself via _mp, so it's not repeated here.
 
-        # Also write out a .docx (Word) version with the same content. Since
-        # this is a secondary artifact, a conversion/write failure only warns
-        # and continues (minutes.md is the primary artifact, so this doesn't
-        # abort the run).
+        # Also writes a .docx version; a failure here only warns (minutes.md
+        # is the primary artifact, so this doesn't abort the run).
         try:
             minutes_docx_path = deps.save_minutes_docx(markdown, out_dir)
             progress(
