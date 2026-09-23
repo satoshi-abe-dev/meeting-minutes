@@ -80,7 +80,7 @@ def test_cap_count_downsamples_evenly():
 @pytest.mark.needs_ffmpeg
 @pytest.mark.skipif(not ffmpeg_utils.has_ffmpeg(), reason="ffmpeg が無い")
 def test_probe_duration_on_generated_clip(tmp_path):
-    # 2 秒のテスト用動画を ffmpeg 自身で生成して長さを測る
+    # Generate a 2-second test video with ffmpeg itself and measure its length
     clip = tmp_path / "clip.mp4"
     ffmpeg_utils.run(
         [
@@ -101,7 +101,7 @@ def test_probe_duration_on_generated_clip(tmp_path):
 @pytest.mark.needs_ffmpeg
 @pytest.mark.skipif(not ffmpeg_utils.has_ffmpeg(), reason="ffmpeg が無い")
 def test_extract_frames_real_clip(tmp_path):
-    # 24 秒のクリップ。途中で赤い矩形を出してシーン変化を作る。
+    # A 24-second clip. A red rectangle appears partway through to create a scene change.
     clip = tmp_path / "clip.mp4"
     ffmpeg_utils.run(
         [
@@ -125,12 +125,12 @@ def test_extract_frames_real_clip(tmp_path):
     frames = extract_frames(clip, tmp_path / "out", cfg)
 
     assert len(frames) >= 3
-    # 時刻は昇順、各ファイルは実在、min_gap 以上離れている
+    # timestamps are ascending, each file actually exists, and they're spaced at least min_gap apart
     times = [f.timestamp for f in frames]
     assert times == sorted(times)
     assert all(f.path.is_file() for f in frames)
     assert all(b - a >= cfg.min_gap_sec - 0.5 for a, b in itertools.pairwise(times))
-    # 生の中間ディレクトリは片付けられている
+    # the raw intermediate directory has been cleaned up
     assert not (tmp_path / "out" / "frames" / "_raw").exists()
 
     index = save_frame_index(frames, tmp_path / "out")

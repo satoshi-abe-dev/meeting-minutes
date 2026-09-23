@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# 一発セットアップ: 仮想環境の作成 → 依存インストール → 文字起こしモデルの取得。
-# 利用者が打つのはこのスクリプトの実行 1 つだけ。
+# One-shot setup: create the virtualenv -> install dependencies -> fetch
+# the transcription model.
+# The only thing the user runs is this one script.
 #
 #   bash scripts/setup.sh
 #
-# このスクリプトはインターネットに接続して Whisper モデル（HuggingFace）を
-# ダウンロードする。取得は必須で、失敗したらセットアップ自体を失敗終了させる
-# （アプリ実行時はオフライン強制のため自動ダウンロードしない。ここで取り切る）。
+# This script connects to the internet to download the Whisper model
+# (HuggingFace). Fetching it is mandatory; if it fails, setup itself exits
+# with a failure (at runtime, offline mode is forced so it never
+# auto-downloads — this is the only place it gets fetched).
 #
-# 別途必要なもの:
-#   - ffmpeg（brew install ffmpeg）
-#   - LM Studio でローカルサーバーを起動し、LLM / VLM をロード（docs/setup.md）
+# Also needed separately:
+#   - ffmpeg (brew install ffmpeg)
+#   - Start a local server in LM Studio and load the LLM/VLM (docs/setup_ja.md)
 
 set -euo pipefail
 
@@ -28,7 +30,7 @@ echo "==> 依存をインストール"
 echo "==> 文字起こしモデルを取得（インターネットに接続します。数分かかることがあります）"
 echo "    この手順は HuggingFace から Whisper モデルをダウンロードします。"
 echo "    アプリ実行時はオフライン強制のため、ここでの取得が必須です。"
-# 失敗したら set -e でセットアップ自体を失敗終了させる（握りつぶさない）。
+# If this fails, set -e exits setup itself with a failure (not swallowed).
 ./.venv/bin/python src/meeting_minutes/download_transcribe_model.py
 
 cat <<'DONE'

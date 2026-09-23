@@ -81,7 +81,7 @@ def test_describe_frames_cancel_stops_before_next_frame(tmp_path):
 
     def on_progress(cur, total, msg):
         if cur == 1:
-            cancel_event.set()  # 1 枚目が終わった直後に中断ボタンが押された想定
+            cancel_event.set()  # simulate the Stop button being pressed right after the first frame finishes
 
     with pytest.raises(PipelineCancelled):
         describe_frames(
@@ -92,7 +92,7 @@ def test_describe_frames_cancel_stops_before_next_frame(tmp_path):
             cancel_event=cancel_event,
         )
 
-    # 2 枚目に取り掛かる前に止まる
+    # stops before starting on the 2nd frame
     assert len(client.calls) == 1
 
 
@@ -127,7 +127,7 @@ def test_describe_frames_resumes_from_saved_notes(tmp_path):
     notes = describe_frames(_frames(3), client, tmp_path, reuse=True)
 
     assert [n.description for n in notes] == ["既存の解析", "B", "C"]
-    # 1 枚目はやり直していない
+    # the 1st frame wasn't redone
     assert client.calls == [_frame_path_str(1), _frame_path_str(2)]
 
 

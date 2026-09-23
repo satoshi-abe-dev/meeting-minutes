@@ -66,7 +66,7 @@ def test_download_faster_whisper_instantiates_model(monkeypatch):
 
 
 def test_download_explicit_faster_whisper_on_apple(monkeypatch):
-    # Apple Silicon でも backend="faster-whisper" を明示したら faster-whisper 側を取得
+    # Even on Apple Silicon, explicitly setting backend="faster-whisper" fetches the faster-whisper side
     monkeypatch.setattr(transcribe, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(transcribe, "_mlx_available", lambda: True)
     captured: dict = {}
