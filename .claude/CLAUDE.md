@@ -112,6 +112,15 @@ a PR.
   edit a `docs/*_ja.md` file, apply the identical change to the corresponding
   `docs/*_en.md` file if one exists, and vice versa.
 
+## Translation quality
+
+- When translating Japanese text into English (docs, code comments,
+  `CLAUDE.md`, commit messages, etc.), prefer natural, idiomatic English
+  phrasing over a literal, word-for-word translation. Preserve the exact
+  meaning and technical accuracy, but rephrase sentence structure and word
+  order the way a native English writer would, rather than mirroring the
+  Japanese original's structure.
+
 ## Commit / PR language
 
 - Commit messages and PR titles/descriptions are written in English going forward.
