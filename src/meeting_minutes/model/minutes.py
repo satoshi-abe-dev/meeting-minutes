@@ -101,6 +101,21 @@ _MINUTES_PREAMBLE = (
     "ください（書くことが無ければ指示どおり「（記載なし）」等に）。\n\n"
 )
 
+# Appended to _MINUTES_PREAMBLE when minutes_language isn't Japanese. The
+# structure/template below (built-in, a custom file, or even an
+# auto-generated one whose generation failed and fell back to built-in) is
+# written with Japanese heading labels — without this, a model tends to
+# translate the body content but leave the heading labels themselves in
+# Japanese verbatim (they read as fixed template formatting rather than text
+# to translate), producing minutes with mixed languages. The system prompt's
+# general "write consistently in {lang}" directive (config.apply_minutes_language)
+# alone isn't specific enough to reliably override that.
+_HEADING_TRANSLATION_NOTE = (
+    "このテンプレートの見出し（#・##・- で始まるラベル）はひな形として日本語で"
+    "書かれていますが、そのまま使わず、見出し・本文とも{lang}に翻訳し、出力全体を"
+    "{lang}で統一してください。日本語の見出しをそのまま残してはいけません。\n\n"
+)
+
 # Only the minutes "structure." Can be swapped wholesale via config.toml's
 # [output] template_path.
 # Placeholders available: {title} {datetime_hint} {duration_hint}
@@ -268,7 +283,11 @@ def load_minutes_structure(
 
 
 def _fill_minutes_template(
-    structure: str, meta: MinutesMeta, transcript: str, frames: str
+    structure: str,
+    meta: MinutesMeta,
+    transcript: str,
+    frames: str,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> str:
     """Fill the template (structure) with meta info and input, returning the finished prompt.
 
@@ -278,8 +297,15 @@ def _fill_minutes_template(
       that happens to appear inside the transcript is not caught up in it. A
       bare { } (e.g. in a JSON example) isn't in _PLACEHOLDER_RE, so it's left alone.
     - If the structure doesn't write {transcript} / {frames}, only the "missing one" is appended at the end.
+    - minutes_language: when not Japanese, adds an explicit instruction to
+      also translate the template's (Japanese) heading labels — see
+      _HEADING_TRANSLATION_NOTE.
     """
-    body = _MINUTES_PREAMBLE + structure
+    preamble = _MINUTES_PREAMBLE
+    lang_name = minutes_language_name(minutes_language)
+    if lang_name != "日本語":
+        preamble += _HEADING_TRANSLATION_NOTE.replace("{lang}", lang_name)
+    body = preamble + structure
     tail: list[str] = []
     if "{transcript}" not in structure:
         tail.append(_INPUT_TRANSCRIPT)
@@ -1004,7 +1030,10 @@ def generate_minutes(
                 0, 1,
                 t("pmsg.minutes_generating", language, model=llm_config.llm_model),
             )
-        user = _fill_minutes_template(structure, meta, full_transcript, frames_text)
+        user = _fill_minutes_template(
+            structure, meta, full_transcript, frames_text,
+            minutes_language=minutes_language,
+        )
         t0 = time.monotonic()
         md = client.chat(system, user, max_tokens=minutes_max_tokens)
         elapsed = format_elapsed(time.monotonic() - t0, language)
@@ -1031,7 +1060,10 @@ def generate_minutes(
     )
     if merged_truncated and on_progress:
         on_progress(0, 1, t("pmsg.merge_truncated", language))
-    user = _fill_minutes_template(structure, meta, merged_transcript, frames_text)
+    user = _fill_minutes_template(
+        structure, meta, merged_transcript, frames_text,
+        minutes_language=minutes_language,
+    )
     t0 = time.monotonic()
     md = client.chat(system, user, max_tokens=minutes_max_tokens)
     elapsed = format_elapsed(time.monotonic() - t0, language)
