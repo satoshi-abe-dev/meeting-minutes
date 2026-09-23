@@ -218,8 +218,7 @@ def test_pipeline_messages_show_model_and_waiting(config, video):
     transcribe_start = by_stage["transcribe"][0]
     assert config.transcribe.model in transcribe_start
 
-    vision_start = by_stage["vision"][0]
-    assert config.ai.vlm_model in vision_start
+    assert any(config.ai.vlm_model in msg for msg in by_stage["vision"])
 
 
 def test_pipeline_messages_translated_when_language_en(config, video):
@@ -512,3 +511,28 @@ def test_pipeline_does_not_log_when_reusing_pre_feature_transcript_with_no_langu
 
     messages = [m for *_rest, m in events]
     assert not any("Auto-detected" in m for m in messages)
+
+
+def test_pipeline_logs_extraction_and_minutes_language(config, video):
+    """Regardless of whether the language was detected or configured, the
+    log always states which language frame descriptions are extracted in
+    and which language the minutes are written in."""
+    recorder: list[str] = []
+    client = FakeClient()
+    deps = _fake_deps(recorder, client)
+
+    orig_transcribe = deps.transcribe_wav
+
+    def transcribe_wav(*a, **k):
+        segs, _lang = orig_transcribe(*a, **k)
+        return segs, "en"  # simulate Whisper detecting English
+
+    deps.transcribe_wav = transcribe_wav
+
+    config.output.minutes_language = "ko"
+    events: list[tuple] = []
+    run(video, config, on_progress=lambda *a: events.append(a), deps=deps)
+
+    messages = [m for *_rest, m in events]
+    assert any("extraction language: en" in m for m in messages)
+    assert any("writing the minutes in ko" in m for m in messages)
