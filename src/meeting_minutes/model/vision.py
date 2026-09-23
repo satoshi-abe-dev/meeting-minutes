@@ -17,7 +17,7 @@ from pathlib import Path
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, format_elapsed, t
 
 from .cancel import check_cancel
-from .config import load_prompt
+from .config import DEFAULT_MINUTES_LANGUAGE, apply_minutes_language, load_prompt
 from .frames import Frame
 from .llm_client import LLMClient, LLMConnectionError
 
@@ -26,7 +26,7 @@ ProgressFn = Callable[[int, int, str], None]
 
 _DEFAULT_PROMPT = (
     "この画像は会議中の画面（スライドや画面共有）のスクリーンショットです。"
-    "書かれている見出し・箇条書き・数値・図表の要点を、日本語で簡潔に箇条書きしてください。"
+    "書かれている見出し・箇条書き・数値・図表の要点を、{lang}で簡潔に箇条書きしてください。"
     "画面に意味のある情報が無い場合は「特筆事項なし」とだけ答えてください。"
 )
 
@@ -47,11 +47,13 @@ def _hhmmss(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
-def _load_prompt_text() -> str:
+def _load_prompt_text(source_language: str = DEFAULT_MINUTES_LANGUAGE) -> str:
     try:
-        return load_prompt("frame_describe_ja.txt").strip() or _DEFAULT_PROMPT
+        text = load_prompt("frame_describe_ja.txt").strip()
+        text = text or _DEFAULT_PROMPT
     except FileNotFoundError:
-        return _DEFAULT_PROMPT
+        text = _DEFAULT_PROMPT
+    return apply_minutes_language(text, source_language)
 
 
 def _load_frame_notes(out_dir: Path) -> list[FrameNote]:
@@ -87,6 +89,7 @@ def describe_frames(
     cancel_event: threading.Event | None = None,
     reuse: bool = True,
     language: str = DEFAULT_LANGUAGE,
+    source_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> list[FrameNote]:
     """Run every frame through the VLM and return a list of FrameNote.
 
@@ -98,9 +101,18 @@ def describe_frames(
         re-analyzed. frames/frame_notes.json is rewritten after each frame
         finishes, so a crash partway through can resume from where it left
         off.
+    source_language: the language on-screen content is described in —
+        ideally the recording's own actual/detected language (see
+        transcribe.transcribe_wav's detected_language return value), for
+        maximum fidelity of names/numbers/labels as they actually appear.
+        Falls back to "ja" (pre-existing hardcoded behavior) when not
+        provided. Distinct from minutes.generate_minutes's minutes_language
+        (the final output's target language) — kept separate so on-screen
+        content is translated at most once, in generate_minutes, not here
+        too.
     """
     out_dir = Path(out_dir)
-    prompt = _load_prompt_text()
+    prompt = _load_prompt_text(source_language)
     total = len(frames)
 
     notes: list[FrameNote] = []

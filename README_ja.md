@@ -125,7 +125,7 @@ python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・�
 
 - GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、既定 `"en"`）でも
   指定できる。`--lang` はその回だけの上書き
-- 切り替わるのは **GUI の画面文言だけ**。文字起こし言語・議事録の内容は別
+- 切り替わるのは **GUI の画面文言だけ**。文字起こし言語は `[transcribe] language`、議事録の言語は `[output] minutes_language` でそれぞれ独立に設定する（画面キャプチャの説明文の言語は録画の実際の言語に自動追従）
   （`[transcribe] language` / LLM 側）
 
 （開発者向けに `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` も動く。

@@ -160,8 +160,8 @@ def transcribe_wav(
     total_hint: int | None = None,
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
-) -> list[Segment]:
-    """Transcribe the wav and return a list of Segment.
+) -> tuple[list[Segment], str]:
+    """Transcribe the wav and return (segments, detected_language).
 
     The backend (mlx / faster-whisper) is decided by `resolve_backend(config)`.
     on_progress: the progress callback. faster-whisper calls it as each
@@ -175,6 +175,13 @@ def transcribe_wav(
     language: the language of the progress messages passed to on_progress
         ("ja" / "en"). The transcription language itself is config.language
         (a separate setting).
+    detected_language (the second return value): the language Whisper
+        actually decoded with — either config.language if it was set
+        explicitly, or Whisper's own auto-detection result if config.language
+        was left empty. Downstream, this drives the frame-analysis (VLM)
+        step's output language, so on-screen content is described in the
+        recording's own actual language rather than a fixed default (see
+        vision.describe_frames's source_language parameter).
     """
     if resolve_backend(config) == "mlx":
         return _transcribe_mlx(
@@ -203,7 +210,7 @@ def _transcribe_faster_whisper(
     total_hint: int | None = None,
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
-) -> list[Segment]:
+) -> tuple[list[Segment], str]:
     # a heavy dependency, so imported inside the function (also makes it easier to stub in tests)
     from faster_whisper import WhisperModel
 
@@ -233,7 +240,7 @@ def _transcribe_faster_whisper(
 
     # the language being transcribed (separate from the display language)
     stt_lang = config.language.strip() or None
-    raw_segments, _info = model.transcribe(
+    raw_segments, info = model.transcribe(
         str(wav_path),
         language=stt_lang,
         vad_filter=True,  # drop silent stretches to improve accuracy and speed
@@ -254,7 +261,8 @@ def _transcribe_faster_whisper(
             approx_total = i
         if on_progress is not None:
             on_progress(i, approx_total or i, seg.text)
-    return segments
+    detected_language = getattr(info, "language", None) or stt_lang or "ja"
+    return segments, detected_language
 
 
 def _transcribe_mlx(
@@ -265,7 +273,7 @@ def _transcribe_mlx(
     total_hint: int | None = None,
     cancel_event: threading.Event | None = None,
     language: str = DEFAULT_LANGUAGE,
-) -> list[Segment]:
+) -> tuple[list[Segment], str]:
     # mlx-whisper returns its result all at once (not a generator), so there's
     # no way to show incremental progress while it's working. Emit an
     # explanation once at the start, then run on_progress while converting
@@ -320,7 +328,12 @@ def _transcribe_mlx(
         segments.append(seg)
         if on_progress is not None:
             on_progress(i, total or i, seg.text)
-    return segments
+    detected_language = (
+        (result.get("language") if isinstance(result, dict) else None)
+        or stt_lang
+        or "ja"
+    )
+    return segments, detected_language
 
 
 def _iter_segments(raw: Iterable) -> Iterable[Segment]:
@@ -328,9 +341,15 @@ def _iter_segments(raw: Iterable) -> Iterable[Segment]:
         yield Segment(start=float(s.start), end=float(s.end), text=(s.text or "").strip())
 
 
-def save_transcript(segments: list[Segment], out_dir: str | Path) -> tuple[Path, Path]:
+def save_transcript(
+    segments: list[Segment], out_dir: str | Path, *, language: str = ""
+) -> tuple[Path, Path]:
     """Save the transcript as both JSON and plain text.
 
+    language: the detected/used transcription language (see transcribe_wav's
+        second return value), persisted so a resumed run
+        (pipeline.run(reuse=True)) can recover it via load_transcript
+        without re-transcribing.
     Returns (json_path, txt_path).
     """
     out_dir = Path(out_dir)
@@ -340,7 +359,11 @@ def save_transcript(segments: list[Segment], out_dir: str | Path) -> tuple[Path,
     txt_path = out_dir / "transcript.txt"
 
     json_path.write_text(
-        json.dumps([asdict(s) for s in segments], ensure_ascii=False, indent=2),
+        json.dumps(
+            {"language": language, "segments": [asdict(s) for s in segments]},
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     txt_path.write_text(transcript_to_text(segments), encoding="utf-8")
@@ -353,13 +376,24 @@ def transcript_to_text(segments: list[Segment]) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-def load_transcript(out_dir: str | Path) -> list[Segment]:
-    """Read back the transcript.json written by save_transcript (for resuming)."""
+def load_transcript(out_dir: str | Path) -> tuple[list[Segment], str]:
+    """Read back the transcript.json written by save_transcript (for resuming).
+
+    Returns (segments, detected_language). transcript.json files written
+    before this field existed are a bare JSON array with no language key;
+    detected_language comes back as "" in that case, and the caller falls
+    back to config.transcribe.language or "ja".
+    """
     path = Path(out_dir) / "transcript.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    return [
+    if isinstance(data, list):  # pre-existing format, no language field
+        raw_segments, language = data, ""
+    else:
+        raw_segments, language = data.get("segments", []), data.get("language", "")
+    segments = [
         Segment(
             start=float(d["start"]), end=float(d["end"]), text=(d.get("text") or "")
         )
-        for d in data
+        for d in raw_segments
     ]
+    return segments, language

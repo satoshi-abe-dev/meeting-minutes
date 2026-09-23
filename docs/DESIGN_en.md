@@ -470,6 +470,17 @@ Internal cleanup as part of moving toward the MVP structure. Behavior was not ch
 - **GUI display language ja/en support** (Issue #55) — made only the GUI's
   on-screen text switchable (transcription language, the LLM prompt, and the
   minutes content are unaffected). Chosen once, at startup
+- **Made the minutes' output language independently configurable** — added
+  `[output] minutes_language`. Independent of `[transcribe] language` (the
+  meeting audio's language) and `[gui] language` (the on-screen text), with
+  a default of `"ja"` (unchanged from before). Frame-capture descriptions
+  (VLM) are not tied to this setting — they automatically follow the
+  recording's own actual language, taken from Whisper's detection result
+  (`transcribe_wav`'s return value), so translation to the target language
+  happens exactly once, at minutes generation, avoiding quality loss from a
+  double round-trip. Rather than adding a prompt file per language, this is
+  done via a `{lang}` placeholder substitution in the system prompt, plus an
+  appended directive
 
 ---
 

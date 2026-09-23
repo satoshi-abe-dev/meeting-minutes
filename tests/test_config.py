@@ -89,6 +89,18 @@ def test_output_template_path_default_and_toml_and_env(tmp_path, monkeypatch):
     assert load_config(p).output.template_path == "tpl/env.txt"
 
 
+def test_output_minutes_language_default_toml_and_env(tmp_path, monkeypatch):
+    monkeypatch.setattr("meeting_minutes.model.config.default_config_path", lambda: None)
+    assert load_config(None).output.minutes_language == "ja"
+
+    p = tmp_path / "config.toml"
+    p.write_text('[output]\nminutes_language = "en"\n', encoding="utf-8")
+    assert load_config(p).output.minutes_language == "en"
+
+    monkeypatch.setenv("MM_OUTPUT_MINUTES_LANGUAGE", "Korean")
+    assert load_config(p).output.minutes_language == "Korean"
+
+
 def test_gui_language_default_toml_env_and_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr("meeting_minutes.model.config.default_config_path", lambda: None)
     # the default is "en"

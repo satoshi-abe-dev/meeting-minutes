@@ -23,10 +23,60 @@ from meeting_minutes.i18n import normalize_language
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROMPTS_DIR = REPO_ROOT / "prompts"
 
+# Default language minutes content is written in, unless [output]
+# minutes_language overrides it, and the fallback for frame-analysis
+# source-language detection if nothing else is available. "ja" preserves
+# pre-existing hardcoded behavior. Imported by model/minutes.py and
+# model/vision.py.
+DEFAULT_MINUTES_LANGUAGE = "ja"
+
 
 def _to_bool(raw: str) -> bool:
     """A boolean from an environment variable. Only "1"/"true"/"yes"/"on" (case-insensitive) are True."""
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def minutes_language_name(language: str) -> str:
+    """Display string substituted into prompt text for a target language.
+
+    "ja" / "" / None all map to "日本語" — byte-identical to pre-feature
+    hardcoded text. Anything else is used verbatim, so a user can supply
+    either a code some LLMs recognize ("en", "ko") or a full language name
+    ("English", "Korean") depending on what their local model follows best.
+    """
+    lang = (language or "").strip()
+    if not lang or lang.lower() == "ja":
+        return "日本語"
+    return lang
+
+
+def apply_minutes_language(text: str, language: str) -> str:
+    """Resolve a system/task prompt's target-language wording.
+
+    Uses str.replace on the {lang} marker, never str.format on the whole
+    body: several of these prompts contain other literal
+    {title}/{datetime_hint}/{duration_hint} tokens that a bare .format()
+    would raise on.
+
+    If the target language isn't the default (Japanese), an explicit
+    reinforcing directive is appended after substitution — this covers
+    custom prompt files that predate this feature (no {lang} marker), so a
+    user's existing prompts/minutes_ja.txt / frame_describe_ja.txt isn't
+    silently exempted. When the target is the default, nothing is appended,
+    so the result is byte-identical to pre-feature behavior.
+
+    Shared by minutes.py (target output language) and vision.py (frame's
+    source language) — generic, not specific to either.
+    """
+    lang = minutes_language_name(language)
+    if "{lang}" in text:
+        text = text.replace("{lang}", lang)
+    if lang == "日本語":
+        return text
+    return text + (
+        f"\n\n重要: {lang}で統一して書いてください。日本語や他の言語を"
+        "混在させないでください。"
+    )
 
 
 def load_prompt(name: str) -> str:
@@ -81,7 +131,9 @@ class TranscribeConfig:
     # The next two only take effect with faster-whisper (ignored by mlx)
     compute_type: str = "int8"
     device: str = "auto"
-    language: str = "ja"  # empty string means auto-detect
+    language: str = "ja"  # empty string means auto-detect; when set, this is
+    # also what gets reported as the frame-analysis (VLM) source language
+    # (see OutputConfig.minutes_language and model/vision.py's describe_frames)
 
 
 @dataclass
@@ -108,6 +160,18 @@ class OutputConfig:
     # it, can be copied into templates/ to reuse as a fixed template. If
     # generation fails, falls back to the built-in template with a warning.
     auto_structure: bool = False
+    # The language the minutes body is written in — and, in Auto mode, its
+    # auto-generated heading structure and intermediate chunk summaries.
+    # Default "ja" is today's hardcoded behavior, unchanged. Free-form, not
+    # validated like [gui] language's ja/en — any language name/code the
+    # local LLM can produce works. Independent of [transcribe] language
+    # (the recorded meeting's audio language) and [gui] language (the app's
+    # on-screen text): e.g. an English-language meeting recorded on a trip
+    # can still produce Japanese minutes for reporting back home. Does NOT
+    # control frame-analysis (VLM) output language — that's automatically
+    # derived per run from the recording's own detected language, for
+    # fidelity (see model/vision.py's describe_frames, source_language).
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE
 
 
 @dataclass
@@ -116,8 +180,11 @@ class GuiConfig:
     # "en" by load_config.
     # Can be overridden per launch via gui.py's --lang (priority order:
     # --lang > config/env > default).
-    # Only affects the GUI's on-screen text (the transcription language, LLM
-    # prompts, and minutes content are separate).
+    # Only affects the GUI's on-screen text. The transcription language is
+    # [transcribe] language; the minutes' content language is [output]
+    # minutes_language; the frame-analysis (VLM) language is derived
+    # automatically per run from the recording's own detected language —
+    # none of these are controlled by this setting.
     language: str = "en"
 
 
@@ -159,6 +226,7 @@ _ENV_MAP: dict[str, tuple[str, str, Callable[[str], object]]] = {
     "MM_OUTPUT_DIR": ("output", "dir", str),
     "MM_OUTPUT_TEMPLATE_PATH": ("output", "template_path", str),
     "MM_OUTPUT_AUTO_STRUCTURE": ("output", "auto_structure", _to_bool),
+    "MM_OUTPUT_MINUTES_LANGUAGE": ("output", "minutes_language", str),
     "MM_GUI_LANGUAGE": ("gui", "language", str),
 }
 

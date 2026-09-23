@@ -18,7 +18,13 @@ from pathlib import Path
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, format_elapsed, t
 
 from .cancel import check_cancel
-from .config import AIConfig, load_prompt
+from .config import (
+    DEFAULT_MINUTES_LANGUAGE,
+    AIConfig,
+    apply_minutes_language,
+    load_prompt,
+    minutes_language_name,
+)
 from .llm_client import LLMClient
 from .transcribe import Segment, transcript_to_text
 from .vision import FrameNote, notes_to_text
@@ -73,7 +79,7 @@ def _truncate_to_token_budget(text: str, budget_tokens: int) -> str:
     return text[:keep].rstrip() + "\n…（フレーム説明はコンテキスト長の都合でここまで）"
 
 _DEFAULT_SYSTEM = """あなたは会議の議事録作成の専門家です。
-渡された「文字起こし」と「画面キャプチャの説明」から、日本語で正確な議事録を作成します。
+渡された「文字起こし」と「画面キャプチャの説明」から、{lang}で正確な議事録を作成します。
 
 厳守:
 - 文字起こし・資料に明示的に出てくる内容だけを書く。人名・日付・数値・組織名を
@@ -292,8 +298,10 @@ def _fill_minutes_template(
     return _PLACEHOLDER_RE.sub(lambda m: values[m.group(1)], body)
 
 
+_CHUNK_SYSTEM = "あなたは会議の記録を整理するアシスタントです。Markdown の箇条書きのみ出力します。"
+
 _CHUNK_PROMPT = """次の会議の文字起こしの一部です。後で議事録にまとめるための素材として、
-話題・発言の要点・数値・決定事項の候補・宿題の候補を、時刻を保ったまま日本語で箇条書きにしてください。
+話題・発言の要点・数値・決定事項の候補・宿題の候補を、時刻を保ったまま{lang}で箇条書きにしてください。
 要約しすぎず、固有名詞・数字・日付・地名・持ち物名はそのまま残してください。
 文字起こしに無い人名・日付・数値を補わないでください。推測は書かず、書かれていることだけを拾います。
 
@@ -305,7 +313,7 @@ _CHUNK_PROMPT = """次の会議の文字起こしの一部です。後で議事�
 # --- "Auto" mode: automatically generate the minutes structure from the meeting content ----------------
 _DEFAULT_STRUCTURE_SYSTEM = """あなたは議事録のフォーマット設計の専門家です。
 渡された会議の内容（全文または要約）から、その会議に合った議事録の「型」（見出し構成）
-だけを日本語で設計します。実際の議事録本文は書きません。
+だけを{lang}で設計します。実際の議事録本文は書きません。
 
 守ること:
 - 出力は Markdown の見出しと、その下に置く「何を書くか」の指示文（丸括弧）だけ。
@@ -352,12 +360,13 @@ _STRUCTURE_FILENAME = "structure_used.txt"
 _WORK_DIR = "work"
 
 
-def _structure_system_prompt() -> str:
+def _structure_system_prompt(minutes_language: str = DEFAULT_MINUTES_LANGUAGE) -> str:
     try:
         text = load_prompt("structure_ja.txt").strip()
-        return text or _DEFAULT_STRUCTURE_SYSTEM
+        text = text or _DEFAULT_STRUCTURE_SYSTEM
     except FileNotFoundError:
-        return _DEFAULT_STRUCTURE_SYSTEM
+        text = _DEFAULT_STRUCTURE_SYSTEM
+    return apply_minutes_language(text, minutes_language)
 
 
 def _structure_material_budget(ctx: int, response_tokens: int) -> int:
@@ -480,6 +489,7 @@ def _generate_structure(
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
     language: str = DEFAULT_LANGUAGE,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> str | None:
     """Build the minutes structure from the meeting content (full text or
     summary) with a single chat call.
@@ -498,7 +508,7 @@ def _generate_structure(
         )
     try:
         out = client.chat(
-            system=_structure_system_prompt(),
+            system=_structure_system_prompt(minutes_language),
             user=_STRUCTURE_PROMPT.replace("{material}", material),
             max_tokens=max_tokens,
         ).strip()
@@ -537,6 +547,7 @@ def _resolve_auto_structure(
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
     language: str = DEFAULT_LANGUAGE,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> str:
     """Auto-generate the structure, saving it to out_dir and returning it on
     success. Returns fallback on failure.
@@ -551,6 +562,7 @@ def _resolve_auto_structure(
         client, material, model=model, max_tokens=max_tokens,
         minutes_system=minutes_system, ctx=ctx,
         on_progress=on_progress, cancel_event=cancel_event, language=language,
+        minutes_language=minutes_language,
     )
     struct_relpath = f"{_WORK_DIR}/{_STRUCTURE_FILENAME}"  # for display (/ separated)
     if generated is None:
@@ -602,7 +614,11 @@ def _partials_path(out_dir: Path) -> Path:
 
 
 def _load_partials(
-    out_dir: Path, *, size_chars: int, num_segments: int
+    out_dir: Path,
+    *,
+    size_chars: int,
+    num_segments: int,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> list[str]:
     """Read back chunk summaries that got partway through before an interruption
     or timeout (empty if there are none).
@@ -613,6 +629,14 @@ def _load_partials(
     chunk boundaries would be shifted, causing duplicated or missing content, so
     they aren't adopted (redone from scratch instead). The old format with no
     metadata (a JSON array) is also not adopted, since its boundaries can't be verified.
+
+    Also discarded if the language the summaries were written in doesn't
+    match minutes_language for this run — otherwise a run resumed with a
+    different minutes_language would splice old-language partials together
+    with newly-generated ones, producing minutes with mixed languages.
+    Partials saved before this field existed have no "minutes_language" key;
+    they're treated as having been written in the default ("日本語"), same
+    as the pre-feature hardcoded behavior.
 
     An entry that has only a heading line ("### 部分 N") with an empty body is
     treated as a sign the LLM returned an empty response (e.g. a reasoning
@@ -632,6 +656,12 @@ def _load_partials(
         return []
     # The chunking conditions have changed (e.g. chunk_size_chars was lowered to work around Context Length)
     if data.get("chunk_size_chars") != size_chars or data.get("num_segments") != num_segments:
+        return []
+    # minutes_language changed since these partials were saved
+    default_lang_name = minutes_language_name(DEFAULT_MINUTES_LANGUAGE)
+    if data.get("minutes_language", default_lang_name) != minutes_language_name(
+        minutes_language
+    ):
         return []
 
     entries = data.get("partials")
@@ -654,11 +684,15 @@ def _save_partials(
     size_chars: int,
     num_segments: int,
     num_chunks: int,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> None:
     """Called each time one chunk summary finishes, rewriting everything up to that point.
 
     Saves the chunking conditions (`chunk_size_chars` and the total number of
-    segments in the split input) alongside, so consistency can be verified on resume.
+    segments in the split input) alongside, so consistency can be verified on
+    resume. Also saves the (normalized) language the summaries were written
+    in, so _load_partials can tell whether it still matches minutes_language
+    on a later run.
     """
     _partials_path(out_dir).parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -666,6 +700,7 @@ def _save_partials(
         "chunk_size_chars": size_chars,
         "num_segments": num_segments,
         "num_chunks": num_chunks,
+        "minutes_language": minutes_language_name(minutes_language),
         "partials": partials,
     }
     _partials_path(out_dir).write_text(
@@ -673,12 +708,13 @@ def _save_partials(
     )
 
 
-def _system_prompt() -> str:
+def _system_prompt(minutes_language: str = DEFAULT_MINUTES_LANGUAGE) -> str:
     try:
         text = load_prompt("minutes_ja.txt").strip()
-        return text or _DEFAULT_SYSTEM
+        text = text or _DEFAULT_SYSTEM
     except FileNotFoundError:
-        return _DEFAULT_SYSTEM
+        text = _DEFAULT_SYSTEM
+    return apply_minutes_language(text, minutes_language)
 
 
 def _summarize_chunks(
@@ -695,6 +731,7 @@ def _summarize_chunks(
     on_progress: ProgressFn | None,
     cancel_event: threading.Event | None,
     language: str = DEFAULT_LANGUAGE,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> list[str]:
     """Summarize the unprocessed chunks in order, returning partials filled in.
 
@@ -715,8 +752,10 @@ def _summarize_chunks(
         chunk_text = transcript_to_text(chunks[i - 1])
         t0 = time.monotonic()
         summary = client.chat(
-            system="あなたは会議の記録を整理するアシスタントです。Markdown の箇条書きのみ出力します。",
-            user=_CHUNK_PROMPT.format(chunk=chunk_text),
+            system=_CHUNK_SYSTEM,
+            user=_CHUNK_PROMPT.format(
+                chunk=chunk_text, lang=minutes_language_name(minutes_language)
+            ),
             max_tokens=max_tokens,
         )
         elapsed = format_elapsed(time.monotonic() - t0, language)
@@ -727,6 +766,7 @@ def _summarize_chunks(
                 size_chars=size_chars,
                 num_segments=num_segments,
                 num_chunks=len(chunks),
+                minutes_language=minutes_language,
             )
         if on_progress:
             on_progress(
@@ -768,12 +808,19 @@ def generate_minutes(
     template_path: str | Path | None = None,
     auto_structure: bool = False,
     language: str = DEFAULT_LANGUAGE,
+    minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
 ) -> str:
     """Return the minutes as a Markdown string.
 
     language: the language of the progress/warning messages passed to
         on_progress ("ja" / "en", default "en"). Does not affect the minutes
         body or system prompt (that's on the LLM side, separately).
+    minutes_language: the language the minutes body itself is written in —
+        and, in Auto mode, its auto-generated heading structure, and the
+        intermediate per-chunk summaries used for long transcripts. Default
+        "ja" matches pre-existing hardcoded behavior. Free-form, not
+        validated. Distinct from `language` above, which only controls
+        progress/warning message text.
 
     cancel_event: if set, interrupts between chunk summaries (for long
         transcripts). A short path (a single chat call) can't respond to it
@@ -805,7 +852,7 @@ def generate_minutes(
         back to the built-in template with a warning.
     """
     check_cancel(cancel_event)
-    system = _system_prompt()
+    system = _system_prompt(minutes_language)
     full_transcript = transcript_to_text(segments)
     frames_text_raw = notes_to_text(notes) or "（フレームなし）"
 
@@ -874,7 +921,10 @@ def generate_minutes(
         out_path = Path(out_dir) if out_dir is not None else None
         if reuse and out_path is not None:
             existing = _load_partials(
-                out_path, size_chars=size_chars, num_segments=len(segments)
+                out_path,
+                size_chars=size_chars,
+                num_segments=len(segments),
+                minutes_language=minutes_language,
             )
             if 0 < len(existing) <= len(chunks):
                 partials = existing
@@ -901,6 +951,7 @@ def generate_minutes(
             max_tokens=minutes_max_tokens,
             total_steps=total_steps, on_progress=on_progress,
             cancel_event=cancel_event, language=language,
+            minutes_language=minutes_language,
         )
         return partials
 
@@ -930,6 +981,7 @@ def generate_minutes(
             model=llm_config.llm_model, max_tokens=minutes_max_tokens,
             minutes_system=system, ctx=ctx,
             on_progress=on_progress, cancel_event=cancel_event, language=language,
+            minutes_language=minutes_language,
         )
         # After structure generation (a heavy LLM call), check for a
         # cancellation before moving on to minutes generation.

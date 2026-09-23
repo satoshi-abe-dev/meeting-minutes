@@ -186,9 +186,10 @@ def run(
         transcript_json = transcript_dir / "transcript.json"
         transcript_txt = transcript_dir / "transcript.txt"
         segments = None
+        detected_language = ""
         if reuse and transcript_json.is_file():
             try:
-                segments = deps.load_transcript(transcript_dir)
+                segments, detected_language = deps.load_transcript(transcript_dir)
                 progress(
                     "transcribe", len(segments), len(segments),
                     t("pmsg.transcribe_reuse", language, n=len(segments)),
@@ -196,6 +197,7 @@ def run(
             except Exception as exc:
                 warnings.append(t("pmsg.warn_transcript_reuse", language, exc=exc))
                 segments = None
+                detected_language = ""
         if segments is None:
             check_cancel(cancel_event)
 
@@ -209,7 +211,7 @@ def run(
                   model=config.transcribe.model, backend=backend),
             )
             t0 = time.monotonic()
-            segments = deps.transcribe_wav(
+            segments, detected_language = deps.transcribe_wav(
                 wav_path,
                 config.transcribe,
                 on_progress=_tp,
@@ -218,12 +220,22 @@ def run(
                 language=language,
             )
             transcribe_elapsed = time.monotonic() - t0
-            transcript_json, transcript_txt = deps.save_transcript(segments, transcript_dir)
+            transcript_json, transcript_txt = deps.save_transcript(
+                segments, transcript_dir, language=detected_language
+            )
             progress(
                 "transcribe", len(segments), len(segments),
                 t("pmsg.transcribe_done", language, n=len(segments),
                   elapsed=format_elapsed(transcribe_elapsed, language)),
             )
+
+        # The recording's own actual/detected transcription language, used to
+        # drive frame-analysis (VLM) output language below — falls back to
+        # config.transcribe.language (for pre-feature transcript.json files
+        # with no persisted language) then "ja" if that's also empty.
+        source_language = (
+            detected_language or (config.transcribe.language or "").strip() or "ja"
+        )
 
         # 3) Frame extraction (reusable) --------------------------------
         frames_index: Path = out_dir / "frames" / "frames.json"
@@ -267,6 +279,7 @@ def run(
             frames, client, out_dir,
             on_progress=_vp, cancel_event=cancel_event, reuse=reuse,
             language=language,
+            source_language=source_language,
         )
         vision_elapsed = time.monotonic() - t0
         frame_notes_path = deps.save_frame_notes(notes, out_dir)
@@ -313,6 +326,7 @@ def run(
             template_path=config.output.template_path or None,
             auto_structure=config.output.auto_structure,
             language=language,
+            minutes_language=config.output.minutes_language,
         )
         minutes_path = deps.save_minutes(markdown, out_dir)
         # The completion message (with elapsed time) was already reported by
