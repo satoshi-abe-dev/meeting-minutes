@@ -1,8 +1,9 @@
-"""View（抽象層）— メイン画面
+"""View (abstraction layer) — main window
 
-Presenter が依存する「契約」だけを定義する。Tkinter 実装は tk_main_window.py。
-Presenter はこの契約と Model（``meeting_minutes.model.*``）にだけ依存し、tkinter を
-一切知らない。
+Defines only the "contract" the Presenter depends on. The Tkinter
+implementation is tk_main_window.py. The Presenter depends only on this
+contract and the Model (``meeting_minutes.model.*``), and knows nothing
+about tkinter at all.
 """
 
 from __future__ import annotations
@@ -13,111 +14,111 @@ from pathlib import Path
 
 
 class MainView(ABC):
-    # --- ハンドラ登録（ボタン／ラジオの操作を Presenter へ渡す）------------
+    # --- Handler registration (passes button/radio actions to the Presenter) ------------
     @abstractmethod
     def set_on_choose_video(self, handler: Callable[[], None]) -> None:
-        """「動画ファイル: 選択...」ボタン押下時のハンドラを登録する。"""
+        """Register the handler for when the "Video file: Choose..." button is pressed."""
 
     @abstractmethod
     def set_on_pick_template(self, handler: Callable[[], None]) -> None:
-        """「ファイルを選択: 選択...」ボタン押下時のハンドラを登録する。"""
+        """Register the handler for when the "Choose a file: Choose..." button is pressed."""
 
     @abstractmethod
     def set_on_start(self, handler: Callable[[], None]) -> None:
-        """「議事録を作成」ボタン押下時のハンドラを登録する。"""
+        """Register the handler for when the "Create minutes" button is pressed."""
 
     @abstractmethod
     def set_on_stop(self, handler: Callable[[], None]) -> None:
-        """「中断」ボタン押下時のハンドラを登録する。"""
+        """Register the handler for when the "Stop" button is pressed."""
 
     @abstractmethod
     def set_on_open_minutes(self, handler: Callable[[], None]) -> None:
-        """「議事録を開く」ボタン押下時のハンドラを登録する。"""
+        """Register the handler for when the "Open minutes" button is pressed."""
 
     @abstractmethod
     def set_on_open_folder(self, handler: Callable[[], None]) -> None:
-        """「出力フォルダーを開く」ボタン押下時のハンドラを登録する。"""
+        """Register the handler for when the "Open output folder" button is pressed."""
 
-    # --- 入力状態の取得 -------------------------------------------------
+    # --- Reading input state -------------------------------------------------
     @abstractmethod
     def get_format_mode(self) -> str:
-        """議事録フォーマットの選択（"builtin" / "file" / "auto"）を返す。"""
+        """Return the selected minutes format ("builtin" / "file" / "auto")."""
 
     @abstractmethod
     def get_reuse(self) -> bool:
-        """「作成済みデータを利用する」チェックの状態を返す。"""
+        """Return the state of the "Reuse existing data" checkbox."""
 
-    # --- 画面の更新 ---------------------------------------------------
+    # --- Updating the screen ---------------------------------------------------
     @abstractmethod
     def set_format_mode(self, mode: str) -> None:
-        """議事録フォーマットの選択を切り替える（テンプレファイル選択後などに使う）。"""
+        """Switch the selected minutes format (used e.g. after picking a template file)."""
 
     @abstractmethod
     def set_config_summary(self, text: str) -> None:
-        """「設定（config.toml で変更）」欄の本文を設定する。"""
+        """Set the body text of the "Settings (change in config.toml)" section."""
 
     @abstractmethod
     def set_video_name(self, name: str) -> None:
-        """選択された動画ファイル名を表示する。"""
+        """Display the name of the selected video file."""
 
     @abstractmethod
     def set_template_name(self, name: str) -> None:
-        """「ファイルを選択」側で選択中のテンプレートファイル名を表示する。"""
+        """Display the template file name currently selected under "Choose a file"."""
 
     @abstractmethod
     def set_start_enabled(self, enabled: bool) -> None:
-        """「議事録を作成」ボタンの有効／無効を切り替える。"""
+        """Enable/disable the "Create minutes" button."""
 
     @abstractmethod
     def set_stop_enabled(self, enabled: bool) -> None:
-        """「中断」ボタンの有効／無効を切り替える。"""
+        """Enable/disable the "Stop" button."""
 
     @abstractmethod
     def set_open_minutes_enabled(self, enabled: bool) -> None:
-        """「議事録を開く」ボタンの有効／無効を切り替える。"""
+        """Enable/disable the "Open minutes" button."""
 
     @abstractmethod
     def set_open_folder_enabled(self, enabled: bool) -> None:
-        """「出力フォルダーを開く」ボタンの有効／無効を切り替える。"""
+        """Enable/disable the "Open output folder" button."""
 
     @abstractmethod
     def set_progress(self, value: int) -> None:
-        """進捗バーの値を設定する（0〜1000）。"""
+        """Set the progress bar's value (0-1000)."""
 
     @abstractmethod
     def set_stage_text(self, text: str) -> None:
-        """進捗ラベル（工程名＋カウンタ）の文字列を設定する。"""
+        """Set the progress label's text (stage name + counter)."""
 
     @abstractmethod
     def append_log(self, text: str) -> None:
-        """ログ欄に 1 行追記する（末尾に改行を付けてスクロール）。"""
+        """Append one line to the log area (adds a trailing newline and scrolls)."""
 
     @abstractmethod
     def show_error(self, title: str, message: str) -> None:
-        """エラーダイアログを表示する。"""
+        """Show an error dialog."""
 
-    # --- ファイル選択ダイアログ / OS 連携 ------------------------------
+    # --- File-selection dialogs / OS integration ------------------------------
     @abstractmethod
     def ask_video_path(self) -> str | None:
-        """動画ファイルをユーザーに選ばせる。キャンセル時は None。"""
+        """Let the user choose a video file. None if cancelled."""
 
     @abstractmethod
     def ask_template_path(self) -> str | None:
-        """議事録テンプレートファイルをユーザーに選ばせる。キャンセル時は None。"""
+        """Let the user choose a minutes template file. None if cancelled."""
 
     @abstractmethod
     def open_in_file_manager(self, path: Path) -> None:
-        """指定パスを OS のファイルマネージャ／既定アプリで開く。"""
+        """Open the given path in the OS's file manager / default app."""
 
-    # --- イベントループ -----------------------------------------------
+    # --- Event loop -----------------------------------------------
     @abstractmethod
     def schedule(self, delay_ms: int, callback: Callable[[], None]) -> None:
-        """delay_ms ミリ秒後に callback を 1 回呼ぶ（tkinter の after() の薄いラッパー）。
+        """Call callback once, delay_ms milliseconds from now (a thin wrapper around tkinter's after()).
 
-        定期実行したい場合は callback 自身の中で再度 schedule() を呼ぶ。
-        ワーカースレッドからの結果を UI スレッドで受け取るポーリングに使う。
+        For repeated execution, have callback itself call schedule() again.
+        Used to poll for a worker thread's result on the UI thread.
         """
 
     @abstractmethod
     def run(self) -> None:
-        """イベントループを開始する（戻ってこない）。"""
+        """Start the event loop (does not return)."""

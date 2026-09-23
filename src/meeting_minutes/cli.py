@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""コマンドラインから議事録生成パイプラインを実行する（動作確認・自動化用）。
+"""Run the minutes-generation pipeline from the command line (for smoke tests / automation).
 
-    python src/meeting_minutes/cli.py 会議.mp4
-    python src/meeting_minutes/cli.py 会議.mp4 --config config.toml
-（開発者向けに `python -m meeting_minutes.cli 会議.mp4` も可）
+    python src/meeting_minutes/cli.py meeting.mp4
+    python src/meeting_minutes/cli.py meeting.mp4 --config config.toml
+(Developers can also use `python -m meeting_minutes.cli meeting.mp4`.)
 
-GUI を使わずに全工程を回して output/<動画名>/minutes.md を作る。
+Runs every stage without the GUI to produce output/<video name>/minutes.md.
 """
 
 from __future__ import annotations
@@ -15,18 +15,22 @@ import os
 import sys
 import time
 
-# `python src/meeting_minutes/cli.py` のようにファイル指定で直接起動されると
-# __package__ が未設定で絶対 import が通らない。src レイアウトのパッケージ親 = src/
-# （このファイルの 2 つ上）を sys.path に足す。-m で起動された場合は何もしない。
+# Launching directly by file path, e.g. `python src/meeting_minutes/cli.py`,
+# leaves __package__ unset, so absolute imports fail. Add the src layout's
+# package parent — src/ (two levels above this file) — to sys.path. Does
+# nothing when launched with -m.
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# アプリ実行中は一切、外部へ通信させない。HuggingFace 系ライブラリ
-# （huggingface_hub / faster_whisper / mlx_whisper）が最初に import される前に
-# オフラインを強制する。Whisper モデルはセットアップ時（scripts/setup.sh →
-# meeting_minutes.download_transcribe_model）に取得済みである前提。取得スクリプトは
-# 別プロセス・別エントリポイントなので、この設定の影響を受けない（モデル取得はできる）。
-# setdefault なので、利用者が社内ミラー等の都合で明示指定した値は尊重する。
+# Never let the app talk to the outside world while it's running. Force
+# offline mode before the HuggingFace-family libraries (huggingface_hub /
+# faster_whisper / mlx_whisper) get imported for the first time. This
+# assumes the Whisper model was already fetched during setup
+# (scripts/setup.sh -> meeting_minutes.download_transcribe_model). The fetch
+# script is a separate process/entry point, so it's unaffected by this
+# setting (fetching the model still works).
+# Uses setdefault, so a value the user set explicitly (e.g. for an internal
+# mirror) is respected.
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
@@ -50,7 +54,8 @@ def _make_reporter():
     def report(stage: str, current: int, total: int, message: str) -> None:
         nonlocal last_stage, last_t
         now = time.monotonic()
-        # 同じ工程の細かい進捗は 0.5 秒に 1 回だけ出す（ログを溢れさせない）
+        # Only print fine-grained progress within the same stage once every
+        # 0.5 seconds (to avoid flooding the log)
         if stage == last_stage and now - last_t < 0.5 and stage != "done":
             return
         last_stage = stage

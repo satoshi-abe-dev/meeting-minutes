@@ -1,21 +1,25 @@
-"""議事録 Markdown を .docx（Word）へ変換する。
+"""Convert minutes Markdown to .docx (Word).
 
-汎用 Markdown パーサーは使わない。議事録（内蔵テンプレート・カスタムテンプレート・
-「おまかせ」モード）が実際に取る Markdown サブセットだけを、行ベースの小さな
-state machine で変換する。想定外の行は素の段落として落とし、変換自体は例外を
-投げない（.docx は minutes.md の副次成果物。ここでランを落とさない方針）。
+Does not use a general-purpose Markdown parser. Converts only the Markdown
+subset that minutes actually use (the built-in template, custom templates,
+"Auto" mode) with a small line-based state machine. An unexpected line falls
+back to a plain paragraph, and the conversion itself never raises (.docx is
+a side product of minutes.md; the policy here is to never let it fail the
+run).
 
-対応する記法:
-    - ATX 見出し `#`〜`######`            → Word の Heading 1..6
-    - 箇条書き `- ` / `* ` / `+ `（先頭スペースでネスト）→ List Bullet / 2 / 3
-    - 番号リスト `1. ` / `1) `            → 元の番号を保持した素の段落
-      （Word の自動連番 List Number は使わない。numbering インスタンスを共有する
-       ため、見出しで区切られた 2 つ目の番号リストが前の続き番号になり、開始番号も
-       失われる。議事録は番号リストをほぼ使わないのでこの割り切りで十分）
-    - GFM パイプ表（`| … |` 行 ＋ `| --- |` 区切り行）→ 表（ヘッダ行のセルを太字）
-    - フェンスドコードブロック ``` … ```  → 等幅（Consolas）の段落
-    - 空行 → 段落の区切り / その他の行 → 素の段落
-    - インライン: `**bold**` と `` `code` `` のみ（ネストは非対応）
+Supported syntax:
+    - ATX headings `#` through `######`   -> Word's Heading 1..6
+    - Bullet lists `- ` / `* ` / `+ ` (nested by leading spaces) -> List Bullet / 2 / 3
+    - Numbered lists `1. ` / `1) `        -> a plain paragraph that keeps the original number
+      (Doesn't use Word's auto-numbered List Number: since it shares a
+       numbering instance, a second numbered list separated by a heading
+       would continue the previous numbering, and its start number would be
+       lost. Minutes barely use numbered lists, so this simplification is
+       enough)
+    - GFM pipe tables (`| ... |` rows + a `| --- |` separator row) -> a table (header row cells bolded)
+    - Fenced code blocks ``` ... ```      -> a monospace (Consolas) paragraph
+    - Blank line -> paragraph break / any other line -> a plain paragraph
+    - Inline: only `**bold**` and `` `code` `` (nesting not supported)
 """
 
 from __future__ import annotations
@@ -25,24 +29,24 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:  # 重い依存。実行時は関数内 import する。
+if TYPE_CHECKING:  # A heavy dependency; imported inside the function at runtime.
     from docx.document import Document
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _BULLET_RE = re.compile(r"^(\s*)[-*+]\s+(.*)$")
 _NUMBER_RE = re.compile(r"^\s*(\d+[.)])\s+(.*)$")
 _TABLE_SEP_CELL_RE = re.compile(r"^\s*:?-+:?\s*$")
-# `**bold**`（1 文字以上）または `` `code` ``（1 文字以上、バッククォートを含まない）。
+# `**bold**` (1+ chars) or `` `code` `` (1+ chars, no backtick inside).
 _INLINE_RE = re.compile(r"(\*\*.+?\*\*|`[^`]+`)")
 
 _MONO_FONT = "Consolas"
-_MAX_LIST_DEPTH = 3  # List Bullet / List Bullet 2 / List Bullet 3 まで
+_MAX_LIST_DEPTH = 3  # up to List Bullet / List Bullet 2 / List Bullet 3
 
 
-# --- インライン ------------------------------------------------------------
+# --- Inline ------------------------------------------------------------
 
 def _iter_inline(text: str) -> Iterator[tuple[str, bool, bool]]:
-    """text を (断片, 太字か, 等幅コードか) の並びに分解する。"""
+    """Split text into a sequence of (fragment, is_bold, is_monospace_code)."""
     pos = 0
     for m in _INLINE_RE.finditer(text):
         if m.start() > pos:
@@ -58,7 +62,7 @@ def _iter_inline(text: str) -> Iterator[tuple[str, bool, bool]]:
 
 
 def _add_runs(paragraph, text: str, *, force_bold: bool = False) -> None:
-    """paragraph に text をインライン記法込みで流し込む。"""
+    """Write text into paragraph, applying inline markup."""
     for seg, is_bold, is_code in _iter_inline(text):
         run = paragraph.add_run(seg)
         if is_bold or force_bold:
@@ -67,7 +71,7 @@ def _add_runs(paragraph, text: str, *, force_bold: bool = False) -> None:
             run.font.name = _MONO_FONT
 
 
-# --- 表 ------------------------------------------------------------------
+# --- Tables ------------------------------------------------------------------
 
 def _looks_like_row(line: str) -> bool:
     s = line.strip()
@@ -105,7 +109,7 @@ def _add_table(doc: Document, header: list[str], rows: list[list[str]]) -> None:
             _add_runs(cells[k].paragraphs[0], row[k] if k < len(row) else "")
 
 
-# --- コードブロック -----------------------------------------------------
+# --- Code blocks -----------------------------------------------------
 
 def _add_code_block(doc: Document, code_lines: list[str]) -> None:
     p = doc.add_paragraph(style="No Spacing")
@@ -113,13 +117,14 @@ def _add_code_block(doc: Document, code_lines: list[str]) -> None:
     run.font.name = _MONO_FONT
 
 
-# --- 変換本体 ----------------------------------------------------------
+# --- The conversion itself ----------------------------------------------------------
 
 def markdown_to_docx(markdown: str) -> Document:
-    """議事録 Markdown を python-docx の Document に変換して返す。
+    """Convert minutes Markdown to a python-docx Document and return it.
 
-    未知の行は素の段落として落とす。1 行の処理で万一例外が出ても、その行を
-    プレーンな段落にしてスキップし、変換全体は止めない。
+    An unknown line falls back to a plain paragraph. Even if processing a
+    line unexpectedly raises, that line is turned into a plain paragraph
+    and skipped; the conversion as a whole never stops.
     """
     import docx
 
@@ -131,7 +136,7 @@ def markdown_to_docx(markdown: str) -> Document:
         line = lines[i]
         stripped = line.strip()
 
-        # フェンスドコードブロック
+        # Fenced code block
         if stripped.startswith("```"):
             j = i + 1
             buf: list[str] = []
@@ -147,7 +152,7 @@ def markdown_to_docx(markdown: str) -> Document:
             continue
 
         try:
-            # GFM パイプ表（区切り行が続くときだけ表として扱う）
+            # GFM pipe table (treated as a table only when a separator row follows)
             if (
                 _looks_like_row(line)
                 and i + 1 < n
@@ -180,8 +185,9 @@ def markdown_to_docx(markdown: str) -> Document:
 
             m = _NUMBER_RE.match(line)
             if m:
-                # 元 Markdown の番号（`1.` / `3)` 等）をリテラルで保持した素の段落。
-                # Word の自動連番（List Number）は使わない（docstring 参照）。
+                # A plain paragraph that keeps the original Markdown number
+                # (`1.` / `3)` etc.) literally. Doesn't use Word's
+                # auto-numbering (List Number) — see the docstring.
                 p = doc.add_paragraph()
                 p.add_run(m.group(1) + " ")
                 _add_runs(p, m.group(2).strip())
@@ -190,7 +196,8 @@ def markdown_to_docx(markdown: str) -> Document:
 
             _add_runs(doc.add_paragraph(), stripped)
         except Exception:
-            # 想定外の行でも .docx 生成は止めない。素の段落にして次へ。
+            # Don't let .docx generation stop even on an unexpected line.
+            # Fall back to a plain paragraph and move on.
             doc.add_paragraph(stripped)
         i += 1
 
@@ -198,7 +205,7 @@ def markdown_to_docx(markdown: str) -> Document:
 
 
 def save_minutes_docx(markdown: str, out_dir: str | Path) -> Path:
-    """議事録 Markdown を out_dir/minutes.docx として書き出し、そのパスを返す。"""
+    """Write minutes Markdown out as out_dir/minutes.docx and return its path."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "minutes.docx"

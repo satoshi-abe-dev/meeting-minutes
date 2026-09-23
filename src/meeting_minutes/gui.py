@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""議事録生成AI（ローカル処理）の GUI エントリポイント。
+"""GUI entry point for the Meeting Minutes AI (local processing).
 
-起動:
+Launch:
     python src/meeting_minutes/gui.py
-    python src/meeting_minutes/gui.py --lang en   # 画面を英語で
-（開発者向けに `python -m meeting_minutes.gui` も可。その場合は `cd src` するか
- `PYTHONPATH=src` を設定する。下の __package__ ブートストラップでどちらも動く。）
+    python src/meeting_minutes/gui.py --lang en   # display in English
+(Developers can also use `python -m meeting_minutes.gui`; in that case, run
+ `cd src` first or set `PYTHONPATH=src`. The __package__ bootstrap below
+ makes either launch method work.)
 
-Model（``meeting_minutes.model.pipeline`` ほか）/ View（``meeting_minutes.view``）/
-Presenter（``meeting_minutes.presenter``）を組み立てて起動するだけの薄いラッパー。
-画面まわりは view/、画面ロジックは presenter/ にある。実処理は
-``meeting_minutes.model.pipeline.run`` に委譲する。
+A thin wrapper that just assembles and starts the Model
+(``meeting_minutes.model.pipeline`` etc.) / View (``meeting_minutes.view``) /
+Presenter (``meeting_minutes.presenter``). The screen lives in view/, its
+logic in presenter/. Actual processing is delegated to
+``meeting_minutes.model.pipeline.run``.
 """
 
 from __future__ import annotations
@@ -19,19 +21,23 @@ import argparse
 import os
 import sys
 
-# `python src/meeting_minutes/gui.py` のようにファイル指定で直接起動されると
-# __package__ が未設定で、絶対 import（meeting_minutes.*）が通らない。src レイアウトの
-# パッケージ親 = src/（このファイルの 2 つ上）を sys.path に足す。
-# `python -m meeting_minutes.gui` で起動された場合は __package__ 設定済みなので何もしない。
+# Launching directly by file path, e.g. `python src/meeting_minutes/gui.py`,
+# leaves __package__ unset, so absolute imports (meeting_minutes.*) fail.
+# Add the src layout's package parent — src/ (two levels above this file) —
+# to sys.path. Launched via `python -m meeting_minutes.gui`, __package__ is
+# already set, so this does nothing.
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# アプリ実行中は一切、外部へ通信させない。HuggingFace 系ライブラリ
-# （huggingface_hub / faster_whisper / mlx_whisper）が最初に import される前に
-# オフラインを強制する。Whisper モデルはセットアップ時（scripts/setup.sh →
-# meeting_minutes.download_transcribe_model）に取得済みである前提。取得スクリプトは
-# 別プロセス・別エントリポイントなので、この設定の影響を受けない（モデル取得はできる）。
-# setdefault なので、利用者が社内ミラー等の都合で明示指定した値は尊重する。
+# Never let the app talk to the outside world while it's running. Force
+# offline mode before the HuggingFace-family libraries (huggingface_hub /
+# faster_whisper / mlx_whisper) get imported for the first time. This
+# assumes the Whisper model was already fetched during setup
+# (scripts/setup.sh -> meeting_minutes.download_transcribe_model). The fetch
+# script is a separate process/entry point, so it's unaffected by this
+# setting (fetching the model still works).
+# Uses setdefault, so a value the user set explicitly (e.g. for an internal
+# mirror) is respected.
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
@@ -52,8 +58,9 @@ def main() -> int:
     args = parser.parse_args()
 
     config = load_config(None)
-    # 優先順位: --lang > config.toml/[gui] language・環境変数 > 既定 ja
-    # （config.gui.language は load_config で対応外の値を ja に丸め済み）。
+    # Priority: --lang > config.toml/[gui] language and env var > default ja
+    # (load_config has already rounded an unsupported config.gui.language
+    # value to ja.)
     language = args.lang or config.gui.language
 
     view = TkMainWindow(language=language)
