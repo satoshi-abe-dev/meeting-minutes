@@ -79,8 +79,8 @@ This project was developed by running multiple Claude Code sessions (an implemen
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/gui_en.png" alt="Screenshot of the GUI running (English)"><br>English (<code>--lang en</code>)</td>
-<td width="50%"><img src="docs/screenshots/gui_ja.png" alt="GUI 実行中のスクリーンショット（日本語版）"><br>Japanese (default, no <code>--lang</code> flag)</td>
+<td width="50%"><img src="docs/screenshots/gui_en.png" alt="Screenshot of the GUI running (English)"><br>English (default, no <code>--lang</code> flag)</td>
+<td width="50%"><img src="docs/screenshots/gui_ja.png" alt="GUI 実行中のスクリーンショット（日本語版）"><br>Japanese (<code>--lang ja</code>)</td>
 </tr>
 </table>
 
