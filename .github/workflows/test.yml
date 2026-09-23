@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-python@v6 # 指定バージョンの Python を入れて PATH を通す
         with:
-          # docs/setup.md は「3.11 以上（動作確認は 3.14 系）」。最低ラインの
+          # docs/setup_ja.md は「3.11 以上（動作確認は 3.14 系）」。最低ラインの
           # 検証も兼ねて 3.11 を軸にする。
           python-version: "3.11"
 

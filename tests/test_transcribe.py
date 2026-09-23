@@ -137,7 +137,7 @@ def test_transcribe_mlx_parses_segments_and_reports(monkeypatch):
     # the size name is converted to the repo before being passed
     assert captured["repo"] == "mlx-community/whisper-large-v3-mlx"
     assert captured["language"] == "ja"
-    # the repetition-loop hallucination guard (see DESIGN.md)
+    # the repetition-loop hallucination guard (see DESIGN_en.md)
     assert captured["condition_on_previous_text"] is False
     # the explanation at the start + a notification per segment
     assert progress[0][0] == 0
