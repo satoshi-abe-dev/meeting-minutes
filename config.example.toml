@@ -109,12 +109,23 @@ template_path = ""
 # 生成に失敗（LLM エラー・プレースホルダー欠落など）したら内蔵にフォールバックし警告する。
 auto_structure = false
 
+# 議事録本文の言語。既定 "ja"（従来どおり）。ローカル LLM が書ける言語なら何でも
+# よい（"ja" / "en" / "English" / "Korean" など自由入力）。[transcribe] language
+# （会議の音声言語）・[gui] language（画面文言）とは独立に設定できる。例: 海外出張で
+# 録った英語の会議を、帰国後の社内報告用に日本語の議事録にしたい場合 →
+# [transcribe] language = "en" のまま minutes_language = "ja"。
+# なお、画面キャプチャの説明文（VLM）の言語はこの設定ではなく、録画の実際の言語
+# （Whisper の検出結果）に自動的に合わせられる。
+minutes_language = "ja"
+
 # --------------------------------------
 [gui]
 
 # GUI の表示言語。"ja" / "en"。既定 "en"。それ以外の値は "en" として扱う。
-# 影響するのは GUI の画面文言だけ（文字起こし言語は [transcribe] language、
-# 議事録の中身は LLM 側の設定）。起動時に上書きするには:
+# 影響するのは GUI の画面文言だけ。文字起こし言語は [transcribe] language、
+# 議事録の言語は [output] minutes_language、画面キャプチャの説明文（VLM）の
+# 言語は録画の実際の言語に自動的に合わせられる（このどれもここでは変わらない）。
+# 起動時に上書きするには:
 #   python src/meeting_minutes/gui.py --lang ja
 language = "en"
 

@@ -123,7 +123,7 @@ def test_transcribe_mlx_parses_segments_and_reports(monkeypatch):
 
     progress: list[tuple] = []
     cfg = TranscribeConfig(backend="mlx", model="large-v3", language="ja")
-    segs = _transcribe_mlx(
+    segs, lang = _transcribe_mlx(
         "/tmp/a.wav",
         cfg,
         on_progress=lambda c, t, m: progress.append((c, t, m)),
@@ -134,6 +134,7 @@ def test_transcribe_mlx_parses_segments_and_reports(monkeypatch):
         Segment(0.0, 2.0, "こんにちは"),
         Segment(2.0, 5.0, "本題です"),
     ]
+    assert lang == "ja"
     # the size name is converted to the repo before being passed
     assert captured["repo"] == "mlx-community/whisper-large-v3-mlx"
     assert captured["language"] == "ja"
@@ -150,8 +151,9 @@ def test_transcribe_wav_dispatches_to_mlx(monkeypatch):
     monkeypatch.setattr(transcribe, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(transcribe, "_mlx_available", lambda: True)
 
-    segs = transcribe.transcribe_wav("/tmp/a.wav", TranscribeConfig(backend="auto"))
+    segs, lang = transcribe.transcribe_wav("/tmp/a.wav", TranscribeConfig(backend="auto"))
     assert len(segs) == 2
+    assert lang == "ja"
     assert captured["repo"].startswith("mlx-community/")
 
 
@@ -183,7 +185,7 @@ def _fake_faster_whisper_module(captured: dict):
             captured["vad_filter"] = vad_filter
             captured["condition_on_previous_text"] = condition_on_previous_text
             segs = iter([_FWSeg(0.0, 1.0, " a"), _FWSeg(1.0, 2.0, " b"), _FWSeg(2.0, 3.0, " c")])
-            return segs, {"language": "ja"}
+            return segs, types.SimpleNamespace(language="ja")
 
     mod.WhisperModel = WhisperModel
     return mod
@@ -197,7 +199,7 @@ def test_transcribe_faster_whisper_streams_segments(monkeypatch):
 
     progress: list[tuple] = []
     cfg = TranscribeConfig(backend="faster-whisper", model="small", compute_type="int8")
-    segs = _transcribe_faster_whisper(
+    segs, lang = _transcribe_faster_whisper(
         "/tmp/a.wav",
         cfg,
         on_progress=lambda c, t, m: progress.append((c, t, m)),
@@ -205,6 +207,7 @@ def test_transcribe_faster_whisper_streams_segments(monkeypatch):
     )
 
     assert [s.text for s in segs] == ["a", "b", "c"]
+    assert lang == "ja"
     assert captured["model"] == "small"
     assert captured["vad_filter"] is True
     assert captured["condition_on_previous_text"] is False
@@ -260,7 +263,7 @@ def test_faster_whisper_local_model_dir_reaches_body(monkeypatch, tmp_path):
         sys.modules, "faster_whisper", _fake_faster_whisper_module(captured)
     )
     cfg = TranscribeConfig(backend="faster-whisper", model=str(tmp_path))
-    segs = _transcribe_faster_whisper("/tmp/a.wav", cfg, total_hint=3)
+    segs, _lang = _transcribe_faster_whisper("/tmp/a.wav", cfg, total_hint=3)
     assert [s.text for s in segs] == ["a", "b", "c"]
     assert captured["model"] == str(tmp_path)
     assert captured["local_files_only"] is True
@@ -271,7 +274,7 @@ def test_mlx_local_model_dir_reaches_body(monkeypatch, tmp_path):
     captured: dict = {}
     monkeypatch.setitem(sys.modules, "mlx_whisper", _fake_mlx_module(captured))
     cfg = TranscribeConfig(backend="mlx", model=str(tmp_path), language="ja")
-    segs = _transcribe_mlx("/tmp/a.wav", cfg, total_hint=10)
+    segs, _lang = _transcribe_mlx("/tmp/a.wav", cfg, total_hint=10)
     assert [s.text for s in segs] == ["こんにちは", "本題です"]
     # the local path is passed through unchanged by _mlx_model_repo and reaches path_or_hf_repo as-is
     assert captured["repo"] == str(tmp_path)
@@ -314,9 +317,38 @@ def test_transcribe_mlx_message_translated_when_language_en(monkeypatch):
 
 def test_save_then_load_transcript_roundtrip(tmp_path):
     segs = [Segment(0.0, 2.5, "こんにちは"), Segment(2.5, 5.0, "本題です")]
-    save_transcript(segs, tmp_path)
-    loaded = load_transcript(tmp_path)
+    save_transcript(segs, tmp_path, language="en")
+    loaded, lang = load_transcript(tmp_path)
     assert loaded == segs
+    assert lang == "en"
+
+
+def test_load_transcript_backward_compat_bare_array(tmp_path):
+    (tmp_path / "transcript.json").write_text(
+        '[{"start": 0.0, "end": 1.0, "text": "hi"}]', encoding="utf-8"
+    )
+    segments, lang = load_transcript(tmp_path)
+    assert segments == [Segment(0.0, 1.0, "hi")]
+    assert lang == ""
+
+
+def test_transcribe_faster_whisper_reports_detected_language(monkeypatch):
+    # config.language empty -> Whisper's own detection (via info.language) surfaces
+    captured: dict = {}
+    monkeypatch.setitem(
+        sys.modules, "faster_whisper", _fake_faster_whisper_module(captured)
+    )
+    cfg = TranscribeConfig(backend="faster-whisper", model="small", language="")
+    _segs, lang = _transcribe_faster_whisper("/tmp/a.wav", cfg, total_hint=3)
+    assert lang == "ja"  # from the fake's info.language
+
+
+def test_transcribe_mlx_reports_detected_language(monkeypatch):
+    captured: dict = {}
+    monkeypatch.setitem(sys.modules, "mlx_whisper", _fake_mlx_module(captured))
+    cfg = TranscribeConfig(backend="mlx", model="large-v3", language="")
+    _segs, lang = _transcribe_mlx("/tmp/a.wav", cfg, total_hint=10)
+    assert lang == "ja"  # from the fake's result["language"]
 
 
 # --- Cancellation (cancel_event) ------------------------------------------------

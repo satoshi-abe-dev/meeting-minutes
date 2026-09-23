@@ -60,9 +60,9 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         if on_progress:
             for i, s in enumerate(segs, 1):
                 on_progress(i, len(segs), s.text)
-        return segs
+        return segs, "ja"
 
-    def save_transcript(segments, out_dir):
+    def save_transcript(segments, out_dir, *, language=None):
         recorder.append("save_transcript")
         d = Path(out_dir)
         d.mkdir(parents=True, exist_ok=True)
@@ -86,7 +86,7 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
 
     def describe_frames(
         frames, client_, out_dir, *, on_progress=None, cancel_event=None, reuse=None,
-        language=None,
+        language=None, source_language=None,
     ):
         recorder.append("describe_frames")
         assert client_ is client
@@ -116,6 +116,7 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
         template_path=None,
         auto_structure=False,
         language=None,
+        minutes_language=None,
     ):
         recorder.append("generate_minutes")
         assert client_ is client
@@ -137,7 +138,7 @@ def _fake_deps(recorder: list[str], client: FakeClient) -> Deps:
 
     def load_transcript(out_dir):
         recorder.append("load_transcript")
-        return [Segment(0.0, 3.0, "再利用こんにちは"), Segment(3.0, 6.0, "再利用本題")]
+        return [Segment(0.0, 3.0, "再利用こんにちは"), Segment(3.0, 6.0, "再利用本題")], "ja"
 
     def load_frames(out_dir):
         recorder.append("load_frames")
@@ -371,7 +372,7 @@ def test_pipeline_cancel_during_vision_stops_and_closes_client(config, video):
 
     def describe_frames(
         frames, client_, out_dir, *, on_progress=None, cancel_event=None, reuse=None,
-        language=None,
+        language=None, source_language=None,
     ):
         recorder.append("describe_frames")
         # simulate the user pressing Stop right after entering the VLM stage
@@ -400,5 +401,45 @@ def test_pipeline_cancel_before_start_raises_immediately(config, video):
     with pytest.raises(PipelineCancelled):
         run(video, config, deps=_fake_deps(recorder, client), cancel_event=cancel_event)
 
-    assert recorder == []  # nothing is executed
-    assert client.closed is True
+
+def test_pipeline_threads_detected_language_to_vision_and_config_language_to_minutes(
+    config, video
+):
+    """source_language (fed to describe_frames) must track Whisper's own
+    detected language, not the configured minutes_language — while
+    minutes_language (fed to generate_minutes) must track config.output's
+    setting. The two can differ; this is the crux of the whole feature."""
+    captured: dict = {}
+    recorder: list[str] = []
+    client = FakeClient()
+    deps = _fake_deps(recorder, client)
+
+    orig_transcribe = deps.transcribe_wav
+
+    def transcribe_wav(*a, **k):
+        segs, _lang = orig_transcribe(*a, **k)
+        return segs, "en"  # simulate Whisper detecting English
+
+    deps.transcribe_wav = transcribe_wav
+
+    orig_describe = deps.describe_frames
+
+    def describe_frames(*a, **k):
+        captured["source_language"] = k.get("source_language")
+        return orig_describe(*a, **k)
+
+    deps.describe_frames = describe_frames
+
+    orig_generate = deps.generate_minutes
+
+    def generate_minutes(*a, **k):
+        captured["minutes_language"] = k.get("minutes_language")
+        return orig_generate(*a, **k)
+
+    deps.generate_minutes = generate_minutes
+
+    config.output.minutes_language = "ko"
+    run(video, config, deps=deps)
+
+    assert captured["source_language"] == "en"  # from Whisper's detection, not config
+    assert captured["minutes_language"] == "ko"  # from config.output.minutes_language

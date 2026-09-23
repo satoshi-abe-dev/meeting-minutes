@@ -109,6 +109,68 @@ def test_generate_minutes_short_path_messages_translated_when_language_en():
     assert "応答を待っています" not in joined
 
 
+def test_generate_minutes_default_minutes_language_unchanged():
+    """Omitting minutes_language (or passing "ja" explicitly) produces the
+    exact same system prompt as before this feature existed."""
+    a = FakeClient(reply="x")
+    b = FakeClient(reply="x")
+    generate_minutes(_segments(3), [], a, AIConfig(), MinutesMeta(title="会議"))
+    generate_minutes(
+        _segments(3), [], b, AIConfig(), MinutesMeta(title="会議"),
+        minutes_language="ja",
+    )
+    assert a.calls[0]["system"] == b.calls[0]["system"]
+    assert "{lang}" not in a.calls[0]["system"]  # placeholder always resolved
+
+
+def test_generate_minutes_minutes_language_reaches_system_prompt():
+    client = FakeClient(reply="x")
+    generate_minutes(
+        _segments(3), [], client, AIConfig(), MinutesMeta(title="会議"),
+        minutes_language="English",
+    )
+    system = client.calls[0]["system"]
+    assert "English" in system
+    assert "日本語で正確な議事録を作成します" not in system
+
+
+def test_chunk_prompt_reflects_minutes_language(chunking_config):
+    """Per-chunk summaries (used for long transcripts) are written directly
+    in minutes_language, avoiding a ja-then-target round-trip."""
+    client = RoutingFakeClient(chunk="- summary bullet")
+    long_segs = _segments(40, text="議題について長い発言をする" * 5)
+    generate_minutes(
+        long_segs, [], client, chunking_config, MinutesMeta(title="mtg"),
+        minutes_language="English",
+    )
+    chunk_call = client.chunk_calls()[0]
+    assert "Englishで箇条書き" in chunk_call["user"]
+
+
+def test_routing_fake_client_markers_survive_minutes_language(chunking_config):
+    """Regression guard: the literal Japanese marker substrings
+    RoutingFakeClient keys off must survive minutes_language substitution
+    unchanged."""
+    client = RoutingFakeClient(structure=_GEN_STRUCTURE, chunk="- x")
+    long_segs = _segments(40, text="議題について長い発言をする" * 5)
+    generate_minutes(
+        long_segs, [], client, chunking_config, MinutesMeta(title="mtg"),
+        auto_structure=True, minutes_language="English",
+    )
+    assert client.struct_calls()
+    assert client.chunk_calls()
+
+
+def test_structure_system_prompt_reflects_minutes_language(tmp_path):
+    client = RoutingFakeClient(structure=_GEN_STRUCTURE)
+    generate_minutes(
+        _segments(3), [], client, AIConfig(), MinutesMeta(title="会議"),
+        auto_structure=True, out_dir=tmp_path, minutes_language="Korean",
+    )
+    struct_call = client.struct_calls()[0]
+    assert "Korean" in struct_call["system"]
+
+
 def test_generate_minutes_single_pass_under_char_fallback_threshold():
     """When context_tokens is unknown, judged by the character-count
     threshold. Under the default 20000 characters is one-shot generation."""

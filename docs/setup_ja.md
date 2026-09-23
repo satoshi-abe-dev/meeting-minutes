@@ -241,7 +241,7 @@ python src/meeting_minutes/gui.py              # GUI
 | `詳細: timed out`（議事録生成の途中で失敗） | サーバーは動いていて応答生成が長いだけ。特に議事録の最終統合は出力が長くタイムアウトしやすい。`config.toml` の `[ai] timeout` を増やす（既定600秒。大きいモデルはさらに）。 |
 | 議事録生成の開始直後に `HTTP 400`（`context length` 不足）で失敗 | テキスト LLM の Context Length が小さい。LM Studio で **32768 以上**にしてロードし直す（→ §3、[`models_ja.md`](models_ja.md)「コンテキスト長の設定（重要）」）。`timeout` 超過や推論モデルの空応答とは別の症状（LM Studio の場合。他サーバーは各自の方法で。自動検出は LM Studio 専用なので `[ai] context_tokens` を手動設定）。 |
 | 議事録生成が極端に遅い／「思考で max_tokens を使い切った」エラー／部分要約が空 | 使用中の LLM が推論（thinking）モデルの可能性。LM Studio で reasoning を OFF にするか、非推論の **Instruct 系モデル**に変更する（→ [`models_ja.md`](models_ja.md)）。`max_tokens` を増やしても速度問題は残る（reasoning の OFF は LM Studio の場合。他サーバーは各自の reasoning 設定、または非推論モデルへ）。 |
-| 議事録が英語になる | `config.toml` の `[transcribe] language = "ja"`。LLM 側にも日本語対応モデルを使う。 |
+| 議事録が意図しない言語になる | `config.toml` の `[output] minutes_language` を明示的に設定する（既定 `"ja"`）。`[transcribe] language` は会議音声（文字起こし対象）の言語で、議事録の言語とは別。画面キャプチャの説明文（VLM）の言語は録画の実際の言語に自動的に合わせられる（設定不要）。例: 海外出張で録った英語の会議を、帰国後の社内報告用に日本語の議事録にしたい場合は `[transcribe] language = "en"` のまま `[output] minutes_language = "ja"` にする。LLM 側にも目的言語に対応したモデルを使う。 |
 | 文字起こしが遅い | Apple Silicon なら `[transcribe] backend = "auto"`（または `"mlx"`）で GPU を使う。`mlx-whisper` が入っているか（`pip show mlx-whisper`）確認。さらに `model` を `large-v3-turbo` / `medium` に。 |
 | mlx で進捗バーが動かない | 仕様。mlx-whisper は結果を一括で返すため、完了まで 0 のまま。GUI のログに「mlx-whisper で文字起こし中」と出ていれば動作中。 |
 | モデルのダウンロードに失敗する | ネット接続と `HF_HOME` を確認し `python src/meeting_minutes/download_transcribe_model.py` を再実行（venv 未有効化なら §2 の読み替え規約どおり `.venv\Scripts\python …` / `.venv/bin/python …`）。アプリ実行時は自動DLしないので、ここで取り切る必要がある。 |

@@ -148,6 +148,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": "backend={configured}（自動選択: {actual}）",
         "en": "backend={configured} (auto-selected: {actual})",
     },
+    "cfg.minutes_language": {
+        "ja": "議事録の言語: {lang}",
+        "en": "Minutes language: {lang}",
+    },
     "cfg.vlm": {"ja": "VLM: {model}", "en": "VLM: {model}"},
     "cfg.llm": {"ja": "LLM: {model}", "en": "LLM: {model}"},
     "cfg.endpoint": {

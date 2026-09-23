@@ -21,10 +21,12 @@ from meeting_minutes.model.vision import describe_frames
 class FakeVisionClient:
     def __init__(self, replies: list[str] | None = None):
         self.calls: list[str] = []
+        self.prompts: list[str] = []
         self._replies = replies
 
     def describe_image(self, path, prompt):
         self.calls.append(str(path))
+        self.prompts.append(prompt)
         if self._replies:
             return self._replies[len(self.calls) - 1]
         return "特筆事項なし"
@@ -146,3 +148,19 @@ def test_describe_frames_fresh_ignores_saved_notes(tmp_path):
 
     assert [n.description for n in notes] == ["A", "B", "C"]
     assert len(client.calls) == 3
+
+
+def test_describe_frames_default_source_language_unchanged(tmp_path):
+    a = FakeVisionClient(replies=["A"])
+    b = FakeVisionClient(replies=["A"])
+    describe_frames(_frames(1), a, tmp_path / "a")
+    describe_frames(_frames(1), b, tmp_path / "b", source_language="ja")
+    assert a.prompts[0] == b.prompts[0]
+    assert "{lang}" not in a.prompts[0]
+
+
+def test_describe_frames_source_language_reaches_prompt(tmp_path):
+    client = FakeVisionClient(replies=["A"])
+    describe_frames(_frames(1), client, tmp_path, source_language="English")
+    assert "English" in client.prompts[0]
+    assert "日本語で" not in client.prompts[0]

@@ -127,6 +127,10 @@ class MainPresenter:
         return "\n".join(
             (
                 self._t("cfg.transcribe", model=tr.model, note=backend_note),
+                self._t(
+                    "cfg.minutes_language",
+                    lang=self.config_obj.output.minutes_language or "ja",
+                ),
                 self._t("cfg.vlm", model=ai.vlm_model),
                 self._t("cfg.llm", model=ai.llm_model),
                 self._t("cfg.endpoint", url=ai.base_url),
