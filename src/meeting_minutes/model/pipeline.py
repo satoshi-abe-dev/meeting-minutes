@@ -236,6 +236,14 @@ def run(
         source_language = (
             detected_language or (config.transcribe.language or "").strip() or "ja"
         )
+        # Only log this when config.transcribe.language was left empty — in
+        # that case source_language is Whisper's own auto-detection result,
+        # not just an echo of a value the user already configured.
+        if not (config.transcribe.language or "").strip():
+            progress(
+                "transcribe", len(segments), len(segments),
+                t("pmsg.language_detected", language, lang=source_language),
+            )
 
         # 3) Frame extraction (reusable) --------------------------------
         frames_index: Path = out_dir / "frames" / "frames.json"

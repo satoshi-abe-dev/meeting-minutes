@@ -21,6 +21,12 @@
 > - **The intermediate-file reuse requirement** — saving transcription, frame
 >   extraction, frame analysis, and minutes summarization separately, so a failure or
 >   interruption never means starting over from scratch
+> - **Independent minutes-language setting** — the requirement to make the minutes'
+>   output language configurable independently of the recording's audio language
+>   (transcription) and the GUI's display language. Directed the frame-capture
+>   descriptions (VLM) to be extracted in the recording's own actual language (from
+>   Whisper's auto-detection), not the target language, to avoid quality loss from
+>   a double translation
 >
 > Implementation was carried out by multiple Claude Code sessions. The roles and
 > review criteria are documented in

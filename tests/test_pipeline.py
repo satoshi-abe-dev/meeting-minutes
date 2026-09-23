@@ -443,3 +443,37 @@ def test_pipeline_threads_detected_language_to_vision_and_config_language_to_min
 
     assert captured["source_language"] == "en"  # from Whisper's detection, not config
     assert captured["minutes_language"] == "ko"  # from config.output.minutes_language
+
+
+def test_pipeline_logs_detected_language_when_auto_detecting(config, video):
+    recorder: list[str] = []
+    client = FakeClient()
+    deps = _fake_deps(recorder, client)
+
+    orig_transcribe = deps.transcribe_wav
+
+    def transcribe_wav(*a, **k):
+        segs, _lang = orig_transcribe(*a, **k)
+        return segs, "en"  # simulate Whisper auto-detecting English
+
+    deps.transcribe_wav = transcribe_wav
+
+    config.transcribe.language = ""  # auto-detect
+    events: list[tuple] = []
+    run(video, config, on_progress=lambda *a: events.append(a), deps=deps)
+
+    messages = [m for *_rest, m in events]
+    assert any("en" in m and "Auto-detected" in m for m in messages)
+
+
+def test_pipeline_does_not_log_detected_language_when_explicitly_configured(config, video):
+    recorder: list[str] = []
+    client = FakeClient()
+    deps = _fake_deps(recorder, client)
+
+    config.transcribe.language = "ja"  # explicit, not auto-detect
+    events: list[tuple] = []
+    run(video, config, on_progress=lambda *a: events.append(a), deps=deps)
+
+    messages = [m for *_rest, m in events]
+    assert not any("Auto-detected" in m for m in messages)
