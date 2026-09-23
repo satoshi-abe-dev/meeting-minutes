@@ -1,43 +1,35 @@
 .DS_Store
 
-# Python bytecode cache
 __pycache__/
 *.pyc
 *.pyo
 
-# pytest
 .pytest_cache/
 
-# venv / packaging
 .venv/
 venv/
 *.egg-info/
 
-# 生成物（実行時データ）。output/ を丸ごと除外すると .gitkeep を再包含できないため
-# output/* + 個別除外で対応。
+# output/ 丸ごと除外だと .gitkeep を再包含できないため output/* + 個別除外
 output/*
 !output/.gitkeep
 
-# ローカルにダウンロードした Whisper / LLM モデルの置き場（使う場合）
 models/
 
-# 個人設定（config.example.toml をコピーして作る）
 config.toml
 
-# Claude Code の作業用フォルダー。CLAUDE.md 以外は非公開。.claude/* は直下のみマッチ
-# するため、サブディレクトリの中身は除外が続く（Issue #61）。
+# .claude/* は直下のみマッチ。サブディレクトリの中身は除外が続く（Issue #61）
 .claude/*
 !.claude/CLAUDE.md
 
-# 非公開ファイル専用フォルダー（Issue #65）。CLAUDE.md は自動読込のため .claude/ 側に残る。
+# 非公開ファイル専用フォルダー（Issue #65）
 private/
 
-# Claude Code に見せる画像・動画などの一時受け渡し場所
 temp/
 
-# 旧パス保護（Issue #59 で .claude/ai-workflow/ へ移動済み。未追跡ファイルの誤追跡防止）。
+# 旧パス保護（Issue #59でai-workflow/へ移動済み。未追跡ファイルの誤追跡防止）
 doc/ai-workflow/SESSION_LOG.md
 docs/ai-workflow/SESSION_LOG.md
 
-# 実運用中のカスタムテンプレート（機密になり得る）。雛形の *_example.txt は追跡対象のまま。
+# 実運用中のカスタムテンプレート（機密になり得る）。*_example.txt は追跡対象
 templates/minutes_template.txt
