@@ -119,11 +119,11 @@ cp config.example.toml config.toml
 
 ```bash
 python src/meeting_minutes/gui.py                 # GUI: 動画を選んで「議事録を作成」。進捗バーとログ表示
-python src/meeting_minutes/gui.py --lang en       # GUI の画面文言を英語で（既定は日本語）
+python src/meeting_minutes/gui.py --lang ja       # GUI の画面文言を日本語で（既定は英語）
 python src/meeting_minutes/cli.py 打ち合わせ.mp4   # CLI: 動作確認・自動化用
 ```
 
-- GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、既定 `"ja"`）でも
+- GUI の表示言語は `config.toml` の `[gui] language`（`"ja"` / `"en"`、既定 `"en"`）でも
   指定できる。`--lang` はその回だけの上書き
 - 切り替わるのは **GUI の画面文言だけ**。文字起こし言語・議事録の内容は別
   （`[transcribe] language` / LLM 側）

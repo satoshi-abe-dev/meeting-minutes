@@ -772,7 +772,7 @@ def generate_minutes(
     """Return the minutes as a Markdown string.
 
     language: the language of the progress/warning messages passed to
-        on_progress ("ja" / "en", default "ja"). Does not affect the minutes
+        on_progress ("ja" / "en", default "en"). Does not affect the minutes
         body or system prompt (that's on the LLM side, separately).
 
     cancel_event: if set, interrupts between chunk summaries (for long

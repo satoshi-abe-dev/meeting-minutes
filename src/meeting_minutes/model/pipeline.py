@@ -120,8 +120,8 @@ def run(
         chunk during minutes generation. Cannot respond while an mlx-whisper
         call or an ffmpeg run is in progress (see docs/DESIGN_ja.md).
     language: the language of the progress messages / error hints passed to
-        on_progress ("ja" / "en"). Defaults to "ja". The GUI passes "en" when
-        run with --lang en; the CLI doesn't pass it (so it's ja). Does not
+        on_progress ("ja" / "en"). Defaults to "en". The GUI passes "ja" when
+        run with --lang ja; the CLI doesn't pass it (so it's en). Does not
         affect the transcription language (config.transcribe.language) or the
         content of the minutes.
     """

@@ -53,14 +53,14 @@ def main() -> int:
         "--lang",
         choices=["ja", "en"],
         default=None,
-        help="表示言語（省略時は config.toml の [gui] language、既定 ja）",
+        help="表示言語（省略時は config.toml の [gui] language、既定 en）",
     )
     args = parser.parse_args()
 
     config = load_config(None)
-    # Priority: --lang > config.toml/[gui] language and env var > default ja
+    # Priority: --lang > config.toml/[gui] language and env var > default en
     # (load_config has already rounded an unsupported config.gui.language
-    # value to ja.)
+    # value to en.)
     language = args.lang or config.gui.language
 
     view = TkMainWindow(language=language)

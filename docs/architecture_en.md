@@ -91,8 +91,8 @@ The code is split by role:
 `gui.py` accepts `--lang {ja,en}`.
 
 - If given, it overrides the display language for that run only
-- If omitted, it follows `config.toml`'s `[gui] language` (default `ja`;
-  invalid values are treated as `ja`)
+- If omitted, it follows `config.toml`'s `[gui] language` (default `en`;
+  invalid values are treated as `en`)
 - Only the GUI's on-screen text is affected (→ `DESIGN_en.md` §8.5)
 
 ## Progress notifications

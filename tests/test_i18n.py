@@ -31,11 +31,11 @@ def test_no_empty_or_extra_language_keys():
 
 @pytest.mark.parametrize(
     "given, expected",
-    [("ja", "ja"), ("en", "en"), (None, "ja"), ("", "ja"), ("fr", "ja"), ("EN", "ja")],
+    [("ja", "ja"), ("en", "en"), (None, "en"), ("", "en"), ("fr", "en"), ("EN", "en")],
 )
 def test_normalize_language(given, expected):
     assert normalize_language(given) == expected
-    assert DEFAULT_LANGUAGE == "ja"
+    assert DEFAULT_LANGUAGE == "en"
 
 
 def test_t_returns_language_specific_text():
@@ -48,7 +48,7 @@ def test_t_returns_language_specific_text():
 
 
 def test_t_falls_back_to_default_language_for_unsupported():
-    assert t("button.stop", "fr") == t("button.stop", "ja")
+    assert t("button.stop", "fr") == t("button.stop", "en")
 
 
 def test_t_unknown_key_returns_key_or_default():

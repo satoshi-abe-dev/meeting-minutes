@@ -212,7 +212,7 @@ def test_pipeline_messages_show_model_and_waiting(config, video):
     preflight_msg = by_stage["preflight"][0]
     assert config.ai.llm_model in preflight_msg
     assert config.ai.vlm_model in preflight_msg
-    assert "待っています" in preflight_msg
+    assert "Waiting for the LLM server" in preflight_msg
 
     transcribe_start = by_stage["transcribe"][0]
     assert config.transcribe.model in transcribe_start
@@ -222,8 +222,8 @@ def test_pipeline_messages_show_model_and_waiting(config, video):
 
 
 def test_pipeline_messages_translated_when_language_en(config, video):
-    """When language="en", progress messages come out in English (the
-    default, ja, is covered by a separate test)."""
+    """When language="en" is passed explicitly, progress messages come out
+    in English (the default, also en, is covered by a separate test)."""
     events: list[tuple] = []
     run(
         video, config,

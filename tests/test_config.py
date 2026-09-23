@@ -91,23 +91,23 @@ def test_output_template_path_default_and_toml_and_env(tmp_path, monkeypatch):
 
 def test_gui_language_default_toml_env_and_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr("meeting_minutes.model.config.default_config_path", lambda: None)
-    # the default is "ja"
-    assert load_config(None).gui.language == "ja"
+    # the default is "en"
+    assert load_config(None).gui.language == "en"
 
     p = tmp_path / "config.toml"
-    p.write_text('[gui]\nlanguage = "en"\n', encoding="utf-8")
-    assert load_config(p).gui.language == "en"
+    p.write_text('[gui]\nlanguage = "ja"\n', encoding="utf-8")
+    assert load_config(p).gui.language == "ja"
 
     # environment variable overrides TOML
-    monkeypatch.setenv("MM_GUI_LANGUAGE", "ja")
-    assert load_config(p).gui.language == "ja"
+    monkeypatch.setenv("MM_GUI_LANGUAGE", "en")
+    assert load_config(p).gui.language == "en"
     monkeypatch.delenv("MM_GUI_LANGUAGE")
 
-    # an unsupported value falls back to "ja" (via TOML)
+    # an unsupported value falls back to "en" (via TOML)
     p.write_text('[gui]\nlanguage = "fr"\n', encoding="utf-8")
-    assert load_config(p).gui.language == "ja"
+    assert load_config(p).gui.language == "en"
 
-    # an unsupported value falls back to "ja" (via environment variable)
-    p.write_text('[gui]\nlanguage = "en"\n', encoding="utf-8")
+    # an unsupported value falls back to "en" (via environment variable)
+    p.write_text('[gui]\nlanguage = "ja"\n', encoding="utf-8")
     monkeypatch.setenv("MM_GUI_LANGUAGE", "de")
-    assert load_config(p).gui.language == "ja"
+    assert load_config(p).gui.language == "en"
