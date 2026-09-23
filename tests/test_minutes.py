@@ -134,6 +134,21 @@ def test_generate_minutes_minutes_language_reaches_system_prompt():
     assert "日本語で正確な議事録を作成します" not in system
 
 
+def test_generate_minutes_user_prompt_instructs_heading_translation_for_non_ja():
+    """The built-in structure's own Japanese heading labels need an
+    explicit translate-the-headings instruction reaching the actual user
+    prompt sent to the LLM, not just the system prompt's general
+    write-in-{lang} directive — see _HEADING_TRANSLATION_NOTE."""
+    client = FakeClient(reply="x")
+    generate_minutes(
+        _segments(3), [], client, AIConfig(), MinutesMeta(title="会議"),
+        minutes_language="English",
+    )
+    user = client.calls[0]["user"]
+    assert "English" in user
+    assert "見出し" in user
+
+
 def test_chunk_prompt_reflects_minutes_language(chunking_config):
     """Per-chunk summaries (used for long transcripts) are written directly
     in minutes_language, avoiding a ja-then-target round-trip."""
@@ -678,6 +693,36 @@ def test_fill_minutes_template_respects_own_placeholders_and_stray_braces():
     assert "# 定例 議事録" in out
     assert 'JSON例: {"a": 1}' in out  # 素の { } は壊れない
     assert "T!" in out and "F!" in out
+
+
+def test_fill_minutes_template_default_language_unchanged():
+    """Omitting minutes_language (or passing "ja") produces the exact same
+    prompt as before this instruction existed — no heading-translation
+    note is appended."""
+    a = _fill_minutes_template(
+        "# 様式\n## 決定事項", MinutesMeta(title="会議"), "T", "F"
+    )
+    b = _fill_minutes_template(
+        "# 様式\n## 決定事項", MinutesMeta(title="会議"), "T", "F",
+        minutes_language="ja",
+    )
+    assert a == b
+    assert "翻訳" not in a
+
+
+def test_fill_minutes_template_instructs_heading_translation_for_non_ja():
+    """A non-Japanese minutes_language must not just translate the body —
+    the built-in/custom template's own (Japanese) heading labels need an
+    explicit instruction too, since a model otherwise tends to treat them
+    as fixed formatting and leave them untranslated (producing minutes with
+    mixed languages)."""
+    out = _fill_minutes_template(
+        "# 議事録: {title}\n## 決定事項", MinutesMeta(title="会議"), "T", "F",
+        minutes_language="English",
+    )
+    assert "English" in out
+    assert "見出し" in out  # the heading-translation instruction is present
+    assert "# 議事録:" in out  # the template body itself is untouched (still ja)
 
 
 def test_generate_minutes_uses_custom_template_single_pass(tmp_path):
