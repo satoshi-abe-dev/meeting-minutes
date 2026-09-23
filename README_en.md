@@ -118,7 +118,7 @@ cp config.example.toml config.toml
 ```bash
 python src/meeting_minutes/gui.py                 # GUI: pick a video and click "Create minutes". Shows a progress bar and log
 python src/meeting_minutes/gui.py --lang ja       # Show the GUI text in Japanese (default is English)
-python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / automation
+python src/meeting_minutes/cli.py meeting.mp4     # CLI: for smoke tests / automation
 ```
 
 - GUI display language priority: default `"en"` < `config.toml`'s `[gui] language`
