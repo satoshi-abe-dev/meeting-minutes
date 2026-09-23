@@ -77,7 +77,7 @@ output/<動画名>/
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/gui_ja.png" alt="GUI 実行中のスクリーンショット（日本語版）"><br>日本語版（<code>--lang ja</code> 起動）</td>
-<td width="50%"><img src="docs/screenshots/gui_en.png" alt="Screenshot of the GUI running (English)"><br>英語版（既定）</td>
+<td width="50%"><img src="docs/screenshots/gui_en.png" alt="Screenshot of the GUI running (English)"><br>英語版（デフォルト）</td>
 </tr>
 </table>
 
