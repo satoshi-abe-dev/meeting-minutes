@@ -1,4 +1,4 @@
-"""download_transcribe_model のテスト（実ダウンロードはせず、フェイクモジュールを注入）。"""
+"""Tests for download_transcribe_model (no real downloads; fake modules are injected)."""
 
 from __future__ import annotations
 

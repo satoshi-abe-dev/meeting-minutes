@@ -1,6 +1,6 @@
-"""ffmpeg / ffprobe の存在確認と実行ラッパ。
+"""Checks for ffmpeg / ffprobe and wraps running them.
 
-外部ネットワークは一切使わない。ローカルの ffmpeg バイナリを呼ぶだけ。
+Never uses an external network at all. Just calls the local ffmpeg binary.
 """
 
 from __future__ import annotations
@@ -12,11 +12,11 @@ from pathlib import Path
 
 
 class FFmpegNotFound(RuntimeError):
-    """ffmpeg / ffprobe が PATH に無いときに送出する。"""
+    """Raised when ffmpeg / ffprobe isn't on PATH."""
 
 
 class FFmpegError(RuntimeError):
-    """ffmpeg / ffprobe がゼロ以外の終了コードを返したときに送出する。"""
+    """Raised when ffmpeg / ffprobe returns a non-zero exit code."""
 
 
 def ffmpeg_path() -> str:
@@ -39,14 +39,14 @@ def ffprobe_path() -> str:
 
 
 def has_ffmpeg() -> bool:
-    """ffmpeg と ffprobe が両方あれば True。テストの skip 判定などに使う。"""
+    """True if both ffmpeg and ffprobe are present. Used e.g. for deciding whether to skip a test."""
     return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
 
 
 def run(args: list[str], *, desc: str = "ffmpeg") -> subprocess.CompletedProcess:
-    """ffmpeg/ffprobe を実行し、失敗時は FFmpegError を送出する。
+    """Run ffmpeg/ffprobe, raising FFmpegError on failure.
 
-    args: 実行ファイル名を含む完全なコマンド列。
+    args: the full command list, including the executable name.
     """
     try:
         proc = subprocess.run(
@@ -55,7 +55,7 @@ def run(args: list[str], *, desc: str = "ffmpeg") -> subprocess.CompletedProcess
             text=True,
             check=False,
         )
-    except FileNotFoundError as exc:  # pragma: no cover - ffmpeg_path 側で弾く想定
+    except FileNotFoundError as exc:  # pragma: no cover - expected to be caught by ffmpeg_path instead
         raise FFmpegNotFound(str(exc)) from exc
 
     if proc.returncode != 0:
@@ -67,7 +67,7 @@ def run(args: list[str], *, desc: str = "ffmpeg") -> subprocess.CompletedProcess
 
 
 def probe_duration(video_path: str | Path) -> float:
-    """動画の長さ（秒）を返す。取得できない場合は 0.0。"""
+    """Return the video's length (seconds). 0.0 if it can't be determined."""
     args = [
         ffprobe_path(),
         "-v",

@@ -1,8 +1,8 @@
-"""vision.describe_frames のテスト（LLM は呼ばずフェイククライアント注入）。
+"""Tests for vision.describe_frames (a fake client is injected instead of calling the LLM).
 
-out_dir は必ず tmp_path（テストごとに独立した実ディレクトリ）を使う。
-describe_frames は frames/frame_notes.json への実ファイル書き込み（再開用の永続化）を
-行うため、共有パスを使うとテスト間で状態が漏れる。
+out_dir always uses tmp_path (a real directory independent per test).
+describe_frames does a real file write to frames/frame_notes.json (persisted
+for resuming), so using a shared path would leak state between tests.
 """
 
 from __future__ import annotations
@@ -35,8 +35,9 @@ def _frames(n: int) -> list[Frame]:
 
 
 def _frame_path_str(i: int) -> str:
-    """`_frames` が作るパスを str 化したもの。OS のパス区切りに追従させる
-    （Windows では ``\\tmp\\frame_0.jpg`` になるため、リテラル比較だと落ちる）。"""
+    """The str form of the path `_frames` creates. Follows the OS's path
+    separator (on Windows this becomes ``\\tmp\\frame_0.jpg``, so a literal
+    comparison would fail)."""
     return str(Path(f"/tmp/frame_{i}.jpg"))
 
 

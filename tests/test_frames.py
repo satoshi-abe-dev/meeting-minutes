@@ -1,6 +1,6 @@
-"""frames モジュールの純粋ロジック（間引き・上限・時刻整形）のテスト。
+"""Tests for the frames module's pure logic (thinning, capping, timestamp formatting).
 
-実際の ffmpeg 抽出は needs_ffmpeg マーカーを付け、ffmpeg が無ければ skip する。
+Actual ffmpeg extraction is tagged with the needs_ffmpeg marker and skipped if ffmpeg is absent.
 """
 
 from __future__ import annotations
