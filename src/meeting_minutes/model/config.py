@@ -234,7 +234,8 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
             casted = raw
         setattr(sections[section], key, casted)
 
-    # Round an unsupported GUI language value to the default (ja), whether it came via TOML or an environment variable.
+    # Round an unsupported GUI language value to the default (ja), whether
+    # it came via TOML or an environment variable.
     gui = cast(GuiConfig, sections["gui"])
     gui.language = normalize_language(getattr(gui, "language", None))
 

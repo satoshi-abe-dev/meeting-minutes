@@ -110,7 +110,8 @@ def test_generate_minutes_short_path_messages_translated_when_language_en():
 
 
 def test_generate_minutes_single_pass_under_char_fallback_threshold():
-    """When context_tokens is unknown, judged by the character-count threshold. Under the default 20000 characters is one-shot generation."""
+    """When context_tokens is unknown, judged by the character-count
+    threshold. Under the default 20000 characters is one-shot generation."""
     client = FakeClient(reply="# 議事録\n\n本文\n")
     segs = _segments(180, text="議題について長い発言をする" * 3)  # under 10,000 characters < 20000
     generate_minutes(segs, [], client, AIConfig(), MinutesMeta(title="会議"))
@@ -127,9 +128,11 @@ def test_generate_minutes_char_fallback_chunks_over_threshold():
 
 
 def test_generate_minutes_context_tokens_allow_single_pass():
-    """If the real context length is known and there's headroom, one-shot generation happens even with a higher character count."""
+    """If the real context length is known and there's headroom, one-shot
+    generation happens even with a higher character count."""
     client = FakeClient(reply="# 議事録\n\n本文\n")
-    segs = _segments(320, text="議題について長い発言をする" * 5)  # a length that would split under the character threshold
+    # a length that would split under the character threshold
+    segs = _segments(320, text="議題について長い発言をする" * 5)
     generate_minutes(
         segs, [], client, AIConfig(), MinutesMeta(title="会議"),
         context_tokens=32768,
@@ -174,7 +177,8 @@ def test_generate_minutes_frames_text_is_truncated_to_budget():
 
 def test_generate_minutes_chunk_trigger_chars_from_config_controls_path():
     """Lowering [ai] chunk_trigger_chars puts even a short transcript on the split-generation path."""
-    segs = _segments(20, text="短い発言")  # a few hundred characters; with the default 40000 this would be one-shot
+    # a few hundred characters; with the default 40000 this would be one-shot
+    segs = _segments(20, text="短い発言")
     single = FakeClient(reply="要約")
     generate_minutes(segs, [], single, AIConfig(), MinutesMeta(title="会議"))
     assert len(single.calls) == 1
@@ -335,7 +339,8 @@ def test_generate_minutes_fresh_ignores_saved_partials(tmp_path, chunking_config
 
 
 def test_generate_minutes_ignores_empty_bodied_partials(tmp_path, chunking_config):
-    """A partial summary with only a heading and an empty body (a sign the LLM returned an empty response) is treated as invalid."""
+    """A partial summary with only a heading and an empty body (a sign the
+    LLM returned an empty response) is treated as invalid."""
     long_segs = _segments(300, text="議題について長い発言をする" * 5)
     _save_partials_matching(tmp_path, ["### 部分 1\n"], chunking_config, long_segs)  # no body
     client = FakeClient(reply="要約")
@@ -394,7 +399,8 @@ def test_generate_minutes_discards_legacy_list_format_partials(tmp_path, chunkin
 
 
 def test_generate_minutes_chunk_max_tokens_matches_budget_cap(tmp_path):
-    """A chunk summary's real max_tokens matches the value used in the budget calculation (capped at _MINUTES_RESPONSE_TOKENS).
+    """A chunk summary's real max_tokens matches the value used in the
+    budget calculation (capped at _MINUTES_RESPONSE_TOKENS).
 
     If this drifts, the safe_chunk_tokens calculation and the real request
     disagree, and a chunk could exceed the context (a Codex finding).
@@ -542,7 +548,8 @@ def test_generate_minutes_uses_custom_template_in_merge_step(chunking_config):
 
 
 def test_generate_minutes_custom_template_missing_still_produces_minutes(tmp_path):
-    """Even if the template isn't found, don't stop with an error — generate with the built-in template and warn."""
+    """Even if the template isn't found, don't stop with an error — generate
+    with the built-in template and warn."""
     msgs: list[str] = []
     client = FakeClient(reply="# 議事録\n本文\n")
     generate_minutes(
@@ -568,7 +575,8 @@ def test_generate_minutes_system_prompt_unchanged_by_custom_template(tmp_path):
 
 
 def test_example_template_file_matches_builtin_structure():
-    """templates/minutes_template_example.txt is identical to the built-in template (it's meant as a starting point)."""
+    """templates/minutes_template_example.txt is identical to the built-in
+    template (it's meant as a starting point)."""
     from meeting_minutes.model.config import REPO_ROOT
 
     p = REPO_ROOT / "templates" / "minutes_template_example.txt"
@@ -576,17 +584,20 @@ def test_example_template_file_matches_builtin_structure():
 
 
 def test_fill_minutes_template_appends_only_missing_frames_section():
-    """Even if {transcript} is written but {frames} is forgotten, the frame information isn't lost (Codex finding 1)."""
+    """Even if {transcript} is written but {frames} is forgotten, the frame
+    information isn't lost (Codex finding 1)."""
     tpl = "# 様式\n## 本文\n{transcript}\n"  # no {frames}
     out = _fill_minutes_template(tpl, MinutesMeta(title="会議"), "文字起こし本文", "フレーム解析本文")
     assert "文字起こし本文" in out
     assert "フレーム解析本文" in out  # filled in individually
     assert "## 入力: 画面キャプチャの説明" in out
-    assert out.count("## 入力: 文字起こし") == 0  # transcript is already in the structure, so don't duplicate it
+    # transcript is already in the structure, so don't duplicate it
+    assert out.count("## 入力: 文字起こし") == 0
 
 
 def test_fill_minutes_template_no_contamination_from_replaced_values():
-    """A substituted value containing another placeholder's string doesn't get caught up in it (Codex finding 2)."""
+    """A substituted value containing another placeholder's string doesn't
+    get caught up in it (Codex finding 2)."""
     tpl = "# {title}\n## 本文\n{transcript}\n## 資料\n{frames}\n"
     tricky_transcript = "田中: このスライドの {frames} という表記について質問です"
     out = _fill_minutes_template(
@@ -608,7 +619,8 @@ def test_fill_minutes_template_leaves_unknown_braces_untouched():
 # --- Auto mode: auto-generate the structure from the meeting content (Issue #34) --------------
 
 class RoutingFakeClient:
-    """A stub that switches its reply based on the call content (structure generation / chunk summary / minutes body)."""
+    """A stub that switches its reply based on the call content (structure
+    generation / chunk summary / minutes body)."""
 
     def __init__(
         self,
@@ -668,7 +680,8 @@ def test_auto_structure_single_pass_uses_full_transcript_and_saves(tmp_path):
     assert len(client.calls) == 2
     struct_call = client.calls[0]
     assert "旅行の説明0" in struct_call["user"]  # uses the full text as-is for material
-    # the response reservation is minutes_max_tokens, same as the minutes body (matches reasoning-model resilience)
+    # the response reservation is minutes_max_tokens, same as the minutes
+    # body (matches reasoning-model resilience)
     assert struct_call["kwargs"]["max_tokens"] == client.calls[1]["kwargs"]["max_tokens"]
     assert struct_call["kwargs"]["max_tokens"] == min(
         AIConfig().max_tokens, _MINUTES_RESPONSE_TOKENS
@@ -752,7 +765,8 @@ def test_auto_structure_prompt_instructs_literal_placeholders():
     struct_user = client.calls[0]["user"]
     # substituting in the material doesn't break the prompt's instructions/placeholder examples
     assert "{title}" in struct_user
-    assert "{transcript}" in struct_user  # the "don't write this" instruction's literal isn't broken by .replace
+    # the "don't write this" instruction's literal isn't broken by .replace
+    assert "{transcript}" in struct_user
     assert "実際の値で" in struct_user
 
 
@@ -781,10 +795,12 @@ def test_auto_structure_without_out_dir_still_generates():
 
 
 def test_auto_structure_failure_falls_back_to_builtin_not_file_template(tmp_path):
-    """Codex finding 2: on auto failure, always fall back to the built-in template, not the template_path file."""
+    """Codex finding 2: on auto failure, always fall back to the built-in
+    template, not the template_path file."""
     tpl = tmp_path / "cust.txt"
     tpl.write_text("# 客先様式だけ\n## 合意事項\n", encoding="utf-8")
-    client = RoutingFakeClient(structure="型らしきもの（プレースホルダー無し）")  # missing a required placeholder -> fails
+    # missing a required placeholder -> fails
+    client = RoutingFakeClient(structure="型らしきもの（プレースホルダー無し）")
 
     generate_minutes(
         _segments(5), [], client, AIConfig(), MinutesMeta(title="会議"),
@@ -798,7 +814,8 @@ def test_auto_structure_failure_falls_back_to_builtin_not_file_template(tmp_path
 
 
 def test_auto_structure_recomputes_budget_after_generation(tmp_path):
-    """Codex finding 1: if the generated structure is large (but not rejected), recompute the budget and switch to split generation.
+    """Codex finding 1: if the generated structure is large (but not
+    rejected), recompute the budget and switch to split generation.
 
     A structure where system + structure + response reservation + margin fits
     within ctx (so it isn't rejected), but is large enough that adding the
@@ -819,14 +836,16 @@ def test_auto_structure_recomputes_budget_after_generation(tmp_path):
         out_dir=tmp_path, auto_structure=True, context_tokens=13000,
     )
 
-    # structure generation happens once, is not rejected (it's saved), and gives up on one-shot generation, switching to split generation
+    # structure generation happens once, is not rejected (it's saved), and
+    # gives up on one-shot generation, switching to split generation
     assert len(client.struct_calls()) == 1
     assert (tmp_path / "work" / "structure_used.txt").is_file()
     assert len(client.chunk_calls()) >= 1
 
 
 def test_auto_structure_rejects_structure_too_large_for_merge(tmp_path):
-    """Codex finding: if the generated structure itself is too large to fit even after merging, fall back to the built-in template.
+    """Codex finding: if the generated structure itself is too large to fit
+    even after merging, fall back to the built-in template.
 
     Even switching to split generation doesn't help, since the merge step's
     final request is system + the huge structure + partials + frames — no
@@ -855,7 +874,8 @@ def test_auto_structure_rejects_structure_too_large_for_merge(tmp_path):
 
 
 def test_auto_structure_no_size_reject_when_ctx_unknown(tmp_path):
-    """When ctx is unknown, no structure-size judgment is made (deferred to the character-count-threshold path)."""
+    """When ctx is unknown, no structure-size judgment is made (deferred to
+    the character-count-threshold path)."""
     big = (
         "# 議事録: {title}\n- {datetime_hint} / {duration_hint}\n"
         + "## 見出し\n（説明）\n" * 400
@@ -871,11 +891,13 @@ def test_auto_structure_no_size_reject_when_ctx_unknown(tmp_path):
 
 
 def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):
-    """Codex finding: the material with chunk summaries concatenated is also checked and truncated against the structure-generation budget."""
+    """Codex finding: the material with chunk summaries concatenated is also
+    checked and truncated against the structure-generation budget."""
     from meeting_minutes.model.minutes import _approx_tokens
 
     ctx = 16000
-    big_summary = "・とても長い部分要約の行。" * 400  # concatenated, this exceeds the structure-generation budget
+    # concatenated, this exceeds the structure-generation budget
+    big_summary = "・とても長い部分要約の行。" * 400
     client = RoutingFakeClient(structure=_GEN_STRUCTURE, chunk=big_summary)
     long_segs = _segments(400, text="議題について長い発言をする" * 5)
 
@@ -897,7 +919,8 @@ def test_auto_structure_truncates_oversized_chunk_summary_material(tmp_path):
 
 
 def test_auto_structure_cancel_after_generation_stops_before_minutes(tmp_path):
-    """Codex finding: catches a cancellation right after structure generation too, so it doesn't proceed to the heavy minutes generation."""
+    """Codex finding: catches a cancellation right after structure
+    generation too, so it doesn't proceed to the heavy minutes generation."""
     cancel_event = threading.Event()
 
     def on_progress(cur, tot, msg):
@@ -1014,7 +1037,9 @@ def test_leaked_instructions_detects_verbatim_instruction():
 
 
 def test_leaked_instructions_ignores_short_bracket_values_and_clean_output():
-    """Short boilerplate phrases like "(not applicable)" / "(not stated)", or output where the instruction text was replaced with real content, are not false-positived."""
+    """Short boilerplate phrases like "(not applicable)" / "(not stated)", or
+    output where the instruction text was replaced with real content, are
+    not false-positived."""
     clean_md = (
         "# 議事録: テスト\n## 目的・アジェンダ\n旅行の説明会。行き先は京都、2泊3日。\n"
         "## 決定事項\n（該当なし）\n## 資料（スライド）の内容\n（読み取れる資料なし）\n"

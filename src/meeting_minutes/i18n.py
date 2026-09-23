@@ -17,14 +17,16 @@ DEFAULT_LANGUAGE = "ja"
 
 
 def normalize_language(language: str | None) -> str:
-    """Round an unsupported value, None, or empty string to the default (ja) (matching the fallback policy of other config items)."""
+    """Round an unsupported value, None, or empty string to the default (ja)
+    (matching the fallback policy of other config items)."""
     return language if language in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
 
 
 # key -> {language -> template string}
-# Dynamic sentences (log messages, etc.) keep a separate template per language (ja / en) so the word order reads naturally in each.
+# Dynamic sentences (log messages, etc.) keep a separate template per
+# language (ja / en) so the word order reads naturally in each.
 _STRINGS: dict[str, dict[str, str]] = {
-    # --- ウィンドウ / 静的ラベル（view）------------------------------
+    # --- Window / static labels (view) ------------------------------
     "window.title": {
         "ja": "議事録生成AI（ローカル処理）",
         "en": "Meeting Minutes AI (Local Processing)",
@@ -46,7 +48,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     "check.reuse": {"ja": "作成済みデータを利用する", "en": "Reuse existing data"},
     "button.run": {"ja": "議事録を作成", "en": "Create minutes"},
     "button.stop": {"ja": "中断", "en": "Stop"},
-    # 進捗ラベルの起動直後の表示（実行が始まると工程名＋進捗に差し替わる）。
+    # The progress label's display right after launch (once a run starts,
+    # it's replaced by the stage name + progress).
     "label.waiting": {"ja": "準備完了", "en": "Ready"},
     "button.open_minutes": {"ja": "議事録を開く", "en": "Open minutes"},
     "button.open_folder": {"ja": "出力フォルダーを開く", "en": "Open output folder"},
@@ -62,7 +65,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "(LLM/VLM run on a local server.)"
         ),
     },
-    # --- ツールチップ（view）---------------------------------------
+    # --- Tooltips (view) ---------------------------------------
     "tooltip.builtin": {
         "ja": (
             "「内蔵」は、会議の内容に関わらず常に同じ見出し・構成（決定事項・宿題・"
@@ -118,7 +121,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "the Markdown version (minutes.md) instead."
         ),
     },
-    # --- ファイル選択ダイアログ（view）--------------------------------
+    # --- File-selection dialog (view) --------------------------------
     "dialog.choose_video.title": {
         "ja": "打ち合わせ動画を選択",
         "en": "Choose a meeting video",
@@ -130,17 +133,17 @@ _STRINGS: dict[str, dict[str, str]] = {
     "filetype.video": {"ja": "動画ファイル", "en": "Video files"},
     "filetype.text": {"ja": "テキスト", "en": "Text"},
     "filetype.all": {"ja": "すべてのファイル", "en": "All files"},
-    # --- 設定サマリ（presenter が組み立て、view に表示）----------------
+    # --- Config summary (assembled by the presenter, shown by the view) ----------------
     "cfg.transcribe": {
         "ja": "文字起こし: {model} / {note}",
         "en": "Transcription: {model} / {note}",
     },
-    # backend が明示指定（mlx / faster-whisper）で、実際に使う値と一致するとき。
+    # When backend is set explicitly (mlx / faster-whisper) and matches the value actually in use.
     "cfg.backend_explicit": {
         "ja": "backend={backend}",
         "en": "backend={backend}",
     },
-    # backend=auto（や未知の値）を、この環境の実際のバックエンドへ読み替えたとき。
+    # When backend=auto (or an unrecognized value) is resolved to this environment's actual backend.
     "cfg.backend_resolved": {
         "ja": "backend={configured}（自動選択: {actual}）",
         "en": "backend={configured} (auto-selected: {actual})",
@@ -151,7 +154,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": "LLM・VLM 接続先: {url}",
         "en": "LLM/VLM endpoint: {url}",
     },
-    # --- 進捗工程ラベル / ステータス（presenter）---------------------
+    # --- Progress-stage labels / status (presenter) ---------------------
     "stage.preflight": {"ja": "サーバー確認", "en": "Server check"},
     "stage.audio": {"ja": "音声抽出", "en": "Audio extraction"},
     "stage.transcribe": {"ja": "文字起こし", "en": "Transcription"},
@@ -166,7 +169,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "ja": "（{current}/{total}）",
         "en": "({current}/{total})",
     },
-    # --- エラーダイアログ（presenter）------------------------------
+    # --- Error dialog (presenter) ------------------------------
     "dialog.format_error.title": {"ja": "議事録フォーマット", "en": "Minutes format"},
     "dialog.format_error.message": {
         "ja": (
@@ -180,7 +183,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         ),
     },
     "dialog.error.title": {"ja": "エラー", "en": "Error"},
-    # --- ログ（presenter）---------------------------------------
+    # --- Log (presenter) ---------------------------------------
     "log.start": {"ja": "開始: {name}{suffix}", "en": "Started: {name}{suffix}"},
     "log.start_suffix_fresh": {
         "ja": "（最初からやり直す）",
@@ -221,10 +224,11 @@ _STRINGS: dict[str, dict[str, str]] = {
             'will be reused on the next run (with "Reuse existing data" checked).'
         ),
     },
-    # --- パイプライン内部の進捗メッセージ（model 層。on_progress の message 引数）---
-    # Issue #100: pipeline.py / minutes.py / vision.py / transcribe.py が
-    # on_progress へ渡す message は Issue #55 の対象外だった。GUI の --lang en では
-    # ここも英語にする（CLI は language 未指定＝ja のまま）。
+    # --- Internal pipeline progress messages (model layer; on_progress's message argument) ---
+    # Issue #100: the message that pipeline.py / minutes.py / vision.py /
+    # transcribe.py pass to on_progress was out of scope for Issue #55. It
+    # is also made English here when the GUI runs with --lang en (the CLI
+    # leaves language unset, i.e. ja, as before).
     "pmsg.pre_wait": {
         "ja": "LLM サーバーの応答を待っています…（LLM: {model} / VLM: {vlm}）",
         "en": "Waiting for the LLM server… (LLM: {model} / VLM: {vlm})",
@@ -466,7 +470,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             "the context window, so the tail of the merge input was truncated"
         ),
     },
-    # llm_client.py（接続エラー時のヒント。例外メッセージとしてエラーダイアログ・ログに出る）
+    # llm_client.py (connection-error hints; surfaced as exception messages in the error dialog and log)
     "pmsg.llm_hint_conn": {
         "ja": (
             "ローカル LLM サーバー（{base_url}）に接続できません。サーバーが起動していて "

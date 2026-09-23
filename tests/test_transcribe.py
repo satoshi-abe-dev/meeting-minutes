@@ -26,7 +26,8 @@ from meeting_minutes.model.transcribe import (
     save_transcript,
 )
 
-# The real thing, before the fixture stubs it (for tests that want the local-directory check to actually take effect)
+# The real thing, before the fixture stubs it (for tests that want the
+# local-directory check to actually take effect)
 _REAL_MLX_MODEL_CACHED = transcribe._mlx_model_cached
 _REAL_FW_MODEL_CACHED = transcribe._faster_whisper_model_cached
 
@@ -350,7 +351,9 @@ def test_transcribe_faster_whisper_cancel_stops_after_first_segment(monkeypatch)
 
     def on_progress(cur, tot, msg):
         if cur == 1:
-            cancel_event.set()  # simulate the Stop button being pressed right after the first segment finishes
+            # simulate the Stop button being pressed right after the first
+            # segment finishes
+            cancel_event.set()
 
     with pytest.raises(PipelineCancelled):
         _transcribe_faster_whisper(

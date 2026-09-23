@@ -102,7 +102,8 @@ _MLX_MODEL_MAP = {
 
 
 def _mlx_model_repo(name: str) -> str:
-    """Convert a size name to the HF repo name for mlx-whisper. Anything containing "/" or unknown is passed through as-is."""
+    """Convert a size name to the HF repo name for mlx-whisper. Anything
+    containing "/" or unknown is passed through as-is."""
     if "/" in name:
         return name
     return _MLX_MODEL_MAP.get(name.strip().lower(), name)
@@ -230,7 +231,8 @@ def _transcribe_faster_whisper(
         local_files_only=True,
     )
 
-    stt_lang = config.language.strip() or None  # the language being transcribed (separate from the display language)
+    # the language being transcribed (separate from the display language)
+    stt_lang = config.language.strip() or None
     raw_segments, _info = model.transcribe(
         str(wav_path),
         language=stt_lang,
@@ -290,7 +292,8 @@ def _transcribe_mlx(
     # cancellation while it's running. Only checked before the call.
     check_cancel(cancel_event)
 
-    stt_lang = config.language.strip() or None  # the language being transcribed (separate from the display language)
+    # the language being transcribed (separate from the display language)
+    stt_lang = config.language.strip() or None
     result = mlx_whisper.transcribe(
         str(wav_path),
         path_or_hf_repo=repo,

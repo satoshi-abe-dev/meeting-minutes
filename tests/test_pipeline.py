@@ -222,7 +222,8 @@ def test_pipeline_messages_show_model_and_waiting(config, video):
 
 
 def test_pipeline_messages_translated_when_language_en(config, video):
-    """When language="en", progress messages come out in English (the default, ja, is covered by a separate test)."""
+    """When language="en", progress messages come out in English (the
+    default, ja, is covered by a separate test)."""
     events: list[tuple] = []
     run(
         video, config,
@@ -281,7 +282,8 @@ def test_pipeline_writes_real_docx_from_markdown(config, video):
 
 
 def test_pipeline_docx_failure_is_isolated(config, video):
-    """Even if .docx conversion raises, run completes; minutes.md is produced and a warning is added to warnings."""
+    """Even if .docx conversion raises, run completes; minutes.md is
+    produced and a warning is added to warnings."""
     def boom(markdown, out_dir):
         raise RuntimeError("docx broke")
 

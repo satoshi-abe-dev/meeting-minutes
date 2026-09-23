@@ -19,7 +19,8 @@ from meeting_minutes.i18n import DEFAULT_LANGUAGE, normalize_language, t
 from meeting_minutes.view.contract import MainView
 
 _WINDOW_WIDTH = 760
-# Sized to accommodate the height of the minutes-format radio's 3 options (matched to the content's required height).
+# Sized to accommodate the height of the minutes-format radio's 3 options
+# (matched to the content's required height).
 _WINDOW_HEIGHT = 590
 
 

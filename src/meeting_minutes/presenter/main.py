@@ -65,7 +65,8 @@ class MainPresenter:
         self._worker: threading.Thread | None = None
         self._reuse: bool = True
         self._cancel_event: threading.Event | None = None
-        # Points at output/<video name>/logs/gui.log once a run starts. Appended with the same content as the on-screen log.
+        # Points at output/<video name>/logs/gui.log once a run starts.
+        # Appended with the same content as the on-screen log.
         self._log_path: Path | None = None
 
         self.view.set_on_choose_video(self._choose_file)
@@ -96,8 +97,10 @@ class MainPresenter:
         return t(key, self.language, default=default, **kwargs)
 
     def _log(self, text: str) -> None:
-        """Write to the on-screen log area, and while running, also append to output/<video name>/logs/gui.log.
-        Does not change the View (the on-screen display). A file-write failure does not affect the GUI's operation."""
+        """Write to the on-screen log area, and while running, also append to
+        output/<video name>/logs/gui.log. Does not change the View (the
+        on-screen display). A file-write failure does not affect the GUI's
+        operation."""
         self.view.append_log(text)
         if self._log_path is not None:
             try:

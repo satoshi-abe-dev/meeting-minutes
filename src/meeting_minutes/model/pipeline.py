@@ -1,6 +1,7 @@
 """Orchestrates every stage.
 
-    video -> audio extraction -> transcription -> frame extraction -> frame analysis (VLM) -> minutes generation
+    video -> audio extraction -> transcription -> frame extraction ->
+    frame analysis (VLM) -> minutes generation
 
 Each stage's dependency is swappable via Deps, and the GUI / CLI / tests all
 call the same run(). Progress is reported via the on_progress callback.

@@ -60,7 +60,8 @@ _CHUNK_SIZE_CHARS = 12000
 
 
 def _approx_tokens(text: str) -> int:
-    """Roughly estimate the token count from the character count (based on measured Qwen-family Japanese behavior)."""
+    """Roughly estimate the token count from the character count (based on
+    measured Qwen-family Japanese behavior)."""
     return int(len(text) * _TOKENS_PER_CHAR) + 1
 
 
@@ -825,7 +826,8 @@ def generate_minutes(
     # prefer it; only use the auto-detected value (the context_tokens argument
     # passed by the pipeline) when it's 0.
     ctx = int(getattr(llm_config, "context_tokens", 0) or 0) or int(context_tokens or 0)
-    # Upper bound on response tokens for the minutes body / chunk summaries. Use the same value in the budget calculation and the real request.
+    # Upper bound on response tokens for the minutes body / chunk summaries.
+    # Use the same value in the budget calculation and the real request.
     minutes_max_tokens = min(
         int(getattr(llm_config, "max_tokens", _MINUTES_RESPONSE_TOKENS)),
         _MINUTES_RESPONSE_TOKENS,
@@ -854,7 +856,8 @@ def generate_minutes(
     )
     fit_chunk_size(frames_text, warn=True)
 
-    # --- State for the long-transcript case (chunk splitting, partial summaries). Set up once, only when needed.
+    # --- State for the long-transcript case (chunk splitting, partial
+    # summaries). Set up once, only when needed.
     chunks: list[list[Segment]] = []
     total_steps = 0
     out_path: Path | None = None
@@ -928,7 +931,8 @@ def generate_minutes(
             minutes_system=system, ctx=ctx,
             on_progress=on_progress, cancel_event=cancel_event, language=language,
         )
-        # After structure generation (a heavy LLM call), check for a cancellation before moving on to minutes generation.
+        # After structure generation (a heavy LLM call), check for a
+        # cancellation before moving on to minutes generation.
         check_cancel(cancel_event)
         # Recalculate the budget against the resulting structure's size (so
         # that swapping the structure doesn't push the final request over the
