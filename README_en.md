@@ -123,6 +123,9 @@ python src/meeting_minutes/cli.py meeting.mp4      # CLI: for smoke tests / auto
 
 - GUI display language priority: default `"en"` < `config.toml`'s `[gui] language`
   (`"ja"` / `"en"`) < the `MM_GUI_LANGUAGE` environment variable < `--lang` (that run only)
+  - Example (bash/zsh): `MM_GUI_LANGUAGE=ja python src/meeting_minutes/gui.py`
+    (Windows cmd.exe: `set "MM_GUI_LANGUAGE=ja" && python ...`; PowerShell:
+    `$env:MM_GUI_LANGUAGE="ja"; python ...`)
 - Only the **GUI screen text** changes; the transcription language (`[transcribe] language`) and the minutes' language (`[output] minutes_language`) are configured independently (frame-analysis description language automatically follows the recording's own detected language)
 
 (For developers, `python -m meeting_minutes.gui` / `-m meeting_minutes.cli` also work. In that case, either `cd src` or set `PYTHONPATH=src`.)
