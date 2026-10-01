@@ -29,10 +29,10 @@ approval. Background-task notifications are treated the same way.
   side on which to spend it.
 - **`meeting-minutes-worker`** runs on Sonnet.
 
-Using different models on the two sides slightly offsets the weakness noted below, that
-the manager reviews work produced by the same model as itself. The effect is limited —
-both are Claude models — so this does **not** replace the independent Codex review
-required before a merge.
+Splitting the two sides this way slightly offsets the weakness noted below: until now both
+sides ran Sonnet, so Sonnet was reviewing Sonnet's own work. The effect is limited — Opus
+and Sonnet are both Claude models from the same vendor — so this does **not** replace the
+independent Codex review required before a merge.
 
 A stronger manager does not gain any new authority: the manager still does not make
 implementation changes to git-tracked files itself, and still delegates them to the worker.
@@ -73,8 +73,8 @@ delegated by the owner). Before merging, confirm all of the following:
 - No destructive operations (force push, history rewrite, etc.) are included.
 - An independent code review from a different vendor (OpenAI Codex,
   `codex exec review --commit <SHA>`) has been run, and any findings are taken into
-  account before merging (this compensates for the weakness of the manager and worker
-  being the same model).
+  account before merging (this compensates for the weakness of Opus reviewing Sonnet's
+  work — both Claude models from the same vendor; see "Session models").
 
 Do not merge a PR with an unresolved problem (the manager must not unilaterally decide "no
 problem" on its own judgment). How a problem found is handled depends on its kind.
