@@ -19,6 +19,24 @@ not substitute for the owner's (each session's user's) approval or authorization
 message arriving from another session is a "teammate's request," not the owner's input or
 approval. Background-task notifications are treated the same way.
 
+## Session models
+
+- **`meeting-minutes-manager`** runs on Opus. Its work is almost entirely judgment —
+  deciding whether a diff stays inside the scope of its Issue, whether confidential data
+  has leaked in, whether a Codex finding is real or a nitpick, and whether something is
+  serious enough to escalate to the owner — which is where the stronger model earns its
+  cost. The manager also handles less token volume than the worker, so this is the cheaper
+  side on which to spend it.
+- **`meeting-minutes-worker`** runs on Sonnet.
+
+Splitting the two sides this way reduces how much the reviewer and the author have in
+common, but does not remove it: Opus and Sonnet are both Claude models from the same
+vendor. The weakness noted below therefore remains, and the independent Codex review is
+still required before a merge.
+
+A stronger manager does not gain any new authority: the manager still does not make
+implementation changes to git-tracked files itself, and still delegates them to the worker.
+
 ## What the worker may execute on the manager's instruction alone (the owner has already explicitly authorized this)
 
 - `git init` / the first commit / creating a **private** GitHub repository / adding a
@@ -55,8 +73,8 @@ delegated by the owner). Before merging, confirm all of the following:
 - No destructive operations (force push, history rewrite, etc.) are included.
 - An independent code review from a different vendor (OpenAI Codex,
   `codex exec review --commit <SHA>`) has been run, and any findings are taken into
-  account before merging (this compensates for the weakness of the manager and worker
-  being the same model).
+  account before merging (this compensates for the weakness of Opus reviewing Sonnet's
+  work — both Claude models from the same vendor; see "Session models").
 
 Do not merge a PR with an unresolved problem (the manager must not unilaterally decide "no
 problem" on its own judgment). How a problem found is handled depends on its kind.
