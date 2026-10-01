@@ -25,12 +25,12 @@ approval. Background-task notifications are treated the same way.
   deciding whether a diff stays inside the scope of its Issue, whether confidential data
   has leaked in, whether a Codex finding is real or a nitpick, and whether something is
   serious enough to escalate to the owner — which is where the stronger model earns its
-  cost. The manager also handles less token volume than the worker, so this is the cheaper
-  side on which to spend it.
+  cost. The manager also works through less token volume than the worker, which makes it
+  the cheaper side to spend the stronger model on.
 - **`meeting-minutes-worker`** runs on Sonnet.
 
-Splitting the two sides this way reduces how much the reviewer and the author have in
-common, but does not remove it: Opus and Sonnet are both Claude models from the same
+Splitting the two sides this way narrows what the reviewer and the author have in
+common, but does not eliminate it: Opus and Sonnet are both Claude models from the same
 vendor. The weakness noted below therefore remains, and the independent Codex review is
 still required before a merge.
 
@@ -38,12 +38,14 @@ A stronger manager does not gain any new authority: the manager still does not m
 implementation changes to git-tracked files itself, and still delegates them to the worker.
 
 This split cannot be enforced automatically: a hook has no way to tell a worker session
-from a manager session, or to read which model a session is running, and the two usually
-share one working-tree checkout, so there is no path-based signal either. So each session
-states its current model once at session start and again after any `/model` switch, so a
-human — or the other session — can catch a mismatch by eye. Also note that `/model` run
-without a scope flag changes the **global** default for new sessions, so switching one
-session's model can silently change what the next session of either role starts on.
+from a manager session, nor to read which model a session is running, and the two normally
+share a single working tree, so there is no path-based signal either. Instead, each session
+states its current model once at session start and again after any `/model` switch, so that
+a human — or the other session — can catch a mismatch by eye.
+
+Note also that `/model` without a scope flag changes the **global** default for new
+sessions: switching one session's model can quietly change what the next session of either
+role starts on.
 
 ## What the worker may execute on the manager's instruction alone (the owner has already explicitly authorized this)
 
