@@ -29,10 +29,10 @@ approval. Background-task notifications are treated the same way.
   side on which to spend it.
 - **`meeting-minutes-worker`** runs on Sonnet.
 
-Splitting the two sides this way slightly offsets the weakness noted below: until now both
-sides ran Sonnet, so Sonnet was reviewing Sonnet's own work. The effect is limited — Opus
-and Sonnet are both Claude models from the same vendor — so this does **not** replace the
-independent Codex review required before a merge.
+Splitting the two sides this way reduces how much the reviewer and the author have in
+common, but does not remove it: Opus and Sonnet are both Claude models from the same
+vendor. The weakness noted below therefore remains, and the independent Codex review is
+still required before a merge.
 
 A stronger manager does not gain any new authority: the manager still does not make
 implementation changes to git-tracked files itself, and still delegates them to the worker.
