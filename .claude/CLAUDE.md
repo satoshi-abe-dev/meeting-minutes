@@ -37,6 +37,14 @@ still required before a merge.
 A stronger manager does not gain any new authority: the manager still does not make
 implementation changes to git-tracked files itself, and still delegates them to the worker.
 
+This split cannot be enforced automatically: a hook has no way to tell a worker session
+from a manager session, or to read which model a session is running, and the two usually
+share one working-tree checkout, so there is no path-based signal either. So each session
+states its current model once at session start and again after any `/model` switch, so a
+human — or the other session — can catch a mismatch by eye. Also note that `/model` run
+without a scope flag changes the **global** default for new sessions, so switching one
+session's model can silently change what the next session of either role starts on.
+
 ## What the worker may execute on the manager's instruction alone (the owner has already explicitly authorized this)
 
 - `git init` / the first commit / creating a **private** GitHub repository / adding a
