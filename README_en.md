@@ -260,8 +260,8 @@ flowchart LR
     Manager -->|send back| Worker
 ```
 
-- **worker** — the session that handles implementation, tests, and git operations
-- **manager** — the session that reviews the PRs the worker opens, merges them to `main`
+- **worker** (Sonnet) — the session that handles implementation, tests, and git operations
+- **manager** (Opus) — the session that reviews the PRs the worker opens, merges them to `main`
   if clear, or sends them back to the worker if not. Checks before merging:
   - no leaked confidential data (proper nouns from real meetings) in the diff
   - no destructive operations (force push, history rewrite, etc.)
@@ -272,6 +272,11 @@ flowchart LR
   - reviews the diff directly
   - independent review by OpenAI Codex (`codex exec review`, a different vendor)
 - The division of roles, the prohibitions, and the review criteria are written out in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) (Claude Code loads it automatically at session start; the rest of `.claude/`, such as the operational session log, is private)
+- **the two sides run different models** — the manager's work is mostly judgment (scope
+  drift, leaked confidential data, whether a finding is real, whether to escalate), so the
+  stronger model goes there. It also takes some of the edge off having one model review
+  another model's work, though only some — both are Claude models, so it is no substitute
+  for the independent Codex review from a different vendor
 - **conversation context is not shared between sessions** — the manager does not see the worker's trial and error, and reviews only from the final diff and report
 - **a case where the permission boundary held** — for operations that need the owner's direct confirmation, such as deleting tracked files, the worker did not act on a relay through the manager alone and held work pending the owner's confirmation
 - **loop engineering** — rather than a one-shot review, implement → independent verification (pytest, confidential-data check, diff review, Codex review) → send-back → fix → re-verify, repeated until every check is clear
