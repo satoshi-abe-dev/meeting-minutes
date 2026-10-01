@@ -107,6 +107,20 @@ that don't show up in `git ls-files`: scratchpad, `temp/`, non-public files unde
 git-tracked files continue to be delegated to the worker as before, and land on `main` via
 a PR.
 
+## How the manager hands off work to the worker
+
+When the manager asks the worker to write or edit something, it hands over the target,
+the intent, any constraints, and a rough sense of scope — not finished prose for the
+worker to drop in as-is. Settling on the actual wording is the worker's job.
+
+- If the manager hands over pre-written text, its own drafting flaws land in the worker's
+  output unexamined, and every one of them becomes a send-back round trip.
+- It also puts the manager in the position of reviewing wording it wrote itself, which
+  undercuts the review independence this project's process depends on.
+
+Exception: when the owner specifies exact wording, the manager passes it to the worker
+verbatim, without paraphrasing or summarizing it.
+
 ## What the worker does NOT execute on the manager's instruction alone (escalate to the owner for confirmation)
 
 - Anything beyond the scope of "opening a PR" in general (releases, tagging, sending to
