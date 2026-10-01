@@ -42,9 +42,8 @@ from a manager session, or to read which model a session is running, and the two
 share one working-tree checkout, so there is no path-based signal either. So each session
 states its current model once at session start and again after any `/model` switch, so a
 human — or the other session — can catch a mismatch by eye. Also note that `/model` run
-without a scope flag changes the **global** default in `~/.claude/settings.json`, so
-switching one session's model can silently change what the next session of either role
-starts on.
+without a scope flag changes the **global** default for new sessions, so switching one
+session's model can silently change what the next session of either role starts on.
 
 ## What the worker may execute on the manager's instruction alone (the owner has already explicitly authorized this)
 
