@@ -55,7 +55,9 @@ network disconnected.
 
 ## Other notes
 
-- No telemetry or usage data is sent.
+- No telemetry or usage data is sent. (The optional CrewAI engine of
+  [`crewai_experiment_en.md`](crewai_experiment_en.md) switches CrewAI's own
+  telemetry off when it is loaded; a test checks this.)
 - No API key is required (the `api_key` in `config.toml` is a dummy value —
   the local server just expects the field to be present in the request
   format).

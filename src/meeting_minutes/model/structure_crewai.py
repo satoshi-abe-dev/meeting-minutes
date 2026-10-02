@@ -1,0 +1,304 @@
+"""An optional CrewAI engine for Auto-mode structure generation (Issue #192).
+
+An experiment, not the default: the single-call engine in minutes.py
+(_generate_structure) stays the default, and this engine is used only when the
+GUI is started with `--structure-engine crewai`. Three agents split the work:
+
+    Classifier  decides the meeting type from the material
+    Researcher  looks things up in the material through a search tool
+                (numbers? deadlines? action items?)
+    Designer    writes the structure from the two results
+
+The output goes through the same checks (check_generated_structure) and the
+same fallback as the single-call engine.
+
+CrewAI is an optional extra (requirements-agent.txt) and is imported lazily, so
+this module imports fine without it. Importing the module also turns CrewAI's
+telemetry off, before CrewAI itself can be imported; nothing here talks to
+anything but the local OpenAI-compatible server from config.ai.
+
+Hard caps: each agent has a small max_iter, the Researcher's tool is limited to
+_MAX_TOOL_CALLS calls in total (a small model once issued ~50 searches in one
+response), and every agent has a wall-clock limit. LLM calls are counted from
+CrewAI's usage metrics and reported in `stats`.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import threading
+from dataclasses import dataclass, field
+from typing import Any
+
+from meeting_minutes.i18n import DEFAULT_LANGUAGE, t
+
+from .cancel import check_cancel
+from .config import DEFAULT_MINUTES_LANGUAGE
+from .minutes import (
+    _STRUCTURE_PROMPT,
+    ProgressFn,
+    StructureGenerator,
+    _structure_system_prompt,
+    check_generated_structure,
+)
+from .structure_engine import StructureEngineUnavailable
+
+# CrewAI's own off switches for usage statistics (docs.crewai.com/en/telemetry;
+# either one is enough, both are set). CREWAI_TRACING_ENABLED keeps the
+# opt-in tracing to CrewAI's cloud off as well.
+_TELEMETRY_OFF = {
+    "CREWAI_DISABLE_TELEMETRY": "true",
+    "OTEL_SDK_DISABLED": "true",
+    "CREWAI_TRACING_ENABLED": "false",
+}
+
+
+def disable_telemetry() -> None:
+    """Turn CrewAI's telemetry off. Overrides any existing value on purpose
+    (this tool never sends usage data), and must run before crewai is imported."""
+    os.environ.update(_TELEMETRY_OFF)
+
+
+disable_telemetry()
+
+# --- Hard caps ------------------------------------------------------------
+# max_iter per agent: the Classifier and Designer need no tool, so 2 is plenty.
+_MAX_ITER = {"classifier": 2, "researcher": 4, "designer": 2}
+# Total calls of the search tool across the whole run (counted by us).
+_MAX_TOOL_CALLS = 6
+# Wall-clock limit for one agent, in seconds (also bounded by config.ai.timeout).
+_MAX_EXECUTION_SECONDS = 900
+_SEARCH_MAX_HITS = 5
+_SEARCH_LINE_CHARS = 200
+
+_LIMIT_REACHED = (
+    "検索の回数が上限に達しました。これ以上は検索せず、これまでの結果で最終回答を書いてください。"
+)
+
+
+@dataclass
+class EngineStats:
+    """What the last run cost, for the comparison script."""
+
+    llm_calls: int | None = None  # None: CrewAI reported no usage metrics
+    tool_calls: int = 0
+    total_tokens: int | None = None
+    notes: list[str] = field(default_factory=list)
+
+
+def _import_crewai() -> Any:
+    """Import crewai (after telemetry is off), or raise a clear error."""
+    disable_telemetry()
+    try:
+        import crewai
+        import crewai.tools
+    except ImportError as exc:
+        raise StructureEngineUnavailable(
+            "CrewAI is not installed, so --structure-engine crewai can't be used. "
+            "Install the optional extra in a Python 3.10-3.13 environment: "
+            "pip install -r requirements-agent.txt"
+        ) from exc
+    return crewai
+
+
+def ensure_available() -> None:
+    """Raise StructureEngineUnavailable unless CrewAI can be imported."""
+    _import_crewai()
+
+
+def search_material(material: str, keyword: str) -> str:
+    """The Researcher's tool: the lines of the material that contain keyword.
+
+    Plain Python (no CrewAI), so it is tested directly. Returns a short,
+    bounded text so a small model's context isn't flooded.
+    """
+    keyword = (keyword or "").strip()
+    if not keyword:
+        return "キーワードが空です。"
+    needle = keyword.lower()
+    hits = [ln.strip() for ln in material.splitlines() if needle in ln.lower()]
+    if not hits:
+        return f"「{keyword}」を含む行はありません。"
+    shown = [ln[:_SEARCH_LINE_CHARS] for ln in hits[:_SEARCH_MAX_HITS]]
+    more = f"\n（ほか {len(hits) - len(shown)} 行）" if len(hits) > len(shown) else ""
+    return f"「{keyword}」を含む行 {len(hits)} 件:\n" + "\n".join(f"- {ln}" for ln in shown) + more
+
+
+class _ToolBudget:
+    """Counts search-tool calls and refuses past the cap (thread-safe)."""
+
+    def __init__(self, material: str, limit: int = _MAX_TOOL_CALLS):
+        self._material = material
+        self._limit = limit
+        self._lock = threading.Lock()
+        self.calls = 0
+
+    def search(self, keyword: str) -> str:
+        with self._lock:
+            if self.calls >= self._limit:
+                return _LIMIT_REACHED
+            self.calls += 1
+        return search_material(self._material, keyword)
+
+
+_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n(.*?)\n?```\s*$", re.DOTALL)
+
+
+def _strip_code_fence(text: str) -> str:
+    """Agents sometimes wrap the final answer in a code fence; unwrap it."""
+    text = text.strip()
+    m = _FENCE_RE.match(text)
+    return m.group(1).strip() if m else text
+
+
+def _build_crew(
+    crewai: Any,
+    *,
+    ai_config: Any,
+    material: str,
+    designer_rules: str,
+    max_tokens: int,
+    budget: _ToolBudget,
+) -> Any:
+    """Assemble the three agents and their tasks into a sequential Crew."""
+    # The local server is passed explicitly: no environment-variable fallback
+    # that could point at a hosted OpenAI endpoint.
+    llm = crewai.LLM(
+        model=f"openai/{ai_config.llm_model}",
+        base_url=ai_config.base_url,
+        api_key=ai_config.api_key,
+        temperature=0.2,
+        max_tokens=max_tokens,
+        timeout=ai_config.timeout,
+    )
+    from crewai.tools import tool
+
+    @tool("search_material")
+    def search_material_tool(keyword: str) -> str:
+        """Search the meeting material for a keyword (a short word such as
+        金額, 期限, 担当). Returns up to a few matching lines."""
+        return budget.search(keyword)
+
+    def agent(key: str, role: str, goal: str, backstory: str, tools: list | None = None) -> Any:
+        return crewai.Agent(
+            role=role, goal=goal, backstory=backstory, llm=llm,
+            tools=tools or [], allow_delegation=False, verbose=False,
+            max_iter=_MAX_ITER[key], max_retry_limit=1,
+            max_execution_time=int(min(_MAX_EXECUTION_SECONDS, ai_config.timeout)),
+        )
+
+    classifier = agent(
+        "classifier", "会議の種類の判定者",
+        "会議の内容を読み、会議の種類と主題を短く判定する",
+        "あなたは多くの会議を見てきた書記です。"
+        "内容から会議の種類（例: 技術定例、説明会、予算会議）を見極めます。",
+    )
+    researcher = agent(
+        "researcher", "資料の調査者",
+        "議事録の見出しを決める材料として、数値・期限・担当者・宿題が資料にあるか調べる",
+        "あなたは資料の検索ツールで事実を確認する調査員です。検索は多くても数回にとどめ、"
+        "推測では答えません。",
+        tools=[search_material_tool],
+    )
+    designer = agent(
+        "designer", "議事録フォーマットの設計者",
+        "判定結果と調査結果から、議事録の型（見出し構成）だけを設計する",
+        "あなたは議事録のフォーマット設計の専門家です。実際の議事録は書きません。",
+    )
+
+    t_classify = crewai.Task(
+        description=(
+            "次の会議の内容（全文またはその要約）を読み、会議の種類と主題を2〜3行で判定してください。\n\n"
+            f"{material}"
+        ),
+        expected_output="会議の種類と主題（2〜3行）",
+        agent=classifier,
+    )
+    t_research = crewai.Task(
+        description=(
+            f"会議の内容は全部で {len(material)} 文字です。検索ツールを使い、次を調べてください: "
+            "金額・数値、期限・日程、担当者、宿題・次アクション。"
+            "それぞれ資料に出てくるかどうかを1行ずつ答えてください（あれば一例を添える）。"
+        ),
+        expected_output="4項目それぞれについて、資料にあるかどうかの1行",
+        agent=researcher,
+    )
+    t_design = crewai.Task(
+        description=(
+            f"{designer_rules}\n\n"
+            "会議の種類の判定結果と、資料の調査結果を踏まえて、この会議に最も適した議事録の型を出力してください。"
+            "出力は Markdown の型だけにしてください。"
+        ),
+        expected_output="Markdown の見出しと指示文だけで書かれた議事録の型",
+        agent=designer,
+        context=[t_classify, t_research],
+    )
+    return crewai.Crew(
+        agents=[classifier, researcher, designer],
+        tasks=[t_classify, t_research, t_design],
+        process=crewai.Process.sequential,
+        verbose=False,
+    )
+
+
+class CrewAIStructureEngine:
+    """Callable with the same signature as minutes._generate_structure."""
+
+    def __init__(self, ai_config: Any | None = None):
+        self._ai_config = ai_config
+        self.stats = EngineStats()
+
+    def __call__(
+        self,
+        client: Any,
+        material: str,
+        *,
+        model: str,
+        max_tokens: int,
+        minutes_system: str,
+        ctx: int,
+        on_progress: ProgressFn | None,
+        cancel_event: threading.Event | None,
+        language: str = DEFAULT_LANGUAGE,
+        minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
+    ) -> str | None:
+        check_cancel(cancel_event)
+        self.stats = EngineStats()
+        if on_progress:
+            on_progress(0, 1, t("pmsg.struct_generating", language, model=model))
+        try:
+            crewai = _import_crewai()
+            ai_config = self._ai_config or client.config
+            budget = _ToolBudget(material)
+            crew = _build_crew(
+                crewai, ai_config=ai_config, material=material,
+                designer_rules=_structure_system_prompt(minutes_language)
+                + "\n\n" + _STRUCTURE_PROMPT.replace("{material}", "（上の判定結果と調査結果）"),
+                max_tokens=max_tokens, budget=budget,
+            )
+            result = crew.kickoff()
+            out = _strip_code_fence(str(getattr(result, "raw", None) or result))
+            self.stats.tool_calls = budget.calls
+            usage = getattr(result, "token_usage", None)
+            if usage is not None:
+                self.stats.llm_calls = getattr(usage, "successful_requests", None)
+                self.stats.total_tokens = getattr(usage, "total_tokens", None)
+        except Exception as exc:
+            if on_progress:
+                on_progress(0, 1, t("pmsg.struct_gen_failed", language, exc=exc))
+            return None
+        return check_generated_structure(
+            out, minutes_system=minutes_system, ctx=ctx, max_tokens=max_tokens,
+            on_progress=on_progress, language=language,
+        )
+
+
+def load_generator() -> StructureGenerator:
+    """The CrewAI engine, ready to pass as generate_minutes(structure_generator=).
+
+    Raises StructureEngineUnavailable if CrewAI isn't installed, so the caller
+    can show a clear message at start-up rather than failing mid-run.
+    """
+    ensure_available()
+    return CrewAIStructureEngine()
