@@ -26,6 +26,29 @@ perfectly fine outcome.
 The CrewAI output goes through **the same checks** (required placeholders, size)
 and **the same fallback** (the built-in structure) as the single-call engine.
 
+## The harness around CrewAI
+
+Here, "harness" means the code that controls and limits the agents from the
+outside: what they may reach, how many steps they may take, and what happens to
+their output. (It has nothing to do with a test harness.) The agents decide how to
+go about the task; the harness decides what they cannot do. It is the same idea as
+the one described under "Development process" in the README, applied to the agents
+instead of to the development work. Each item has a test; the sections below give
+the details.
+
+| What the harness does | Where |
+| --- | --- |
+| Keeps the work on this machine: CrewAI's telemetry and tracing are switched off before it is imported; the agents talk only to the `[ai] base_url` server, with the configured key and model, and there is no environment-variable fallback to a hosted endpoint | [How it stays local](#how-it-stays-local) |
+| Keeps the material from lingering: CrewAI's own copy of it (a SQLite file under its data directory) goes to a private temporary folder deleted when the run ends; if that redirect cannot be set up or verified, the engine **refuses to run** | [How it stays local](#how-it-stays-local) |
+| Limits steps and calls: `max_iter` per agent, 6 search-tool calls in total, and **22 LLM calls in total, enforced** by a counter shared by the three agents; CrewAI's automatic summarizing on a context overflow is switched off, so an overflow fails instead of making extra calls | [Hard caps](#hard-caps) |
+| Treats the result like the single call's: the same checks (placeholders, size) and the same fallback to the built-in structure, whatever happens inside the crew (an error, a cap being hit, an overflow) | [What it is](#what-it-is) |
+| Keeps error messages short, because some CrewAI errors quote the whole material | [Hard caps](#hard-caps) |
+
+What it does **not** do: there is no wall-clock cap (each call is bound only by
+`[ai] timeout`), the Stop button cannot interrupt the agents mid-run, and a
+force-quit during a run can leave the temporary folder behind. These are described
+in the sections below.
+
 ## Installing the optional extra
 
 CrewAI supports **Python 3.10 to 3.13 only** (not 3.14). If your usual virtual

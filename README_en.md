@@ -183,7 +183,7 @@ Then set `[output] template_path = "templates/<client name>.txt"` in `config.tom
 
 #### Developer option: a CrewAI engine for Auto (experiment)
 
-Auto normally makes the structure with a single LLM call. For developers, an experimental second engine built on CrewAI (three agents: classify, research, design) can be selected with `--structure-engine crewai` when starting the GUI. It is off by default, needs an optional install (Python 3.10-3.13 only), and its output goes through the same checks and fallback. Details, the comparison script, and the hard caps: [`docs/crewai_experiment_en.md`](docs/crewai_experiment_en.md).
+Auto normally makes the structure with a single LLM call. For developers, an experimental second engine built on CrewAI (three agents: classify, research, design) can be selected with `--structure-engine crewai` when starting the GUI. It is off by default, needs an optional install (Python 3.10-3.13 only), and its output goes through the same checks and fallback. A small harness (code that controls and limits the agents from the outside, not a test harness) keeps it local and bounded. Details, the comparison script, and what the harness covers: [`docs/crewai_experiment_en.md`](docs/crewai_experiment_en.md).
 
 #### Choose a file (custom template)
 
