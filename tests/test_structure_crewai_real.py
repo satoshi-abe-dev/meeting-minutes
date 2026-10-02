@@ -45,7 +45,7 @@ def crewai_env(monkeypatch, tmp_path):
 
 @pytest.fixture
 def fake_server():
-    seen = SimpleNamespace(requests=[], connects=[])
+    seen = SimpleNamespace(requests=[], connects=[], mode="normal")
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -56,6 +56,17 @@ def fake_server():
             seen.requests.append({"auth": self.headers.get("Authorization"), "model": body.get("model")})
             msgs = body["messages"]
             system = str(msgs[0]["content"])
+            if seen.mode == "context_overflow":  # what a server says when the prompt is too long
+                err = json.dumps({"error": {
+                    "message": "This model's maximum context length is 100 tokens. "
+                               "However, you requested 5000 tokens.",
+                    "type": "invalid_request_error", "code": "context_length_exceeded"}}).encode()
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+                return
             message: dict
             if body.get("tools") and not any(m.get("role") == "tool" for m in msgs):
                 message = {  # the Researcher: ask for many searches at once
@@ -129,6 +140,7 @@ def test_real_crewai_against_a_local_server(crewai_env, fake_server, loopback_on
     assert {r["model"] for r in fake_server.requests} == {"test-model"}
     # the reported LLM calls match what the server really received
     assert engine.stats.llm_calls == len(fake_server.requests)
+    assert engine.stats.crewai_reported_calls == len(fake_server.requests)  # CrewAI's own metric agrees
     # the cap holds against a burst of parallel tool calls
     assert 0 < engine.stats.tool_calls <= sc._MAX_TOOL_CALLS
     # no meeting-derived data was left in the (fake) home directory: CrewAI's
@@ -145,3 +157,24 @@ def test_real_crewai_telemetry_switches_are_honored(crewai_env):
     assert os.environ["CREWAI_DISABLE_TELEMETRY"] == "true"
     assert os.environ["OTEL_SDK_DISABLED"] == "true"
     assert Telemetry._is_telemetry_disabled()  # CrewAI's own decision
+
+
+def test_real_crewai_context_overflow_fails_fast_and_falls_back(crewai_env, fake_server, loopback_only):
+    """The server rejects every request as too long. CrewAI must not start
+    summarizing in a loop: the run fails after one request and the engine reports
+    a failure (the caller then uses the built-in structure)."""
+    fake_server.mode = "context_overflow"
+
+    class Client:
+        config = AIConfig(base_url=fake_server.base_url, api_key="local-test", llm_model="test-model")
+
+    msgs: list[str] = []
+    engine = sc.CrewAIStructureEngine()
+    out = engine(
+        Client(), "予算は100万円です。", model="test-model", max_tokens=500,
+        minutes_system="s", ctx=0, on_progress=lambda c, t, m: msgs.append(m), cancel_event=None,
+    )
+    assert out is None
+    assert any("failed" in m for m in msgs), msgs
+    assert len(fake_server.requests) == 1  # no summarizing calls, no loop
+    assert engine.stats.llm_calls == 1

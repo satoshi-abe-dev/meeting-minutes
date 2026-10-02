@@ -64,15 +64,21 @@ def _fake_module(name: str) -> types.ModuleType:
     return mod
 
 
-def _install_fake_crewai(monkeypatch, *, output: str = GOOD, boom: Exception | None = None,
-                         search_attempts: int = 0, usage: object | None = None):
+def _install_fake_crewai(monkeypatch, *, output: str = GOOD, boom: BaseException | None = None,
+                         search_attempts: int = 0, usage: object | None = None, llm_hammer: int = 0):
     """Put a fake `crewai` (and crewai.tools) into sys.modules; returns a recorder."""
-    rec = SimpleNamespace(llm_kwargs=None, llm_all=[], agents=[], tasks=[], crew_kwargs=None, tool_outputs=[])
+    rec = SimpleNamespace(
+        llm_kwargs=None, llm_all=[], llm_real_calls=0, agents=[], tasks=[], crew_kwargs=None, tool_outputs=[]
+    )
 
     class LLM:
         def __init__(self, **kw):
             rec.llm_kwargs = kw
             rec.llm_all.append(kw)
+
+        def call(self, *args, **kwargs):
+            rec.llm_real_calls += 1  # a request that reached the (fake) server
+            return "ok"
 
     class Agent:
         def __init__(self, **kw):
@@ -95,6 +101,8 @@ def _install_fake_crewai(monkeypatch, *, output: str = GOOD, boom: Exception | N
         def kickoff(self):
             if boom is not None:
                 raise boom
+            for i in range(llm_hammer):  # agents calling their LLMs, e.g. summarizing in a loop
+                rec.agents[i % 3].kw["llm"].call("hi")
             researcher = rec.agents[1]
             for i in range(search_attempts):  # a small model hammering the tool
                 rec.tool_outputs.append(researcher.tools[0](f"キーワード{i}"))
@@ -235,11 +243,13 @@ def test_tool_cap_holds_even_when_the_model_hammers_the_tool(monkeypatch):
     assert rec.tool_outputs.count(sc._LIMIT_REACHED) == 50 - sc._MAX_TOOL_CALLS
 
 
-def test_stats_report_llm_calls_from_usage_metrics(monkeypatch):
-    _install_fake_crewai(monkeypatch, usage=SimpleNamespace(successful_requests=7, total_tokens=1234))
+def test_stats_keep_crewais_own_usage_metrics_alongside_our_count(monkeypatch):
+    usage = SimpleNamespace(successful_requests=7, total_tokens=1234)
+    _install_fake_crewai(monkeypatch, usage=usage, llm_hammer=7)
     engine = sc.CrewAIStructureEngine()
     engine(FakeLLM(), "資料", **_kwargs(None))
-    assert engine.stats.llm_calls == 7
+    assert engine.stats.llm_calls == 7  # counted by us at the LLM boundary
+    assert engine.stats.crewai_reported_calls == 7  # CrewAI's metric
     assert engine.stats.total_tokens == 1234
 
 
@@ -548,3 +558,60 @@ def test_failure_messages_are_shortened(monkeypatch):
     warning = next(m for m in msgs if "failed" in m)
     assert len(warning) < 600
     assert warning.count("会議の発言") < 100
+
+
+# --- the LLM call cap and the context window ----------------------------------------------
+
+def test_agents_do_not_summarize_on_context_overflow(monkeypatch):
+    rec = _install_fake_crewai(monkeypatch)
+    sc.CrewAIStructureEngine()(FakeLLM(), "資料", **_kwargs(None))
+    assert all(a.kw["respect_context_window"] is False for a in rec.agents)
+
+
+def test_llm_calls_are_capped_across_all_agents(monkeypatch):
+    msgs: list[str] = []
+    rec = _install_fake_crewai(monkeypatch, llm_hammer=60)
+    engine = sc.CrewAIStructureEngine()
+    out = engine(FakeLLM(), "資料", **_kwargs(None, on_progress=lambda c, t, m: msgs.append(m)))
+    assert out is None  # the run was stopped: the caller falls back
+    assert rec.llm_real_calls == sc._REQUEST_BOUND  # the 23rd call never reached the server
+    assert engine.stats.llm_calls == sc._REQUEST_BOUND  # kept for a failed run too
+    assert any("limit" in m for m in msgs)
+
+
+def test_the_cap_counts_every_agent_on_one_counter(monkeypatch):
+    rec = _install_fake_crewai(monkeypatch, llm_hammer=7)
+    engine = sc.CrewAIStructureEngine()
+    assert engine(FakeLLM(), "資料", **_kwargs(None)) == GOOD.strip()  # 7 calls: under the cap
+    assert rec.llm_real_calls == 7 and engine.stats.llm_calls == 7
+
+
+def test_call_budget_refuses_past_the_limit_and_does_not_count_refusals():
+    class L:
+        def call(self, *a, **k):
+            return "ok"
+
+    budget = sc._LLMCallBudget(limit=2)
+    a, b = budget.attach(L()), budget.attach(L())
+    assert (a.call(), b.call()) == ("ok", "ok")
+    with pytest.raises(sc.LLMCallLimitReached):
+        a.call()
+    assert budget.calls == 2
+
+
+def test_context_overflow_exit_is_a_failure_not_a_crash(monkeypatch):
+    # With respect_context_window off, CrewAI raises SystemExit (not an Exception)
+    msgs: list[str] = []
+    boom = SystemExit("Context length exceeded and user opted not to summarize.")
+    _install_fake_crewai(monkeypatch, boom=boom)
+    out = sc.CrewAIStructureEngine()(
+        FakeLLM(), "資料", **_kwargs(None, on_progress=lambda c, t, m: msgs.append(m))
+    )
+    assert out is None
+    assert any("Context length exceeded" in m for m in msgs)
+
+
+def test_a_keyboard_interrupt_still_propagates(monkeypatch):
+    _install_fake_crewai(monkeypatch, boom=KeyboardInterrupt())
+    with pytest.raises(KeyboardInterrupt):
+        sc.CrewAIStructureEngine()(FakeLLM(), "資料", **_kwargs(None))

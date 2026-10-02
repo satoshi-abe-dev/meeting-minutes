@@ -117,8 +117,9 @@ searches in one response), so the limits are fixed in code
 | --- | --- |
 | `max_iter` (Classifier / Researcher / Designer) | 2 / 4 / 2 |
 | Search-tool calls in total (counted by us, beyond the cap the tool refuses) | 6 |
-| LLM requests in total, worst case (each agent uses all its steps plus one forced final answer, and is run again once if it fails) | 22 (typically 4) |
-| Time | **No wall-clock cap.** Each request is bound by `[ai] timeout` (default 600 s), and the OpenAI client may retry a request up to twice |
+| LLM calls in total | **22, enforced** by one counter shared by the three agents at the LLM boundary (typically 4 are made). It counts every call, including any summarizing CrewAI might do on its own; the call after the 22nd is refused, the run stops, and the pipeline falls back to the built-in structure. 22 is what the other caps allow in the worst case: per agent `max_iter` steps plus one forced final answer, run again once if the agent fails |
+| Context overflow | CrewAI's automatic summarizing (`respect_context_window`) is switched off: if the prompt does not fit, the run fails and falls back instead of making extra calls |
+| Time | **No wall-clock cap.** Each call is bound by `[ai] timeout` (default 600 s); the OpenAI client may retry a failed HTTP request up to twice inside one call, which the counter does not see |
 | Agents | 3, run in sequence, no delegation |
 
 CrewAI's own `max_execution_time` is deliberately not used: it cannot stop an
@@ -134,7 +135,7 @@ comparison table.
 the agents start and again after the structure step, not in the middle of a run,
 so a Stop pressed while they are working takes effect when they finish (about a
 minute or two in the comparisons above). There is no hard time bound, only the
-step and request caps and the per-request timeout in the table, so with a stalled
+step and call caps and the per-call timeout in the table, so with a stalled
 local model it can take as long as those allow. The single-call engine behaves
 the same way (one request, bound by `[ai] timeout`).
 

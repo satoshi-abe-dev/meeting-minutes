@@ -17,14 +17,18 @@ this module imports fine without it. Importing the module also turns CrewAI's
 telemetry off, before CrewAI itself can be imported; nothing here talks to
 anything but the local OpenAI-compatible server from config.ai.
 
-Hard caps on steps and requests: each agent has a small max_iter, the
+Hard caps on steps and LLM calls: each agent has a small max_iter, the
 Researcher's tool is limited to _MAX_TOOL_CALLS calls in total (a small model once
-issued ~50 searches in one response), and the whole crew can make at most
-_REQUEST_BOUND LLM requests. There is deliberately no wall-clock cap: CrewAI's
-max_execution_time cannot stop a running agent (it only raises once the agent has
-finished) and its error message contains the whole task description, i.e. the
-material, so it is not used. Each request is bound by config.ai.timeout. LLM calls
-are counted from CrewAI's usage metrics and reported in `stats`.
+issued ~50 searches in one response), and every LLM call of every agent goes
+through one shared counter that stops the run at _REQUEST_BOUND calls, whatever
+CrewAI is doing (a failed agent run is retried, a context overflow could trigger
+extra summarizing calls; the latter is also switched off). When a cap stops the
+run, the engine reports a failure and the caller falls back to the built-in
+structure. There is deliberately no wall-clock cap: CrewAI's max_execution_time
+cannot stop a running agent (it only raises once the agent has finished) and its
+error message contains the whole task description, i.e. the material, so it is
+not used. Each call is bound by config.ai.timeout. LLM calls are counted from the
+shared counter, and CrewAI's own usage metrics are kept alongside in `stats`.
 """
 
 from __future__ import annotations
@@ -237,7 +241,8 @@ _LIMIT_REACHED = (
 class EngineStats:
     """What the last run cost, for the comparison script."""
 
-    llm_calls: int | None = None  # None: CrewAI reported no usage metrics
+    llm_calls: int | None = None  # counted by us, at the LLM boundary
+    crewai_reported_calls: int | None = None  # CrewAI's own usage metric (None: not reported)
     tool_calls: int = 0
     total_tokens: int | None = None
     notes: list[str] = field(default_factory=list)
@@ -307,6 +312,39 @@ def _brief(exc: BaseException) -> str:
     return text if len(text) <= _BRIEF_CHARS else text[:_BRIEF_CHARS] + "…"
 
 
+class LLMCallLimitReached(RuntimeError):
+    """Raised inside CrewAI when the crew would exceed _REQUEST_BOUND LLM calls."""
+
+
+class _LLMCallBudget:
+    """One counter shared by all agents' LLMs; refuses calls past the limit.
+
+    Wraps the `call` of CrewAI's LLM object, the one entry point every request
+    goes through (including any summarizing CrewAI does on its own). Calls made
+    after the limit are refused before they reach the server and aren't counted.
+    A single call may still be retried inside the OpenAI client; that is part of
+    the call and bound by config.ai.timeout.
+    """
+
+    def __init__(self, limit: int = _REQUEST_BOUND):
+        self.limit = limit
+        self.calls = 0
+        self._lock = threading.Lock()
+
+    def attach(self, llm: Any) -> Any:
+        original = llm.call
+
+        def counted(*args: Any, **kwargs: Any) -> Any:
+            with self._lock:
+                if self.calls >= self.limit:
+                    raise LLMCallLimitReached(f"the LLM call limit ({self.limit}) was reached")
+                self.calls += 1
+            return original(*args, **kwargs)
+
+        llm.call = counted
+        return llm
+
+
 class _ToolBudget:
     """Counts search-tool calls and refuses past the cap (thread-safe)."""
 
@@ -342,6 +380,7 @@ def _build_crew(
     designer_rules: str,
     max_tokens: int,
     budget: _ToolBudget,
+    llm_budget: _LLMCallBudget,
 ) -> Any:
     """Assemble the three agents and their tasks into a sequential Crew."""
     # The local server is passed explicitly: no environment-variable fallback
@@ -349,14 +388,14 @@ def _build_crew(
     # CrewAI sums each agent's usage, so a shared LLM would be counted once per
     # agent (verified against CrewAI 1.15.23: 3 requests were reported as 9).
     def make_llm() -> Any:
-        return crewai.LLM(
+        return llm_budget.attach(crewai.LLM(
             model=f"openai/{ai_config.llm_model}",
             base_url=ai_config.base_url,
             api_key=ai_config.api_key,
             temperature=0.2,
             max_tokens=max_tokens,
             timeout=ai_config.timeout,
-        )
+        ))
 
     from crewai.tools import tool
 
@@ -371,6 +410,9 @@ def _build_crew(
             role=role, goal=goal, backstory=backstory, llm=make_llm(),
             tools=tools or [], allow_delegation=False, verbose=False,
             max_iter=_MAX_ITER[key], max_retry_limit=_MAX_RETRY,
+            # on a context overflow, fail (and fall back) instead of letting CrewAI
+            # make extra summarizing calls outside max_iter
+            respect_context_window=False,
         )
 
     classifier = agent(
@@ -452,28 +494,32 @@ class CrewAIStructureEngine:
         self.stats = EngineStats()
         if on_progress:
             on_progress(0, 1, t("pmsg.struct_generating", language, model=model))
+        budget = _ToolBudget(material)
+        llm_budget = _LLMCallBudget()
         try:
             crewai = _import_crewai()
             ai_config = self._ai_config or client.config
-            budget = _ToolBudget(material)
             crew = _build_crew(
                 crewai, ai_config=ai_config, material=material,
                 designer_rules=_structure_system_prompt(minutes_language)
                 + "\n\n" + _STRUCTURE_PROMPT.replace("{material}", "（上の判定結果と調査結果）"),
-                max_tokens=max_tokens, budget=budget,
+                max_tokens=max_tokens, budget=budget, llm_budget=llm_budget,
             )
             result = crew.kickoff()
             out = _strip_code_fence(str(getattr(result, "raw", None) or result))
-            self.stats.tool_calls = budget.calls
             usage = getattr(result, "token_usage", None)
             if usage is not None:
-                self.stats.llm_calls = getattr(usage, "successful_requests", None)
+                self.stats.crewai_reported_calls = getattr(usage, "successful_requests", None)
                 self.stats.total_tokens = getattr(usage, "total_tokens", None)
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
+            # SystemExit: CrewAI raises it (not an Exception) when the context window
+            # is exceeded and respect_context_window is off; treat it as a failure.
             if on_progress:
                 on_progress(0, 1, t("pmsg.struct_gen_failed", language, exc=_brief(exc)))
             return None
         finally:
+            self.stats.tool_calls = budget.calls  # also kept for a failed run
+            self.stats.llm_calls = llm_budget.calls
             cleanup_storage()  # the material must not outlive the run, however it ended
         return check_generated_structure(
             out, minutes_system=minutes_system, ctx=ctx, max_tokens=max_tokens,
