@@ -17,10 +17,14 @@ this module imports fine without it. Importing the module also turns CrewAI's
 telemetry off, before CrewAI itself can be imported; nothing here talks to
 anything but the local OpenAI-compatible server from config.ai.
 
-Hard caps: each agent has a small max_iter, the Researcher's tool is limited to
-_MAX_TOOL_CALLS calls in total (a small model once issued ~50 searches in one
-response), and every agent has a wall-clock limit. LLM calls are counted from
-CrewAI's usage metrics and reported in `stats`.
+Hard caps on steps and requests: each agent has a small max_iter, the
+Researcher's tool is limited to _MAX_TOOL_CALLS calls in total (a small model once
+issued ~50 searches in one response), and the whole crew can make at most
+_REQUEST_BOUND LLM requests. There is deliberately no wall-clock cap: CrewAI's
+max_execution_time cannot stop a running agent (it only raises once the agent has
+finished) and its error message contains the whole task description, i.e. the
+material, so it is not used. Each request is bound by config.ai.timeout. LLM calls
+are counted from CrewAI's usage metrics and reported in `stats`.
 """
 
 from __future__ import annotations
@@ -216,8 +220,11 @@ def _verify_storage_redirect() -> None:
 _MAX_ITER = {"classifier": 2, "researcher": 4, "designer": 2}
 # Total calls of the search tool across the whole run (counted by us).
 _MAX_TOOL_CALLS = 6
-# Wall-clock limit for one agent, in seconds (also bounded by config.ai.timeout).
-_MAX_EXECUTION_SECONDS = 900
+# Retries of a failed agent run (CrewAI's max_retry_limit).
+_MAX_RETRY = 1
+# Most LLM requests the crew can make: per agent, max_iter steps plus one forced
+# final answer, run again once if the agent fails. Typically 4 are made.
+_REQUEST_BOUND = sum((n + 1) * (1 + _MAX_RETRY) for n in _MAX_ITER.values())
 _SEARCH_MAX_HITS = 5
 _SEARCH_LINE_CHARS = 200
 
@@ -290,6 +297,16 @@ def search_material(material: str, keyword: str) -> str:
     return f"「{keyword}」を含む行 {len(hits)} 件:\n" + "\n".join(f"- {ln}" for ln in shown) + more
 
 
+_BRIEF_CHARS = 300
+
+
+def _brief(exc: BaseException) -> str:
+    """A short form of an exception for progress messages. Some CrewAI errors
+    quote the whole task description, which holds the meeting material."""
+    text = str(exc)
+    return text if len(text) <= _BRIEF_CHARS else text[:_BRIEF_CHARS] + "…"
+
+
 class _ToolBudget:
     """Counts search-tool calls and refuses past the cap (thread-safe)."""
 
@@ -353,8 +370,7 @@ def _build_crew(
         return crewai.Agent(
             role=role, goal=goal, backstory=backstory, llm=make_llm(),
             tools=tools or [], allow_delegation=False, verbose=False,
-            max_iter=_MAX_ITER[key], max_retry_limit=1,
-            max_execution_time=int(min(_MAX_EXECUTION_SECONDS, ai_config.timeout)),
+            max_iter=_MAX_ITER[key], max_retry_limit=_MAX_RETRY,
         )
 
     classifier = agent(
@@ -455,7 +471,7 @@ class CrewAIStructureEngine:
                 self.stats.total_tokens = getattr(usage, "total_tokens", None)
         except Exception as exc:
             if on_progress:
-                on_progress(0, 1, t("pmsg.struct_gen_failed", language, exc=exc))
+                on_progress(0, 1, t("pmsg.struct_gen_failed", language, exc=_brief(exc)))
             return None
         finally:
             cleanup_storage()  # the material must not outlive the run, however it ended

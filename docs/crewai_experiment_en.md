@@ -117,8 +117,15 @@ searches in one response), so the limits are fixed in code
 | --- | --- |
 | `max_iter` (Classifier / Researcher / Designer) | 2 / 4 / 2 |
 | Search-tool calls in total (counted by us, beyond the cap the tool refuses) | 6 |
-| Wall-clock per agent | at most 900 s (and at most `[ai] timeout`) |
+| LLM requests in total, worst case (each agent uses all its steps plus one forced final answer, and is run again once if it fails) | 22 (typically 4) |
+| Time | **No wall-clock cap.** Each request is bound by `[ai] timeout` (default 600 s), and the OpenAI client may retry a request up to twice |
 | Agents | 3, run in sequence, no delegation |
+
+CrewAI's own `max_execution_time` is deliberately not used: it cannot stop an
+agent that is running (it only raises once the agent has finished, because the
+agent runs in a thread pool that is waited for), and its error message quotes
+the whole task description, that is, the material. Error messages shown to you
+are shortened for the same reason.
 
 The number of LLM calls is read from CrewAI's usage metrics and shown in the
 comparison table.
@@ -126,8 +133,10 @@ comparison table.
 **The Stop button does not interrupt the agents.** Cancellation is checked before
 the agents start and again after the structure step, not in the middle of a run,
 so a Stop pressed while they are working takes effect when they finish (about a
-minute or two in the comparisons above; in the worst case it is bounded by the
-wall-clock limits in the table). The single-call engine behaves the same way.
+minute or two in the comparisons above). There is no hard time bound, only the
+step and request caps and the per-request timeout in the table, so with a stalled
+local model it can take as long as those allow. The single-call engine behaves
+the same way (one request, bound by `[ai] timeout`).
 
 ## What was checked about CrewAI (2026-10-03)
 

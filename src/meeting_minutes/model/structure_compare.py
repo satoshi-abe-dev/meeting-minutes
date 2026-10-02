@@ -135,7 +135,7 @@ def run_comparison(
                 raise
             except Exception as exc:
                 structure, llm_calls, tool_calls = None, None, 0
-                notes.append(f"error: {exc}")
+                notes.append(f"error: {str(exc)[:300]}")
             results.append(
                 EngineResult(name, structure, time.monotonic() - t0, llm_calls, tool_calls, notes)
             )

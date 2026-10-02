@@ -216,7 +216,9 @@ def test_engine_builds_three_agents_with_hard_caps(monkeypatch):
     iters = [a.kw["max_iter"] for a in rec.agents]
     assert iters == [2, 4, 2]
     assert all(a.kw["allow_delegation"] is False for a in rec.agents)
-    assert all(a.kw["max_execution_time"] <= sc._MAX_EXECUTION_SECONDS for a in rec.agents)
+    # CrewAI's max_execution_time can't stop a running agent, so it must not be relied on
+    assert all("max_execution_time" not in a.kw for a in rec.agents)
+    assert all(a.kw["max_retry_limit"] == sc._MAX_RETRY for a in rec.agents)
     assert [len(a.tools) for a in rec.agents] == [0, 1, 0]  # only the Researcher has a tool
     assert rec.crew_kwargs["process"] == "sequential"
     # the Designer sees both earlier results
@@ -525,3 +527,24 @@ def test_pid_alive_uses_os_kill_signal_zero_on_posix(monkeypatch):
     monkeypatch.setattr(sc.os, "kill", lambda pid, sig: calls.append((pid, sig)))
     assert sc._pid_alive(123) is True
     assert calls == [(123, 0)]
+
+
+# --- caps that are claimed in the docs ------------------------------------------------------
+
+def test_the_documented_request_bound():
+    # docs/crewai_experiment_*.md say 22: (2+1)*2 + (4+1)*2 + (2+1)*2
+    assert sc._REQUEST_BOUND == 22
+
+
+def test_failure_messages_are_shortened(monkeypatch):
+    # CrewAI's TimeoutError quotes the task description, i.e. the whole material
+    msgs: list[str] = []
+    huge = "Task '" + "会議の発言" * 5000 + "' execution timed out"
+    _install_fake_crewai(monkeypatch, boom=RuntimeError(huge))
+    out = sc.CrewAIStructureEngine()(
+        FakeLLM(), "資料", **_kwargs(None, on_progress=lambda c, t, m: msgs.append(m))
+    )
+    assert out is None
+    warning = next(m for m in msgs if "failed" in m)
+    assert len(warning) < 600
+    assert warning.count("会議の発言") < 100
