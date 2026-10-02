@@ -131,45 +131,59 @@ comparison table.
 
 ## Results of the comparison
 
-One meeting (about 15,000 characters of transcript, Japanese-language meeting,
-minutes language set to English), one local model
-(`qwen2.5-coder-32b-instruct-mlx` through LM Studio), one run each. Only a
-qualitative reading is recorded; nothing from the meeting itself is written
-here, and the generated structures stay under `output/_compare/` (git-ignored).
-Both engines were given the same material. The transcript did not fit the
-structure budget at the loaded context length, so the material was the existing
-chunk summaries (3 chunks, about 7,100 characters).
+Two meetings (A and B), one local model (`qwen2.5-coder-32b-instruct-mlx` through
+LM Studio), minutes language set to English, one successful run per engine and
+meeting. Only a qualitative reading is recorded; nothing from the meetings
+themselves is written here, and the generated structures stay under
+`output/_compare/` (git-ignored). For each meeting both engines were given the
+same material (checked by hash).
 
-| | Single call | CrewAI (3 agents) |
-| --- | --- | --- |
-| Passed the checks (no fallback) | yes | yes |
-| Wall-clock | 49 s | 50 s |
-| LLM calls | 1 | 4 |
-| Search-tool calls (cap 6) | 0 | 4 |
-| Sections | 12 | 7 |
+| | A: single | A: CrewAI | B: single | B: CrewAI |
+| --- | --- | --- | --- | --- |
+| Material | chunk summaries, about 7,100 chars | same | full transcript, about 22,700 chars | same |
+| Passed the checks (no fallback) | yes | yes | yes | yes |
+| Wall-clock | 49 s | 50 s | 90 s | 92 s |
+| LLM calls | 1 | 4 | 1 | 4 |
+| Search-tool calls (cap 6) | 0 | 4 | 0 | 4 |
+| Sections | 12 | 7 | 12 | 6 |
 
 What differed:
 
-1. **Granularity.** The single call split the content into many topic-specific
-   sections and added decision and next-action sections. CrewAI produced fewer,
-   coarser sections: several topics were merged, and some distinct topics did
-   not get a section of their own.
-2. **The instruction under each heading.** The single call mostly copied the
-   generic placeholder sentence from the example in `prompts/structure_ja.txt`
-   under every heading, so the headings carry the meeting-specific information
-   and the instructions carry none. CrewAI wrote a separate instruction for each
-   heading and repeated the "only what is explicitly mentioned" rule in it.
-3. **Reusability.** CrewAI's instructions named the event and its year, which
-   ties the structure to this one meeting (the stated aim is a structure that can
-   be reused for another recording). The single call's headings also contained
-   meeting-specific names, so both are affected, in different places.
-4. **Language and polish.** The single call mixed English headings with Japanese
-   fixed text. CrewAI was in English throughout, but one placeholder line was
-   garbled.
+1. **Granularity (the same in both meetings).** The single call produced about
+   twice as many sections as CrewAI. It split the content into many topic-specific
+   sections; CrewAI merged topics into fewer, coarser ones, and each time left
+   some of the content without a section of its own. For B, the single call also
+   covered side topics (personal and closing remarks) that CrewAI left out.
+2. **Specifics in the structure (no consistent direction).** The aim is a
+   structure that could be reused for another recording. In A, CrewAI's
+   instructions named the event and its year while the single call's instructions
+   were generic copies of the example. In B it was the other way round: the single
+   call's instructions named a website, a third-party product and a personal
+   project, while CrewAI's headings and instructions contained no proper nouns.
+   So neither engine is reliably the more reusable one on this evidence.
+3. **Fixed text.** CrewAI was in English throughout and gave the decision and
+   next-action sections an explicit "none" fallback sentence. The single call
+   mixed English headings with Japanese fixed text in both meetings. One of
+   CrewAI's placeholder lines in A was garbled.
+4. **Time and calls.** Wall-clock was within a few seconds in both meetings, with
+   four times the LLM calls for CrewAI. The Researcher used its tool 4 times each
+   time, inside the cap of 6; the caps held.
 
-What this does and does not show: with one meeting, one model and one run
-(sampling is not deterministic), there is no winner to declare. CrewAI used four
-times the LLM calls for about the same time and a different, not clearly better,
-structure. The Researcher did use its tool (4 calls, inside the cap of 6), and
-the caps held. The single call is the simpler engine and stays the default.
-More meetings would be needed before saying anything about quality.
+What this does and does not show: two meetings, one model, one successful run
+each (sampling is not deterministic), so there is no winner to declare. CrewAI
+cost four times the calls for about the same time and a coarser structure; it was
+not clearly better in any respect that held across both meetings, and the single
+call, which is simpler, stays the default. More meetings would be needed before
+saying anything about quality.
+
+### A note on running the comparison
+
+Run one comparison at a time against a local server. In one session two
+comparisons were started by mistake against the same LM Studio model, and while
+their requests overlapped the MLX backend crashed (a fatal scheduler error, then
+"the model has crashed"): both overlapping requests failed at the same moment,
+one from each run, while the requests that ran alone succeeded. The CrewAI
+engine reported the failure and the pipeline would have fallen back to the
+built-in structure, as designed. The numbers above are only from requests that
+ran alone; for B the two engines' results come from two separate runs for this
+reason.
