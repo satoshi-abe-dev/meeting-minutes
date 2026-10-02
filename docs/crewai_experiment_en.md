@@ -131,8 +131,45 @@ comparison table.
 
 ## Results of the comparison
 
-*Not run yet.* The comparison needs a Python 3.13 environment with CrewAI and a
-local model, and will be added here once it has been run on one to three meetings
-(including any case where CrewAI does worse). Only qualitative observations
-(headings, missing sections, time, calls) will be recorded; no content of a real
-meeting goes into this repository.
+One meeting (about 15,000 characters of transcript, Japanese-language meeting,
+minutes language set to English), one local model
+(`qwen2.5-coder-32b-instruct-mlx` through LM Studio), one run each. Only a
+qualitative reading is recorded; nothing from the meeting itself is written
+here, and the generated structures stay under `output/_compare/` (git-ignored).
+Both engines were given the same material. The transcript did not fit the
+structure budget at the loaded context length, so the material was the existing
+chunk summaries (3 chunks, about 7,100 characters).
+
+| | Single call | CrewAI (3 agents) |
+| --- | --- | --- |
+| Passed the checks (no fallback) | yes | yes |
+| Wall-clock | 49 s | 50 s |
+| LLM calls | 1 | 4 |
+| Search-tool calls (cap 6) | 0 | 4 |
+| Sections | 12 | 7 |
+
+What differed:
+
+1. **Granularity.** The single call split the content into many topic-specific
+   sections and added decision and next-action sections. CrewAI produced fewer,
+   coarser sections: several topics were merged, and some distinct topics did
+   not get a section of their own.
+2. **The instruction under each heading.** The single call mostly copied the
+   generic placeholder sentence from the example in `prompts/structure_ja.txt`
+   under every heading, so the headings carry the meeting-specific information
+   and the instructions carry none. CrewAI wrote a separate instruction for each
+   heading and repeated the "only what is explicitly mentioned" rule in it.
+3. **Reusability.** CrewAI's instructions named the event and its year, which
+   ties the structure to this one meeting (the stated aim is a structure that can
+   be reused for another recording). The single call's headings also contained
+   meeting-specific names, so both are affected, in different places.
+4. **Language and polish.** The single call mixed English headings with Japanese
+   fixed text. CrewAI was in English throughout, but one placeholder line was
+   garbled.
+
+What this does and does not show: with one meeting, one model and one run
+(sampling is not deterministic), there is no winner to declare. CrewAI used four
+times the LLM calls for about the same time and a different, not clearly better,
+structure. The Researcher did use its tool (4 calls, inside the cap of 6), and
+the caps held. The single call is the simpler engine and stays the default.
+More meetings would be needed before saying anything about quality.
