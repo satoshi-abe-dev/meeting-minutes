@@ -2,8 +2,50 @@
 
 [日本語](crewai_experiment_ja.md) | English
 
-This is a developer experiment (Issue #192), not a feature for everyday use. The
-default behavior does not change, and nothing here is needed to use the tool.
+## Summary
+
+**What we tried.** A second engine for Auto-mode structure generation, built on
+CrewAI (three agents: classify, research, design), wired into the real pipeline
+behind a developer flag (Issue #192).
+
+**What we found.** Running and reading the real package, not the fake used in the
+tests, turned up things the fake could not show:
+
+1. CrewAI saves each task's output, which includes the whole material given to the
+   agents, in a database under the home directory, that is, outside `output/`.
+2. Importing CrewAI creates files in the home directory.
+3. Its `max_execution_time` does not stop a running agent, and its timeout error
+   quotes the whole material.
+4. On a context overflow it summarizes with extra LLM calls outside the step limit,
+   so a cap that is only computed from the settings is not enforced.
+5. Its usage metrics counted each request once per agent when the agents shared
+   one LLM object.
+6. A bug in our own cleanup code, which sent Ctrl+C on Windows, was caught by CI on
+   the third operating system.
+
+We closed these with a harness (see below), and with an independent review by a
+different vendor (Codex) and the manager session's review, which found, among
+others, a redirect that failed open and the two caps above that were not enforced.
+Each fix has a test, some of them against the real CrewAI.
+
+**What we compared.** On two meetings and one local model, the CrewAI engine used
+about the same time as the single call, four times the LLM calls, and produced a
+coarser structure. It was not clearly better in any respect that held across both
+meetings.
+
+**What we decided.** We do not recommend the CrewAI engine to users and do not
+adopt it. It stays off by default and is reachable only through a developer flag;
+the code is kept as the record of the experiment. Limits remain even with the
+harness: a force-quit during a run can leave a temporary folder behind, the Stop
+button does not interrupt the agents mid-run, and there is no wall-clock cap.
+
+**What we did not do.** The issue asked for a run of the whole pipeline with Wi-Fi
+turned off. Since this is no longer a feature for users, we did not do it. What was
+checked instead: with the real CrewAI against a fake local server, only loopback
+connections were made.
+
+The rest of this page is for developers who want to reproduce or read the details.
+The default behavior of the tool is unchanged, and nothing here is needed to use it.
 
 ## What it is
 
