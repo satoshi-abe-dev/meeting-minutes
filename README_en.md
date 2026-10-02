@@ -181,10 +181,6 @@ cp output/<video name>/work/structure_used.txt templates/<client name>.txt
 
 Then set `[output] template_path = "templates/<client name>.txt"` in `config.toml` (or "Choose a file" in the GUI) to pin that structure from then on.
 
-#### Developer option: a CrewAI engine for Auto (experiment)
-
-Auto normally makes the structure with a single LLM call. For developers, an experimental second engine built on CrewAI (three agents: classify, research, design) can be selected with `--structure-engine crewai` when starting the GUI. It is off by default, needs an optional install (Python 3.10-3.13 only), and its output goes through the same checks and fallback. A small harness (code that controls and limits the agents from the outside, not a test harness) keeps it local and bounded. Details, the comparison script, and what the harness covers: [`docs/crewai_experiment_en.md`](docs/crewai_experiment_en.md).
-
 #### Choose a file (custom template)
 
 Use this to match a client's prescribed format.
@@ -294,6 +290,18 @@ flowchart LR
     PRs #48 / #60 / #66, so "always keep the old-path ignore entry" was then written down as a rule
 
 Because this project handles real meeting data, tracked files are grepped for leaked confidential data before every push / PR.
+
+## Experiment on the development side: trying CrewAI (not recommended for users)
+
+As an experiment, we tried CrewAI (an agent framework) as a second way to generate the structure in Auto mode, and **we do not recommend it to users**. It is off by default, reachable only through a developer flag (`--structure-engine crewai`), and needs an optional install (Python 3.10-3.13 only). The code is kept as a record of the experiment.
+
+Why we do not recommend it:
+
+1. Used as it comes, it saved the whole meeting material outside `output/` (in a database under the home directory), created files in the home directory merely by being imported, and could keep making LLM calls, for example to summarize, with no time limit that actually worked. We found these by running and reading the real package, not the fake used in the tests, and closed them with a harness (code that controls and limits the agents from the outside, not a test harness) and reviews.
+2. Some limits remain even with the harness: a force-quit during a run can leave a temporary folder behind, and the Stop button does not interrupt the agents mid-run.
+3. On the two meetings we compared, it did not do better than the single call: about the same time, four times the LLM calls, and a coarser structure.
+
+What we tried, what we found, and how it was checked: [`docs/crewai_experiment_en.md`](docs/crewai_experiment_en.md).
 
 ## Contact
 
