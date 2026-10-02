@@ -127,6 +127,10 @@ verbatim, without paraphrasing or summarizing it.
   external services, etc.). Merging a PR is the manager's authority (see above).
 - Changes to `config.toml` / `CLAUDE.md` / permission settings (`settings.json`, etc.).
 - `git reset --hard` / `git clean` / force push / branch deletion / history rewriting.
+  One exception: deleting the branch of a PR that has already been merged (remote and
+  local) is routine post-merge cleanup and needs no confirmation, because its content
+  lives on in the target branch. Deleting a branch that has not been merged still needs
+  the owner's confirmation.
 - Using `rm` to delete a file. Deletion uses `/usr/bin/trash`, naming the target file and
   getting the owner's permission every single time. `rm`/`git rm` are also technically
   blocked by a PreToolUse hook in `~/.claude/settings.json` (see the
