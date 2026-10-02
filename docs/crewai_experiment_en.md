@@ -89,7 +89,11 @@ There is no automatic score. Read the two structures and note what differs.
   folders (mode 0700) and deletes them **as soon as the run ends**, including
   when it ends with an error or an interrupt, with a delete at exit as a
   backstop. Folders left by a process that was killed are removed at the next
-  start. **What this cannot cover:** if the process is force-quit (SIGKILL,
+  start. If the directory cannot be redirected (this relies on an internal hook
+  of CrewAI 1.15.x), the engine **refuses to run** instead of running without
+  it: it checks on the real CrewAI at start-up that the task-output database
+  lands in its temporary folder, and stops with a message otherwise.
+  **What this cannot cover:** if the process is force-quit (SIGKILL,
   `kill`, a crash, power loss) *while the agents are running*, the folder stays
   in the temporary directory (`$TMPDIR`, readable only by you) until the next
   start of this tool or the OS's own temp cleanup. The Stop button and closing
@@ -118,6 +122,12 @@ searches in one response), so the limits are fixed in code
 
 The number of LLM calls is read from CrewAI's usage metrics and shown in the
 comparison table.
+
+**The Stop button does not interrupt the agents.** Cancellation is checked before
+the agents start and again after the structure step, not in the middle of a run,
+so a Stop pressed while they are working takes effect when they finish (about a
+minute or two in the comparisons above; in the worst case it is bounded by the
+wall-clock limits in the table). The single-call engine behaves the same way.
 
 ## What was checked about CrewAI (2026-10-03)
 

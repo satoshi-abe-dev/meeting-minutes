@@ -26,6 +26,7 @@ CrewAI's usage metrics and reported in `stats`.
 from __future__ import annotations
 
 import atexit
+import importlib.util
 import os
 import re
 import shutil
@@ -109,6 +110,14 @@ def cleanup_storage() -> None:
         shutil.rmtree(_storage_dirs.pop(), ignore_errors=True)
 
 
+_REFUSE = (
+    "The CrewAI engine can't be used: this version of CrewAI does not allow its data "
+    "directory to be redirected ({why}). CrewAI would then save the meeting material "
+    "under ~/Library/Application Support, so the engine refuses to run. "
+    "Use the CrewAI version from requirements-agent.txt (checked with 1.15.x)."
+)
+
+
 def _redirect_storage() -> None:
     """Keep CrewAI's local data out of ~/Library/Application Support.
 
@@ -119,20 +128,52 @@ def _redirect_storage() -> None:
     at private temp folders (mode 0700) that are deleted when a run ends
     (cleanup_storage), at exit as a backstop, and, for a process that was killed
     mid-run, at the next start. Must run before crewai is imported (it resolves
-    the directory at import time). Checked against CrewAI 1.15.23; does nothing
-    if crewai_core.paths doesn't exist (the real-CrewAI test would flag it).
+    the directory at import time).
+
+    Fails closed: if the directory can't be redirected (the hook this relies on,
+    crewai_core.paths.db_storage_path, is internal to CrewAI 1.15.x and may
+    change), raises StructureEngineUnavailable instead of running without it.
     """
     global _redirected
     if _redirected:
         return
     try:
         import crewai_core.paths as paths
-    except ImportError:
-        return
+    except ImportError as exc:
+        raise StructureEngineUnavailable(_REFUSE.format(why=f"crewai_core.paths: {exc}")) from exc
+    if not callable(getattr(paths, "db_storage_path", None)):
+        raise StructureEngineUnavailable(_REFUSE.format(why="crewai_core.paths.db_storage_path is missing"))
     _remove_stale_storage()
     atexit.register(cleanup_storage)
     paths.db_storage_path = _new_storage_dir
     _redirected = True
+
+
+_verified = False
+
+
+def _verify_storage_redirect() -> None:
+    """Check on the real CrewAI that its task-output database lands in our temp
+    folder, not in ~/Library. Builds the storage object CrewAI itself uses for a
+    crew (this creates an empty database in a temp folder, deleted right away).
+    Raises StructureEngineUnavailable if that can't be confirmed."""
+    global _verified
+    if _verified:
+        return
+    try:
+        from crewai.memory.storage.kickoff_task_outputs_storage import (
+            KickoffTaskOutputsSQLiteStorage,
+        )
+
+        db_path = Path(KickoffTaskOutputsSQLiteStorage().db_path).resolve()
+        ours = [Path(d).resolve() for d in _storage_dirs]
+    except Exception as exc:
+        cleanup_storage()
+        raise StructureEngineUnavailable(_REFUSE.format(why=f"could not verify it: {exc}")) from exc
+    cleanup_storage()
+    if not any(db_path.is_relative_to(d) for d in ours):
+        raise StructureEngineUnavailable(_REFUSE.format(why=f"its database would be at {db_path}"))
+    _verified = True
 
 
 # --- Hard caps ------------------------------------------------------------
@@ -160,19 +201,34 @@ class EngineStats:
     notes: list[str] = field(default_factory=list)
 
 
+def _installed(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError, AttributeError):  # e.g. a None entry in sys.modules
+        return False
+
+
+_NOT_INSTALLED = (
+    "CrewAI is not installed, so --structure-engine crewai can't be used. "
+    "Install the optional extra in a Python 3.10-3.13 environment: "
+    "pip install -r requirements-agent.txt"
+)
+
+
 def _import_crewai() -> Any:
-    """Import crewai (after telemetry is off), or raise a clear error."""
+    """Import crewai (after telemetry is off and its data directory is
+    redirected), or raise StructureEngineUnavailable. Never runs CrewAI with
+    its data directory unredirected."""
     disable_telemetry()
+    if not _installed("crewai"):
+        raise StructureEngineUnavailable(_NOT_INSTALLED)
     _redirect_storage()
     try:
         import crewai
         import crewai.tools
     except ImportError as exc:
-        raise StructureEngineUnavailable(
-            "CrewAI is not installed, so --structure-engine crewai can't be used. "
-            "Install the optional extra in a Python 3.10-3.13 environment: "
-            "pip install -r requirements-agent.txt"
-        ) from exc
+        raise StructureEngineUnavailable(_NOT_INSTALLED) from exc
+    _verify_storage_redirect()
     return crewai
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import importlib.machinery
 import os
 import sys
 import types
@@ -44,6 +45,23 @@ class FakeLLM:
         if "議事録の「型」" in user:
             return GOOD
         return "# 議事録\n本文\n"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_storage_state(monkeypatch, tmp_path):
+    """Each test starts with an unredirected, unverified engine, and its temp
+    folders (and the atexit hook) stay inside the test."""
+    monkeypatch.setattr(sc, "_redirected", False)
+    monkeypatch.setattr(sc, "_verified", False)
+    monkeypatch.setattr(sc, "_storage_dirs", [])
+    monkeypatch.setattr(sc.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(sc.atexit, "register", lambda *a, **k: None)
+
+
+def _fake_module(name: str) -> types.ModuleType:
+    mod = types.ModuleType(name)
+    mod.__spec__ = importlib.machinery.ModuleSpec(name, None)  # importlib.util.find_spec needs it
+    return mod
 
 
 def _install_fake_crewai(monkeypatch, *, output: str = GOOD, boom: Exception | None = None,
@@ -82,14 +100,34 @@ def _install_fake_crewai(monkeypatch, *, output: str = GOOD, boom: Exception | N
                 rec.tool_outputs.append(researcher.tools[0](f"キーワード{i}"))
             return SimpleNamespace(raw=output, token_usage=usage)
 
-    crewai = types.ModuleType("crewai")
+    crewai = _fake_module("crewai")
     crewai.LLM, crewai.Agent, crewai.Task = LLM, Agent, Task
     crewai.Process, crewai.Crew = Process, Crew
-    tools = types.ModuleType("crewai.tools")
+    tools = _fake_module("crewai.tools")
     tools.tool = lambda name: (lambda fn: fn)  # the decorated function is the tool
     crewai.tools = tools
     monkeypatch.setitem(sys.modules, "crewai", crewai)
     monkeypatch.setitem(sys.modules, "crewai.tools", tools)
+
+    # what the engine relies on in the real CrewAI: crewai_core.paths.db_storage_path,
+    # read at call time by the storage class a Crew uses for its task outputs
+    paths = _fake_module("crewai_core.paths")
+    paths.db_storage_path = lambda: "/should/not/be/used"
+    core = _fake_module("crewai_core")
+    core.paths = paths
+    monkeypatch.setitem(sys.modules, "crewai_core", core)
+    monkeypatch.setitem(sys.modules, "crewai_core.paths", paths)
+
+    class KickoffTaskOutputsSQLiteStorage:
+        def __init__(self):
+            self.db_path = os.path.join(sys.modules["crewai_core.paths"].db_storage_path(), "latest.db")
+
+    storage_mod = _fake_module("crewai.memory.storage.kickoff_task_outputs_storage")
+    storage_mod.KickoffTaskOutputsSQLiteStorage = KickoffTaskOutputsSQLiteStorage
+    rec.storage_cls = KickoffTaskOutputsSQLiteStorage
+    for name in ("crewai.memory", "crewai.memory.storage"):
+        monkeypatch.setitem(sys.modules, name, _fake_module(name))
+    monkeypatch.setitem(sys.modules, "crewai.memory.storage.kickoff_task_outputs_storage", storage_mod)
     return rec
 
 
@@ -312,19 +350,20 @@ def test_unknown_engine_is_rejected():
 # --- CrewAI's local data directory ------------------------------------------------
 
 @pytest.fixture
-def fake_paths(monkeypatch, tmp_path):
-    """A stand-in for crewai_core.paths, with temp dirs kept inside tmp_path."""
-    paths = types.ModuleType("crewai_core.paths")
+def fake_paths(monkeypatch):
+    """Just the fake crewai_core.paths (no fake crewai), for the storage tests."""
+    paths = _fake_module("crewai_core.paths")
     paths.db_storage_path = lambda: "/should/not/be/used"
-    pkg = types.ModuleType("crewai_core")
-    pkg.paths = paths
-    monkeypatch.setitem(sys.modules, "crewai_core", pkg)
+    core = _fake_module("crewai_core")
+    core.paths = paths
+    monkeypatch.setitem(sys.modules, "crewai_core", core)
     monkeypatch.setitem(sys.modules, "crewai_core.paths", paths)
-    monkeypatch.setattr(sc.tempfile, "tempdir", str(tmp_path))
-    monkeypatch.setattr(sc, "_redirected", False)
-    monkeypatch.setattr(sc, "_storage_dirs", [])
-    monkeypatch.setattr(sc.atexit, "register", lambda *a, **k: None)  # no hook leaks into the test run
     return paths
+
+
+def _crewai_storage_dir():
+    """The folder CrewAI would now use for its data (a fresh one per call)."""
+    return sc.Path(sys.modules["crewai_core.paths"].db_storage_path())
 
 
 def _our_dirs(tmp_path):
@@ -347,13 +386,13 @@ def test_storage_is_redirected_to_private_temp_dirs(fake_paths, tmp_path):
     assert _our_dirs(tmp_path) == []
 
 
-def test_storage_is_deleted_as_soon_as_the_run_ends(monkeypatch, fake_paths, tmp_path):
+def test_storage_is_deleted_as_soon_as_the_run_ends(monkeypatch, tmp_path):
     rec = _install_fake_crewai(monkeypatch)
     sc._redirect_storage()
     original = sys.modules["crewai"].Crew.kickoff
 
     def kickoff_with_storage(self):
-        (sc.Path(fake_paths.db_storage_path()) / "latest_kickoff_task_outputs.db").write_text("material")
+        (_crewai_storage_dir() / "latest_kickoff_task_outputs.db").write_text("material")
         assert _our_dirs(tmp_path)  # CrewAI wrote something during the run
         return original(self)
 
@@ -364,13 +403,13 @@ def test_storage_is_deleted_as_soon_as_the_run_ends(monkeypatch, fake_paths, tmp
 
 
 @pytest.mark.parametrize("boom", [RuntimeError("kickoff failed"), KeyboardInterrupt()])
-def test_storage_is_deleted_even_when_the_run_fails(monkeypatch, fake_paths, tmp_path, boom):
+def test_storage_is_deleted_even_when_the_run_fails(monkeypatch, tmp_path, boom):
     _install_fake_crewai(monkeypatch, boom=boom)
     sc._redirect_storage()
     original = sys.modules["crewai"].Crew.kickoff
 
     def kickoff_with_storage(self):
-        sc.Path(fake_paths.db_storage_path()).joinpath("x.db").write_text("material")
+        (_crewai_storage_dir() / "x.db").write_text("material")
         return original(self)
 
     sys.modules["crewai"].Crew.kickoff = kickoff_with_storage
@@ -393,8 +432,63 @@ def test_leftovers_of_dead_processes_are_removed_at_start(fake_paths, tmp_path):
     assert mine.exists() and other.exists()  # live processes and unrelated folders untouched
 
 
-def test_missing_crewai_core_does_not_break_the_redirect(monkeypatch):
-    monkeypatch.setitem(sys.modules, "crewai_core.paths", None)
-    monkeypatch.setattr(sc, "_redirected", False)
-    sc._redirect_storage()  # no error
+# --- fail closed: never run CrewAI with its data directory unredirected ---------------
+
+def test_refuses_when_crewai_core_paths_cannot_be_imported(monkeypatch):
+    rec = _install_fake_crewai(monkeypatch)
+    monkeypatch.setitem(sys.modules, "crewai_core.paths", None)  # `import crewai_core.paths` fails
+    with pytest.raises(StructureEngineUnavailable) as err:
+        sc.ensure_available()
+    assert "redirected" in str(err.value) and "refuses to run" in str(err.value)
     assert sc._redirected is False
+    # and the engine itself never builds or runs a crew
+    msgs: list[str] = []
+    out = sc.CrewAIStructureEngine()(
+        FakeLLM(), "資料", **_kwargs(None, on_progress=lambda c, t, m: msgs.append(m))
+    )
+    assert out is None and rec.crew_kwargs is None
+    assert any("refuses to run" in m for m in msgs)
+
+
+def test_refuses_when_the_redirect_hook_is_missing(monkeypatch):
+    _install_fake_crewai(monkeypatch)
+    del sys.modules["crewai_core.paths"].db_storage_path
+    with pytest.raises(StructureEngineUnavailable, match="db_storage_path is missing"):
+        sc.ensure_available()
+
+
+def test_refuses_when_the_database_would_still_go_elsewhere(monkeypatch):
+    rec = _install_fake_crewai(monkeypatch)
+
+    class Elsewhere:  # a CrewAI version that no longer asks db_storage_path()
+        db_path = "/Users/someone/Library/Application Support/x/latest.db"
+
+    storage_mod = sys.modules["crewai.memory.storage.kickoff_task_outputs_storage"]
+    storage_mod.KickoffTaskOutputsSQLiteStorage = Elsewhere
+    with pytest.raises(StructureEngineUnavailable, match="its database would be at"):
+        sc.ensure_available()
+    assert sc._verified is False
+    assert rec.crew_kwargs is None
+
+
+def test_refuses_when_the_storage_cannot_be_inspected(monkeypatch, tmp_path):
+    _install_fake_crewai(monkeypatch)
+    monkeypatch.setitem(sys.modules, "crewai.memory.storage.kickoff_task_outputs_storage", None)
+    with pytest.raises(StructureEngineUnavailable, match="could not verify it"):
+        sc.ensure_available()
+    assert _our_dirs(tmp_path) == []  # the probe's temp folder is gone too
+
+
+def test_verification_passes_and_leaves_nothing_behind(monkeypatch, tmp_path):
+    _install_fake_crewai(monkeypatch)
+    sc.ensure_available()
+    assert sc._redirected is True and sc._verified is True
+    assert _our_dirs(tmp_path) == []
+    sc.ensure_available()  # idempotent
+
+
+def test_a_broken_redirect_stops_the_pipeline_wiring_up_front(monkeypatch):
+    _install_fake_crewai(monkeypatch)
+    monkeypatch.setitem(sys.modules, "crewai_core.paths", None)
+    with pytest.raises(StructureEngineUnavailable):
+        se.make_run_pipeline("crewai")
