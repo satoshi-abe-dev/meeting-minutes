@@ -76,13 +76,20 @@ python3.13 -m venv .venv-py313
   `OTEL_SDK_DISABLED=true`・`CREWAI_DISABLE_TRACKING=true`・
   `CREWAI_TRACING_ENABLED=false` を設定する（ほかの値が入っていても上書きする）。`tests/test_offline_env.py` が別プロセスでこれを確認し、
   通常の GUI 起動ではこれらの変数に触れないことも確認する。
-- **CrewAI のデータ保存先に会議のデータを残さない。** CrewAI は実行ごとのタスク出力
-  （会議に由来するテキスト）を、`~/Library/Application Support/<フォルダー名>/` 下の
-  SQLite に保存する。これだと会議の内容が `output/` の外に残ってしまうので、エンジンは
-  保存先を専用の一時フォルダー（プロセス終了時に削除）へ向ける。CrewAI を import すると
+- **CrewAI が持つ材料の写しは、実行が終わったら消す。** CrewAI はタスクごとの出力を
+  `~/Library/Application Support/<フォルダー名>/` 下の SQLite に保存し、その記録には
+  タスクの指示文とエージェントのメッセージ、つまり **エージェントに渡した材料の全体**
+  （文字起こし、またはチャンク要約）が含まれる。放っておくと `output/` の外に残る。
+  そこでエンジンは保存先を専用の一時フォルダー（権限 0700）へ向け、**実行が終わった
+  直後に削除**する（エラーや割り込みで終わった場合も同じ）。念のため終了時にも削除し、
+  強制終了されたプロセスが残したフォルダーは、次回の起動時に削除する。
+  **これで防げない場合:** エージェントの実行中にプロセスが強制終了されると（SIGKILL・
+  `kill`・クラッシュ・停電）、そのフォルダーは一時ディレクトリ（`$TMPDIR`。あなただけが
+  読める）に、このツールの次回起動か OS の一時ファイル掃除まで残る。「中止」ボタンや
+  ウィンドウを閉じる操作は、実行が通常どおり終わるので対象になる。CrewAI を import すると
   `~/.config/crewai` と、ランダムな鍵ファイル
-  `~/Library/Application Support/crewai/credentials/secret.key` は作られるが、会議の内容は
-  含まない。
+  `~/Library/Application Support/crewai/credentials/secret.key` も作られるが、どちらも
+  会議の内容は含まない。
 - **ほかの処理と同じローカルサーバーを使う。** エージェントには
   `LLM(model="openai/<llm_model>", base_url=<[ai] base_url>, api_key=<[ai] api_key>)` を
   明示的に渡す。環境変数経由でクラウドの接続先に落ちることはない。

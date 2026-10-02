@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import socket
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -131,11 +134,11 @@ def test_real_crewai_against_a_local_server(crewai_env, fake_server, loopback_on
     # no meeting-derived data was left in the (fake) home directory: CrewAI's
     # task-output database lives in the temp dir that is removed at exit
     assert list(tmp_path.rglob("*.db")) == []
+    # and the temp folders CrewAI used are already gone, not waiting for exit
+    assert not list(Path(tempfile.gettempdir()).glob(f"{sc._STORAGE_PREFIX}{os.getpid()}-*"))
 
 
 def test_real_crewai_telemetry_switches_are_honored(crewai_env):
-    import os
-
     sc.ensure_available()  # imports crewai the way the engine does
     from crewai_core.telemetry import Telemetry
 

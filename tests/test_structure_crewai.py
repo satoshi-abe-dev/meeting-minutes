@@ -7,6 +7,7 @@ only by test_structure_crewai_real.py, which skips when it isn't installed.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import sys
@@ -310,31 +311,90 @@ def test_unknown_engine_is_rejected():
 
 # --- CrewAI's local data directory ------------------------------------------------
 
-def test_storage_is_redirected_to_a_private_temp_dir(monkeypatch):
-    import os
-
+@pytest.fixture
+def fake_paths(monkeypatch, tmp_path):
+    """A stand-in for crewai_core.paths, with temp dirs kept inside tmp_path."""
     paths = types.ModuleType("crewai_core.paths")
     paths.db_storage_path = lambda: "/should/not/be/used"
     pkg = types.ModuleType("crewai_core")
     pkg.paths = paths
     monkeypatch.setitem(sys.modules, "crewai_core", pkg)
     monkeypatch.setitem(sys.modules, "crewai_core.paths", paths)
-    monkeypatch.setattr(sc, "_storage_dir", None)
-    monkeypatch.setattr(sc.atexit, "register", lambda *a, **k: None)  # don't leak a hook into the test run
+    monkeypatch.setattr(sc.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(sc, "_redirected", False)
+    monkeypatch.setattr(sc, "_storage_dirs", [])
+    monkeypatch.setattr(sc.atexit, "register", lambda *a, **k: None)  # no hook leaks into the test run
+    return paths
+
+
+def _our_dirs(tmp_path):
+    return sorted(p.name for p in tmp_path.glob(f"{sc._STORAGE_PREFIX}*"))
+
+
+def test_storage_is_redirected_to_private_temp_dirs(fake_paths, tmp_path):
+    import os
+    import stat
 
     sc._redirect_storage()
-
-    path = paths.db_storage_path()
+    path = fake_paths.db_storage_path()
     assert os.path.isdir(path)
-    assert "meeting-minutes-crewai-" in path
-    assert not path.startswith(os.path.expanduser("~/Library"))
-    sc._redirect_storage()  # idempotent: the same directory
-    assert paths.db_storage_path() == path
-    sc.shutil.rmtree(path, ignore_errors=True)
+    assert os.path.dirname(path) == str(tmp_path)  # never under ~/Library
+    assert os.path.basename(path).startswith(f"{sc._STORAGE_PREFIX}{os.getpid()}-")
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o700  # private to the user
+    sc._redirect_storage()  # idempotent: no second hook
+    assert fake_paths.db_storage_path() != path  # each call gets its own folder
+    sc.cleanup_storage()
+    assert _our_dirs(tmp_path) == []
+
+
+def test_storage_is_deleted_as_soon_as_the_run_ends(monkeypatch, fake_paths, tmp_path):
+    rec = _install_fake_crewai(monkeypatch)
+    sc._redirect_storage()
+    original = sys.modules["crewai"].Crew.kickoff
+
+    def kickoff_with_storage(self):
+        (sc.Path(fake_paths.db_storage_path()) / "latest_kickoff_task_outputs.db").write_text("material")
+        assert _our_dirs(tmp_path)  # CrewAI wrote something during the run
+        return original(self)
+
+    sys.modules["crewai"].Crew.kickoff = kickoff_with_storage
+    assert sc.CrewAIStructureEngine()(FakeLLM(), "資料", **_kwargs(None)) == GOOD.strip()
+    assert _our_dirs(tmp_path) == []  # gone right after the run, not at exit
+    assert rec.crew_kwargs is not None
+
+
+@pytest.mark.parametrize("boom", [RuntimeError("kickoff failed"), KeyboardInterrupt()])
+def test_storage_is_deleted_even_when_the_run_fails(monkeypatch, fake_paths, tmp_path, boom):
+    _install_fake_crewai(monkeypatch, boom=boom)
+    sc._redirect_storage()
+    original = sys.modules["crewai"].Crew.kickoff
+
+    def kickoff_with_storage(self):
+        sc.Path(fake_paths.db_storage_path()).joinpath("x.db").write_text("material")
+        return original(self)
+
+    sys.modules["crewai"].Crew.kickoff = kickoff_with_storage
+    with contextlib.suppress(KeyboardInterrupt):
+        sc.CrewAIStructureEngine()(FakeLLM(), "資料", **_kwargs(None))
+    assert _our_dirs(tmp_path) == []
+
+
+def test_leftovers_of_dead_processes_are_removed_at_start(fake_paths, tmp_path):
+    import os
+
+    dead = tmp_path / f"{sc._STORAGE_PREFIX}999999999-abc"  # no such pid
+    mine = tmp_path / f"{sc._STORAGE_PREFIX}{os.getpid()}-abc"  # a live process (this one)
+    other = tmp_path / "unrelated-folder"
+    for d in (dead, mine, other):
+        d.mkdir()
+        (d / "x.db").write_text("data")
+    sc._redirect_storage()
+    assert not dead.exists()
+    assert mine.exists() and other.exists()  # live processes and unrelated folders untouched
 
 
 def test_missing_crewai_core_does_not_break_the_redirect(monkeypatch):
     monkeypatch.setitem(sys.modules, "crewai_core.paths", None)
-    monkeypatch.setattr(sc, "_storage_dir", None)
+    monkeypatch.setattr(sc, "_redirected", False)
     sc._redirect_storage()  # no error
-    assert sc._storage_dir is None
+    assert sc._redirected is False

@@ -32,6 +32,7 @@ import shutil
 import tempfile
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from meeting_minutes.i18n import DEFAULT_LANGUAGE, t
@@ -67,31 +68,71 @@ def disable_telemetry() -> None:
 
 disable_telemetry()
 
-_storage_dir: str | None = None
+_STORAGE_PREFIX = "meeting-minutes-crewai-"
+_redirected = False
+_storage_dirs: list[str] = []
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    except OSError:
+        return True  # can't tell: don't treat it as stale
+    return True
+
+
+def _remove_stale_storage() -> None:
+    """Delete storage folders left behind by processes that no longer exist
+    (a crash, a force quit). Folders of live processes, including another
+    running copy of this app, are left alone."""
+    root = Path(tempfile.gettempdir())
+    for d in root.glob(f"{_STORAGE_PREFIX}*"):
+        m = re.fullmatch(rf"{re.escape(_STORAGE_PREFIX)}(\d+)-.*", d.name)
+        if m and d.is_dir() and not _pid_alive(int(m.group(1))):
+            shutil.rmtree(d, ignore_errors=True)
+
+
+def _new_storage_dir() -> str:
+    path = tempfile.mkdtemp(prefix=f"{_STORAGE_PREFIX}{os.getpid()}-")  # mode 0700
+    _storage_dirs.append(path)
+    return path
+
+
+def cleanup_storage() -> None:
+    """Delete everything CrewAI stored. Called as soon as a run ends (also after
+    an exception) rather than at exit, to keep the window short."""
+    while _storage_dirs:
+        shutil.rmtree(_storage_dirs.pop(), ignore_errors=True)
 
 
 def _redirect_storage() -> None:
     """Keep CrewAI's local data out of ~/Library/Application Support.
 
-    CrewAI stores each run's task outputs (text derived from the meeting) in a
-    SQLite file under its data directory, which would leave meeting content
-    outside output/. Point that directory at a private temp folder that is
-    deleted when the process exits. Must run before crewai is imported (it
-    resolves the directory at import time). Checked against CrewAI 1.15.23;
-    does nothing if crewai_core.paths doesn't exist (the data then goes to
-    CrewAI's default place, and the real-CrewAI test would flag it).
+    CrewAI saves each task's output in a SQLite file under its data directory,
+    and that record includes the task description and the agent messages, i.e.
+    the whole material handed to the agents (the transcript or the chunk
+    summaries). Left alone, that would sit outside output/. Point the directory
+    at private temp folders (mode 0700) that are deleted when a run ends
+    (cleanup_storage), at exit as a backstop, and, for a process that was killed
+    mid-run, at the next start. Must run before crewai is imported (it resolves
+    the directory at import time). Checked against CrewAI 1.15.23; does nothing
+    if crewai_core.paths doesn't exist (the real-CrewAI test would flag it).
     """
-    global _storage_dir
-    if _storage_dir is not None:
+    global _redirected
+    if _redirected:
         return
     try:
         import crewai_core.paths as paths
     except ImportError:
         return
-    path = tempfile.mkdtemp(prefix="meeting-minutes-crewai-")
-    atexit.register(shutil.rmtree, path, ignore_errors=True)
-    paths.db_storage_path = lambda: path
-    _storage_dir = path
+    _remove_stale_storage()
+    atexit.register(cleanup_storage)
+    paths.db_storage_path = _new_storage_dir
+    _redirected = True
 
 
 # --- Hard caps ------------------------------------------------------------
@@ -325,6 +366,8 @@ class CrewAIStructureEngine:
             if on_progress:
                 on_progress(0, 1, t("pmsg.struct_gen_failed", language, exc=exc))
             return None
+        finally:
+            cleanup_storage()  # the material must not outlive the run, however it ended
         return check_generated_structure(
             out, minutes_system=minutes_system, ctx=ctx, max_tokens=max_tokens,
             on_progress=on_progress, language=language,

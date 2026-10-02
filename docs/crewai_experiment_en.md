@@ -80,13 +80,22 @@ There is no automatic score. Read the two structures and note what differs.
   module is imported, before CrewAI is imported, overriding any other value. `tests/test_offline_env.py` checks this in
   a separate process, and also checks that a normal GUI start does not touch
   these variables.
-- **No meeting data is left in CrewAI's data directory.** CrewAI stores each
-  run's task outputs (text derived from the meeting) in a SQLite file under
-  `~/Library/Application Support/<folder name>/`, which would leave meeting
-  content outside `output/`. The engine points that directory at a private
-  temporary folder that is deleted when the process exits. Importing CrewAI
-  still creates `~/.config/crewai` and a random key file,
-  `~/Library/Application Support/crewai/credentials/secret.key`, which hold no
+- **CrewAI's own copy of the material is deleted when a run ends.** CrewAI saves
+  each task's output in a SQLite file under
+  `~/Library/Application Support/<folder name>/`, and that record includes the
+  task description and the agent messages, that is, **the whole material given
+  to the agents** (the transcript, or the chunk summaries). Left alone, it would
+  sit outside `output/`. The engine points that directory at private temporary
+  folders (mode 0700) and deletes them **as soon as the run ends**, including
+  when it ends with an error or an interrupt, with a delete at exit as a
+  backstop. Folders left by a process that was killed are removed at the next
+  start. **What this cannot cover:** if the process is force-quit (SIGKILL,
+  `kill`, a crash, power loss) *while the agents are running*, the folder stays
+  in the temporary directory (`$TMPDIR`, readable only by you) until the next
+  start of this tool or the OS's own temp cleanup. The Stop button and closing
+  the window end the run normally and are covered. Importing CrewAI also
+  creates `~/.config/crewai` and a random key file,
+  `~/Library/Application Support/crewai/credentials/secret.key`; neither holds
   meeting content.
 - **Same local server as the rest of the tool.** The agents get
   `LLM(model="openai/<llm_model>", base_url=<[ai] base_url>, api_key=<[ai] api_key>)`
