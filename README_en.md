@@ -297,9 +297,9 @@ As an experiment, we tried CrewAI (an agent framework) as a second way to genera
 
 Why we do not recommend it:
 
-1. Used as it comes, it saved the whole meeting material outside `output/` (in a database under the home directory), created files in the home directory merely by being imported, and could keep making LLM calls, for example to summarize, with no time limit that actually worked. We found these by running and reading the real package, not the fake used in the tests, and closed them with a harness (code that controls and limits the agents from the outside, not a test harness) and reviews.
-2. Some limits remain even with the harness: a force-quit during a run can leave a temporary folder behind, and the Stop button does not interrupt the agents mid-run.
-3. On the two meetings we compared, it did not do better than the single call: about the same time, four times the LLM calls, and a coarser structure.
+- Used as it comes, it saved the whole meeting material outside `output/` (in a database under the home directory), created files in the home directory merely by being imported, and could keep making LLM calls, for example to summarize, with no time limit that actually worked. We found these by running and reading the real package, not the fake used in the tests, and closed them with a harness (code that controls and limits the agents from the outside, not a test harness) and reviews.
+- Some limits remain even with the harness: a force-quit during a run can leave a temporary folder behind, and the Stop button does not interrupt the agents mid-run.
+- On the two meetings we compared, it did not do better than the single call: about the same time, four times the LLM calls, and a coarser structure.
 
 What we tried, what we found, and how it was checked: [`docs/crewai_experiment_en.md`](docs/crewai_experiment_en.md).
 
