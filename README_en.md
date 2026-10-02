@@ -214,9 +214,14 @@ The starter is [`templates/minutes_template_example.txt`](templates/minutes_temp
 | Settings are edited in the config file | They cannot be changed from the GUI |
 | No automatic retry when the LLM times out or drops | Re-run to recover for now |
 
-> 💡 **If you just want to run it, you can stop here.** The rest explains the
-> pipeline's internal design (the split via `pipeline.run` / `Deps`) and the
-> AI-assisted collaborative development workflow.
+> [!TIP]
+> **If you just want to run it, you can stop here.**
+> The rest covers the pipeline's internal design (the split via `pipeline.run` / `Deps`), the AI-assisted collaborative development workflow, and a development-side experiment. Read only what interests you.
+>
+> - How the processing flows: [How it works](#how-it-works)
+> - Why it is designed this way: [Design highlights](#design-highlights)
+> - How it was developed: [Development process](#development-process-ai-assisted-collaboration)
+> - The CrewAI experiment and its result: [Experiment on the development side](#experiment-on-the-development-side-trying-crewai-not-recommended-for-users)
 
 ## How it works
 
