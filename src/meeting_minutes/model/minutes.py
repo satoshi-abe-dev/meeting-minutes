@@ -480,6 +480,11 @@ def _structure_fits_minutes_skeleton(
     return minimum <= ctx
 
 
+# A structure engine: same keyword signature as _generate_structure, returns
+# the checked structure or None (the caller then falls back to the built-in).
+StructureGenerator = Callable[..., "str | None"]
+
+
 def _generate_structure(
     client: LLMClient,
     material: str,
@@ -518,6 +523,28 @@ def _generate_structure(
         if on_progress:
             on_progress(0, 1, t("pmsg.struct_gen_failed", language, exc=exc))
         return None
+    return check_generated_structure(
+        out, minutes_system=minutes_system, ctx=ctx, max_tokens=max_tokens,
+        on_progress=on_progress, language=language,
+    )
+
+
+def check_generated_structure(
+    out: str,
+    *,
+    minutes_system: str,
+    ctx: int,
+    max_tokens: int,
+    on_progress: ProgressFn | None,
+    language: str = DEFAULT_LANGUAGE,
+) -> str | None:
+    """The mechanical checks every auto-generated structure goes through.
+
+    Returns out if it is usable, else None (after reporting why via
+    on_progress): an empty response, a missing required placeholder, or a
+    structure so large it leaves no room for the merge step. Shared by every
+    structure engine, so an alternative engine cannot skip them.
+    """
     missing = [ph for ph in _REQUIRED_PLACEHOLDERS if ph not in out]
     if not out or missing:
         if on_progress:
@@ -550,6 +577,7 @@ def _resolve_auto_structure(
     cancel_event: threading.Event | None,
     language: str = DEFAULT_LANGUAGE,
     minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
+    generator: StructureGenerator | None = None,
 ) -> str:
     """Auto-generate the structure, saving it to out_dir and returning it on
     success. Returns fallback on failure.
@@ -560,7 +588,7 @@ def _resolve_auto_structure(
     templates/ by mistake under the "copy it there if you like it" workflow).
     Delete it.
     """
-    generated = _generate_structure(
+    generated = (generator or _generate_structure)(
         client, material, model=model, max_tokens=max_tokens,
         minutes_system=minutes_system, ctx=ctx,
         on_progress=on_progress, cancel_event=cancel_event, language=language,
@@ -811,6 +839,7 @@ def generate_minutes(
     auto_structure: bool = False,
     language: str = DEFAULT_LANGUAGE,
     minutes_language: str = DEFAULT_MINUTES_LANGUAGE,
+    structure_generator: StructureGenerator | None = None,
 ) -> str:
     """Return the minutes as a Markdown string.
 
@@ -852,6 +881,11 @@ def generate_minutes(
         is saved to out_dir/work/structure_used.txt. If generation fails (an
         exception, an empty response, or a missing required placeholder), falls
         back to the built-in template with a warning.
+    structure_generator: developer option. Replaces the single-call engine
+        (_generate_structure) used in Auto mode with another engine that has
+        the same keyword signature (see model/structure_crewai.py). The
+        material, the checks and the fallback are unchanged. None keeps the
+        default.
     """
     check_cancel(cancel_event)
     system = _system_prompt(minutes_language)
@@ -973,7 +1007,7 @@ def generate_minutes(
             model=llm_config.llm_model, max_tokens=minutes_max_tokens,
             minutes_system=system, ctx=ctx,
             on_progress=on_progress, cancel_event=cancel_event, language=language,
-            minutes_language=minutes_language,
+            minutes_language=minutes_language, generator=structure_generator,
         )
         # After structure generation (a heavy LLM call), check for a
         # cancellation before moving on to minutes generation.

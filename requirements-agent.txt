@@ -1,0 +1,12 @@
+# 開発者用の任意の追加依存（Issue #192）: Auto モードの型の生成に CrewAI 版を使う実験。
+# 通常の利用には不要。入れなくても、GUI は --structure-engine を付けない限り何も変わらない。
+#
+#   python -m pip install -r requirements-agent.txt
+#
+# 注意: CrewAI は Python 3.10〜3.13 のみ対応（3.14 は未対応）。このプロジェクトの
+# 通常の仮想環境が 3.14 系なら、別の仮想環境（例: .venv-py313）を作って入れる。
+#   python3.13 -m venv .venv-py313 && .venv-py313/bin/python -m pip install -r requirements-dev.txt -r requirements-agent.txt
+# 利用統計の送信は、アプリ側で起動時に切ってある（docs/crewai_experiment_ja.md）。
+-r requirements.txt
+
+crewai>=1.15,<2

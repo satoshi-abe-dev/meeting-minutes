@@ -191,6 +191,10 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 として `config.toml` の `[output] template_path = "templates/<客先名>.txt"`（または GUI で
 「ファイルを選択」）にすれば、以後はその構成に固定できる。
 
+#### 開発者向け: おまかせの CrewAI 版（実験）
+
+おまかせは通常、LLM の 1 回の呼び出しで型を作る。開発者向けに、CrewAI を使った実験的な 2 つ目のエンジン（判定・調査・設計の 3 エージェント）を、GUI 起動時の `--structure-engine crewai` で選べる。既定では使われず、任意の追加インストール（Python 3.10〜3.13 のみ）が必要で、出力は同じチェックとフォールバックを通る。小さなハーネス（エージェントの外側から動きを制御・制限するコードで、テスト用のハーネスではない）がローカル完結と上限を保つ。詳細・比較スクリプト・ハーネスの中身は [`docs/crewai_experiment_ja.md`](docs/crewai_experiment_ja.md)。
+
 #### ファイルを選択（カスタムテンプレート）
 
 お客様ごとの規定様式に合わせたいときに使う。

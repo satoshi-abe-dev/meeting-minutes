@@ -34,7 +34,12 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 from meeting_minutes.model.config import load_config
-from meeting_minutes.model.pipeline import run as run_pipeline
+from meeting_minutes.model.structure_engine import (
+    DEFAULT_STRUCTURE_ENGINE,
+    STRUCTURE_ENGINES,
+    StructureEngineUnavailable,
+    make_run_pipeline,
+)
 from meeting_minutes.presenter.main import MainPresenter
 from meeting_minutes.view.tk_main_window import TkMainWindow
 
@@ -47,7 +52,19 @@ def main() -> int:
         default=None,
         help="表示言語（省略時は config.toml の [gui] language、既定 en）",
     )
+    # Developer option (Issue #192): not shown in the GUI, default unchanged.
+    parser.add_argument(
+        "--structure-engine",
+        choices=list(STRUCTURE_ENGINES),
+        default=DEFAULT_STRUCTURE_ENGINE,
+        help="Auto モードの型の生成エンジン（開発者用。crewai は requirements-agent.txt が必要）",
+    )
     args = parser.parse_args()
+
+    try:
+        run_pipeline = make_run_pipeline(args.structure_engine)
+    except StructureEngineUnavailable as exc:
+        parser.error(str(exc))  # prints the message and exits with status 2
 
     config = load_config(None)
     # Priority: --lang > config.toml/[gui] language + env var > default en

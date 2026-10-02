@@ -82,3 +82,46 @@ def test_entrypoint_respects_explicit_offline_opt_out():
         extra_env={"HF_HUB_OFFLINE": "0", "TRANSFORMERS_OFFLINE": "0"},
     )
     assert out == "0 0"
+
+
+# --- CrewAI telemetry (Issue #192) ---------------------------------------------
+# The optional CrewAI structure engine must never send usage data. The switches
+# have to be set before crewai is imported, so they're set at import time of
+# the engine module — checked in a separate process, like the HF variables.
+
+_TELEMETRY_REPORT = (
+    "import os, importlib\n"
+    "importlib.import_module({mod!r})\n"
+    "print(os.environ.get('CREWAI_DISABLE_TELEMETRY'), os.environ.get('OTEL_SDK_DISABLED'))\n"
+)
+
+
+def _import_and_report_telemetry(module: str, *, extra_env: dict | None = None, stub_tk: bool = False) -> str:
+    env = dict(os.environ)
+    env["PYTHONPATH"] = _SRC + os.pathsep + env.get("PYTHONPATH", "")
+    for var in ("CREWAI_DISABLE_TELEMETRY", "OTEL_SDK_DISABLED"):
+        env.pop(var, None)
+    if extra_env:
+        env.update(extra_env)
+    code = (_TK_STUB if stub_tk else "") + _TELEMETRY_REPORT.format(mod=module)
+    proc = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True
+    )
+    return proc.stdout.strip()
+
+
+def test_crewai_engine_import_disables_telemetry():
+    assert _import_and_report_telemetry("meeting_minutes.model.structure_crewai") == "true true"
+
+
+def test_crewai_engine_overrides_an_enabling_value():
+    out = _import_and_report_telemetry(
+        "meeting_minutes.model.structure_crewai",
+        extra_env={"CREWAI_DISABLE_TELEMETRY": "false", "OTEL_SDK_DISABLED": "false"},
+    )
+    assert out == "true true"
+
+
+def test_default_gui_start_does_not_touch_crewai_settings():
+    # Without --structure-engine crewai the engine module isn't even imported.
+    assert _import_and_report_telemetry("meeting_minutes.gui", stub_tk=True) == "None None"
