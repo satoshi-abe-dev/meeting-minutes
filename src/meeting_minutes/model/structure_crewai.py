@@ -30,6 +30,7 @@ import importlib.util
 import os
 import re
 import shutil
+import sys
 import tempfile
 import threading
 from dataclasses import dataclass, field
@@ -74,9 +75,43 @@ _redirected = False
 _storage_dirs: list[str] = []
 
 
-def _pid_alive(pid: int) -> bool:
+def _pid_alive_windows(pid: int) -> bool:
+    """Whether a process exists, on Windows, without os.kill: there signal 0 is
+    CTRL_C_EVENT, so os.kill(pid, 0) would send Ctrl+C instead of checking."""
+    if sys.platform != "win32":
+        raise RuntimeError("Windows only")
+    import ctypes
+    from ctypes import wintypes
+
+    _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    _STILL_ACTIVE = 259
+    _ERROR_INVALID_PARAMETER = 87  # no process with this id
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        # Only "no such process" counts as dead; anything else (e.g. access
+        # denied) means it exists or we can't tell, so it isn't treated as stale.
+        return ctypes.get_last_error() != _ERROR_INVALID_PARAMETER
     try:
-        os.kill(pid, 0)
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return True
+        return code.value == _STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _pid_alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        return _pid_alive_windows(pid)
+    try:
+        os.kill(pid, 0)  # POSIX: signal 0 only checks that the process exists
     except ProcessLookupError:
         return False
     except PermissionError:
@@ -98,7 +133,7 @@ def _remove_stale_storage() -> None:
 
 
 def _new_storage_dir() -> str:
-    path = tempfile.mkdtemp(prefix=f"{_STORAGE_PREFIX}{os.getpid()}-")  # mode 0700
+    path = tempfile.mkdtemp(prefix=f"{_STORAGE_PREFIX}{os.getpid()}-")  # POSIX: mode 0700
     _storage_dirs.append(path)
     return path
 
@@ -125,7 +160,7 @@ def _redirect_storage() -> None:
     and that record includes the task description and the agent messages, i.e.
     the whole material handed to the agents (the transcript or the chunk
     summaries). Left alone, that would sit outside output/. Point the directory
-    at private temp folders (mode 0700) that are deleted when a run ends
+    at private temp folders (mode 0700 on POSIX) that are deleted when a run ends
     (cleanup_storage), at exit as a backstop, and, for a process that was killed
     mid-run, at the next start. Must run before crewai is imported (it resolves
     the directory at import time).

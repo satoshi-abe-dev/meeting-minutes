@@ -86,7 +86,7 @@ There is no automatic score. Read the two structures and note what differs.
   task description and the agent messages, that is, **the whole material given
   to the agents** (the transcript, or the chunk summaries). Left alone, it would
   sit outside `output/`. The engine points that directory at private temporary
-  folders (mode 0700) and deletes them **as soon as the run ends**, including
+  folders (mode 0700 on macOS and Linux; on Windows they inherit the permissions of `%TEMP%`, which sits under your user profile) and deletes them **as soon as the run ends**, including
   when it ends with an error or an interrupt, with a delete at exit as a
   backstop. Folders left by a process that was killed are removed at the next
   start. If the directory cannot be redirected (this relies on an internal hook
@@ -95,7 +95,7 @@ There is no automatic score. Read the two structures and note what differs.
   lands in its temporary folder, and stops with a message otherwise.
   **What this cannot cover:** if the process is force-quit (SIGKILL,
   `kill`, a crash, power loss) *while the agents are running*, the folder stays
-  in the temporary directory (`$TMPDIR`, readable only by you) until the next
+  in the temporary directory (`$TMPDIR` on macOS and Linux, `%TEMP%` on Windows; both under your own account) until the next
   start of this tool or the OS's own temp cleanup. The Stop button and closing
   the window end the run normally and are covered. Importing CrewAI also
   creates `~/.config/crewai` and a random key file,

@@ -379,7 +379,8 @@ def test_storage_is_redirected_to_private_temp_dirs(fake_paths, tmp_path):
     assert os.path.isdir(path)
     assert os.path.dirname(path) == str(tmp_path)  # never under ~/Library
     assert os.path.basename(path).startswith(f"{sc._STORAGE_PREFIX}{os.getpid()}-")
-    assert stat.S_IMODE(os.stat(path).st_mode) == 0o700  # private to the user
+    if os.name == "posix":  # Windows has ACLs, not POSIX modes
+        assert stat.S_IMODE(os.stat(path).st_mode) == 0o700  # private to the user
     sc._redirect_storage()  # idempotent: no second hook
     assert fake_paths.db_storage_path() != path  # each call gets its own folder
     sc.cleanup_storage()
@@ -492,3 +493,35 @@ def test_a_broken_redirect_stops_the_pipeline_wiring_up_front(monkeypatch):
     monkeypatch.setitem(sys.modules, "crewai_core.paths", None)
     with pytest.raises(StructureEngineUnavailable):
         se.make_run_pipeline("crewai")
+
+
+# --- process liveness (the cleanup of dead processes' leftovers) --------------------------
+
+def test_pid_alive_for_this_process_and_a_finished_one():
+    import subprocess
+
+    assert sc._pid_alive(os.getpid()) is True
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc.wait()
+    assert sc._pid_alive(proc.pid) is False  # runs the real implementation on every OS
+
+
+def test_pid_alive_never_uses_os_kill_on_windows(monkeypatch):
+    # On Windows os.kill(pid, 0) sends CTRL_C_EVENT instead of checking, which
+    # once interrupted the test run itself. The Windows branch must not call it.
+    def forbidden(*args):
+        raise AssertionError("os.kill must not be used on Windows")
+
+    monkeypatch.setattr(sc.sys, "platform", "win32")
+    monkeypatch.setattr(sc.os, "kill", forbidden)
+    monkeypatch.setattr(sc, "_pid_alive_windows", lambda pid: pid == 4242)
+    assert sc._pid_alive(4242) is True
+    assert sc._pid_alive(1) is False
+
+
+def test_pid_alive_uses_os_kill_signal_zero_on_posix(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sc.sys, "platform", "linux")
+    monkeypatch.setattr(sc.os, "kill", lambda pid, sig: calls.append((pid, sig)))
+    assert sc._pid_alive(123) is True
+    assert calls == [(123, 0)]
