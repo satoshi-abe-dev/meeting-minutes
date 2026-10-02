@@ -73,9 +73,16 @@ python3.13 -m venv .venv-py313
 
 - **テレメトリは切る。** CrewAI は既定で匿名の利用統計を送る。エンジンのモジュールを
   import した時点で、CrewAI を import する前に `CREWAI_DISABLE_TELEMETRY=true`・
-  `OTEL_SDK_DISABLED=true`・`CREWAI_TRACING_ENABLED=false` を設定する（ほかの値が
-  入っていても上書きする）。`tests/test_offline_env.py` が別プロセスでこれを確認し、
+  `OTEL_SDK_DISABLED=true`・`CREWAI_DISABLE_TRACKING=true`・
+  `CREWAI_TRACING_ENABLED=false` を設定する（ほかの値が入っていても上書きする）。`tests/test_offline_env.py` が別プロセスでこれを確認し、
   通常の GUI 起動ではこれらの変数に触れないことも確認する。
+- **CrewAI のデータ保存先に会議のデータを残さない。** CrewAI は実行ごとのタスク出力
+  （会議に由来するテキスト）を、`~/Library/Application Support/<フォルダー名>/` 下の
+  SQLite に保存する。これだと会議の内容が `output/` の外に残ってしまうので、エンジンは
+  保存先を専用の一時フォルダー（プロセス終了時に削除）へ向ける。CrewAI を import すると
+  `~/.config/crewai` と、ランダムな鍵ファイル
+  `~/Library/Application Support/crewai/credentials/secret.key` は作られるが、会議の内容は
+  含まない。
 - **ほかの処理と同じローカルサーバーを使う。** エージェントには
   `LLM(model="openai/<llm_model>", base_url=<[ai] base_url>, api_key=<[ai] api_key>)` を
   明示的に渡す。環境変数経由でクラウドの接続先に落ちることはない。
@@ -104,6 +111,7 @@ LLM の呼び出し回数は CrewAI の利用状況メトリクスから読み�
 | 保守状況 | 1.15.23 が 2026-09-28 にリリース。2026 年中、頻繁にリリースされている（[PyPI](https://pypi.org/project/crewai/)） |
 | 対応 Python | `>=3.10,<3.14`。このプロジェクトの文書が推奨する **3.14 には入らない** |
 | テレメトリ | 既定で有効（匿名。版・エージェント/タスク数・role 名・tool 名・モデル名・所要時間・成否。プロンプトや出力は含まない）。`CREWAI_DISABLE_TELEMETRY` または `OTEL_SDK_DISABLED` で無効化（[公式](https://docs.crewai.com/en/telemetry)） |
+| 実物での確認（1.15.23・Python 3.13） | 3 つのテレメトリ設定は CrewAI 自身の `Telemetry` が参照している。ここで使う Agent/Task/Crew/LLM の引数は存在する。偽のローカルサーバーとの実行では、loopback への接続だけだった。LLM はエージェントごとに 1 つ作る必要がある（共有すると利用量がエージェント数の分だけ重複して数えられ、3 リクエストが 9 と報告された） |
 | ローカルサーバー | `LLM(model="openai/<名前>", base_url=..., api_key=...)` で OpenAI SDK を直接使う（[公式](https://docs.crewai.com/en/concepts/llms)） |
 
 ## 比較の結果

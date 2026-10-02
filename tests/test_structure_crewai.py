@@ -48,11 +48,12 @@ class FakeLLM:
 def _install_fake_crewai(monkeypatch, *, output: str = GOOD, boom: Exception | None = None,
                          search_attempts: int = 0, usage: object | None = None):
     """Put a fake `crewai` (and crewai.tools) into sys.modules; returns a recorder."""
-    rec = SimpleNamespace(llm_kwargs=None, agents=[], tasks=[], crew_kwargs=None, tool_outputs=[])
+    rec = SimpleNamespace(llm_kwargs=None, llm_all=[], agents=[], tasks=[], crew_kwargs=None, tool_outputs=[])
 
     class LLM:
         def __init__(self, **kw):
             rec.llm_kwargs = kw
+            rec.llm_all.append(kw)
 
     class Agent:
         def __init__(self, **kw):
@@ -129,6 +130,7 @@ def test_disable_telemetry_overrides_existing_values(monkeypatch):
     sc.disable_telemetry()
     assert os.environ["CREWAI_DISABLE_TELEMETRY"] == "true"
     assert os.environ["OTEL_SDK_DISABLED"] == "true"
+    assert os.environ["CREWAI_DISABLE_TRACKING"] == "true"
     assert os.environ["CREWAI_TRACING_ENABLED"] == "false"
 
 
@@ -163,6 +165,9 @@ def test_engine_talks_only_to_the_configured_local_server(monkeypatch):
     assert kw["max_tokens"] == 777
     assert "api.openai.com" not in repr(kw)
     assert client.calls == []  # the agents use CrewAI's LLM, not the pipeline's client
+    # one LLM per agent (a shared one makes CrewAI's usage metrics count 3x)
+    assert len(rec.llm_all) == 3
+    assert all(k == kw for k in rec.llm_all)
 
 
 def test_engine_builds_three_agents_with_hard_caps(monkeypatch):
@@ -301,3 +306,35 @@ def test_crewai_engine_without_the_extra_fails_up_front(monkeypatch):
 def test_unknown_engine_is_rejected():
     with pytest.raises(ValueError):
         se.make_run_pipeline("langchain")
+
+
+# --- CrewAI's local data directory ------------------------------------------------
+
+def test_storage_is_redirected_to_a_private_temp_dir(monkeypatch):
+    import os
+
+    paths = types.ModuleType("crewai_core.paths")
+    paths.db_storage_path = lambda: "/should/not/be/used"
+    pkg = types.ModuleType("crewai_core")
+    pkg.paths = paths
+    monkeypatch.setitem(sys.modules, "crewai_core", pkg)
+    monkeypatch.setitem(sys.modules, "crewai_core.paths", paths)
+    monkeypatch.setattr(sc, "_storage_dir", None)
+    monkeypatch.setattr(sc.atexit, "register", lambda *a, **k: None)  # don't leak a hook into the test run
+
+    sc._redirect_storage()
+
+    path = paths.db_storage_path()
+    assert os.path.isdir(path)
+    assert "meeting-minutes-crewai-" in path
+    assert not path.startswith(os.path.expanduser("~/Library"))
+    sc._redirect_storage()  # idempotent: the same directory
+    assert paths.db_storage_path() == path
+    sc.shutil.rmtree(path, ignore_errors=True)
+
+
+def test_missing_crewai_core_does_not_break_the_redirect(monkeypatch):
+    monkeypatch.setitem(sys.modules, "crewai_core.paths", None)
+    monkeypatch.setattr(sc, "_storage_dir", None)
+    sc._redirect_storage()  # no error
+    assert sc._storage_dir is None

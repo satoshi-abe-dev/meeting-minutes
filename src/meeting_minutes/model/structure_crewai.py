@@ -25,8 +25,11 @@ CrewAI's usage metrics and reported in `stats`.
 
 from __future__ import annotations
 
+import atexit
 import os
 import re
+import shutil
+import tempfile
 import threading
 from dataclasses import dataclass, field
 from typing import Any
@@ -45,11 +48,13 @@ from .minutes import (
 from .structure_engine import StructureEngineUnavailable
 
 # CrewAI's own off switches for usage statistics (docs.crewai.com/en/telemetry;
-# either one is enough, both are set). CREWAI_TRACING_ENABLED keeps the
-# opt-in tracing to CrewAI's cloud off as well.
+# any one is enough, all are set; CrewAI 1.15.23's Telemetry checks the first
+# three). CREWAI_TRACING_ENABLED keeps the opt-in tracing to CrewAI's cloud off
+# as well.
 _TELEMETRY_OFF = {
     "CREWAI_DISABLE_TELEMETRY": "true",
     "OTEL_SDK_DISABLED": "true",
+    "CREWAI_DISABLE_TRACKING": "true",
     "CREWAI_TRACING_ENABLED": "false",
 }
 
@@ -61,6 +66,33 @@ def disable_telemetry() -> None:
 
 
 disable_telemetry()
+
+_storage_dir: str | None = None
+
+
+def _redirect_storage() -> None:
+    """Keep CrewAI's local data out of ~/Library/Application Support.
+
+    CrewAI stores each run's task outputs (text derived from the meeting) in a
+    SQLite file under its data directory, which would leave meeting content
+    outside output/. Point that directory at a private temp folder that is
+    deleted when the process exits. Must run before crewai is imported (it
+    resolves the directory at import time). Checked against CrewAI 1.15.23;
+    does nothing if crewai_core.paths doesn't exist (the data then goes to
+    CrewAI's default place, and the real-CrewAI test would flag it).
+    """
+    global _storage_dir
+    if _storage_dir is not None:
+        return
+    try:
+        import crewai_core.paths as paths
+    except ImportError:
+        return
+    path = tempfile.mkdtemp(prefix="meeting-minutes-crewai-")
+    atexit.register(shutil.rmtree, path, ignore_errors=True)
+    paths.db_storage_path = lambda: path
+    _storage_dir = path
+
 
 # --- Hard caps ------------------------------------------------------------
 # max_iter per agent: the Classifier and Designer need no tool, so 2 is plenty.
@@ -90,6 +122,7 @@ class EngineStats:
 def _import_crewai() -> Any:
     """Import crewai (after telemetry is off), or raise a clear error."""
     disable_telemetry()
+    _redirect_storage()
     try:
         import crewai
         import crewai.tools
@@ -163,15 +196,19 @@ def _build_crew(
 ) -> Any:
     """Assemble the three agents and their tasks into a sequential Crew."""
     # The local server is passed explicitly: no environment-variable fallback
-    # that could point at a hosted OpenAI endpoint.
-    llm = crewai.LLM(
-        model=f"openai/{ai_config.llm_model}",
-        base_url=ai_config.base_url,
-        api_key=ai_config.api_key,
-        temperature=0.2,
-        max_tokens=max_tokens,
-        timeout=ai_config.timeout,
-    )
+    # that could point at a hosted OpenAI endpoint. One LLM object per agent:
+    # CrewAI sums each agent's usage, so a shared LLM would be counted once per
+    # agent (verified against CrewAI 1.15.23: 3 requests were reported as 9).
+    def make_llm() -> Any:
+        return crewai.LLM(
+            model=f"openai/{ai_config.llm_model}",
+            base_url=ai_config.base_url,
+            api_key=ai_config.api_key,
+            temperature=0.2,
+            max_tokens=max_tokens,
+            timeout=ai_config.timeout,
+        )
+
     from crewai.tools import tool
 
     @tool("search_material")
@@ -182,7 +219,7 @@ def _build_crew(
 
     def agent(key: str, role: str, goal: str, backstory: str, tools: list | None = None) -> Any:
         return crewai.Agent(
-            role=role, goal=goal, backstory=backstory, llm=llm,
+            role=role, goal=goal, backstory=backstory, llm=make_llm(),
             tools=tools or [], allow_delegation=False, verbose=False,
             max_iter=_MAX_ITER[key], max_retry_limit=1,
             max_execution_time=int(min(_MAX_EXECUTION_SECONDS, ai_config.timeout)),

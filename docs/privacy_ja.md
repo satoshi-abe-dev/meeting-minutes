@@ -48,7 +48,8 @@
 
 - テレメトリ・使用状況の送信はない。（任意の CrewAI 版エンジン
   [`crewai_experiment_ja.md`](crewai_experiment_ja.md) は、読み込み時に CrewAI 自身の
-  テレメトリを切る。テストで確認している。）
+  テレメトリを切り、CrewAI のローカルデータを `~/Library` に残さない。テストで確認
+  している。）
 - API キーは不要（`config.toml` の `api_key` はローカルサーバーが形式的に
   要求するためのダミー値）。
 - 生成物は `output/` 以下にのみ書き出し、`.gitignore` でリポジトリ管理から除外して

@@ -75,11 +75,19 @@ There is no automatic score. Read the two structures and note what differs.
 ## How it stays local
 
 - **Telemetry is off.** CrewAI sends anonymous usage statistics by default. The
-  engine sets `CREWAI_DISABLE_TELEMETRY=true`, `OTEL_SDK_DISABLED=true` and
-  `CREWAI_TRACING_ENABLED=false` when its module is imported, before CrewAI is
-  imported, overriding any other value. `tests/test_offline_env.py` checks this in
+  engine sets `CREWAI_DISABLE_TELEMETRY=true`, `OTEL_SDK_DISABLED=true`,
+  `CREWAI_DISABLE_TRACKING=true` and `CREWAI_TRACING_ENABLED=false` when its
+  module is imported, before CrewAI is imported, overriding any other value. `tests/test_offline_env.py` checks this in
   a separate process, and also checks that a normal GUI start does not touch
   these variables.
+- **No meeting data is left in CrewAI's data directory.** CrewAI stores each
+  run's task outputs (text derived from the meeting) in a SQLite file under
+  `~/Library/Application Support/<folder name>/`, which would leave meeting
+  content outside `output/`. The engine points that directory at a private
+  temporary folder that is deleted when the process exits. Importing CrewAI
+  still creates `~/.config/crewai` and a random key file,
+  `~/Library/Application Support/crewai/credentials/secret.key`, which hold no
+  meeting content.
 - **Same local server as the rest of the tool.** The agents get
   `LLM(model="openai/<llm_model>", base_url=<[ai] base_url>, api_key=<[ai] api_key>)`
   explicitly; there is no environment-variable fallback to a hosted endpoint.
@@ -109,6 +117,7 @@ comparison table.
 | Maintenance | Version 1.15.23 released 2026-09-28; frequent releases through 2026. ([PyPI](https://pypi.org/project/crewai/)) |
 | Python versions | `>=3.10,<3.14`. **Not installable on 3.14**, which this project's docs recommend. |
 | Telemetry | On by default (anonymous: versions, agent/task counts, role and tool names, model name, timings, success/failure; not prompts or outputs). Off with `CREWAI_DISABLE_TELEMETRY` or `OTEL_SDK_DISABLED`. ([docs](https://docs.crewai.com/en/telemetry)) |
+| Checked against the real package (1.15.23, Python 3.13) | The three telemetry switches are honored by CrewAI's own `Telemetry`; the Agent/Task/Crew/LLM arguments used here exist; with a fake local server, only loopback connections were made. One LLM object per agent is needed, otherwise CrewAI's usage metrics count each request once per agent (3 requests were reported as 9). |
 | Local server | `LLM(model="openai/<name>", base_url=..., api_key=...)` uses the OpenAI SDK directly. ([docs](https://docs.crewai.com/en/concepts/llms)) |
 
 ## Results of the comparison
