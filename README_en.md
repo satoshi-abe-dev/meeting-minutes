@@ -216,10 +216,11 @@ The starter is [`templates/minutes_template_example.txt`](templates/minutes_temp
 
 > [!TIP]
 > **If you just want to run it, you can stop here.**
-> The rest covers the pipeline's internal design (the split via `pipeline.run` / `Deps`), the AI-assisted collaborative development workflow, and a development-side experiment.
+> The rest covers the pipeline's internal design (the split via `pipeline.run` / `Deps`), how the tests and CI work, the AI-assisted collaborative development workflow, and a development-side experiment.
 >
 > - How the processing flows: [How it works](#how-it-works)
 > - Why it is designed this way: [Design highlights](#design-highlights)
+> - How the tests and CI work: [Tests](#tests)
 > - How it was developed: [Development process](#development-process-ai-assisted-collaboration)
 > - The CrewAI experiment and its result: [Experiment on the development side](#experiment-on-the-development-side-trying-crewai-not-recommended-for-users)
 
