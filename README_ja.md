@@ -227,7 +227,7 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 
 > [!TIP]
 > **動かすだけなら、ここまで読めば十分です。**
-> この先は、パイプラインの内部設計（`pipeline.run` / `Deps` による分割）、AI 協調開発の運用フロー、開発側の実験の解説です。気になるところだけ読んでください。
+> この先は、パイプラインの内部設計（`pipeline.run` / `Deps` による分割）、AI 協調開発の運用フロー、開発側の実験の解説です。
 >
 > - 処理の流れを知りたい: [仕組み](#仕組み)
 > - 設計の判断を知りたい: [設計のポイント](#設計のポイント)
@@ -271,7 +271,7 @@ cp output/<動画名>/work/structure_used.txt templates/<客先名>.txt
 
 ```bash
 pip install -r requirements-dev.txt
-pytest        # 17 本。ffmpeg 実行の統合テストを含む（ffmpeg / LLM が無い環境では自動 skip）
+pytest        # tests/ 以下のテストを全部実行。ffmpeg を実行する統合テストを含む（ffmpeg が無い環境ではその分を自動で skip。LLM はテスト用の偽物で代用するので不要）
 ```
 
 ### CI（自動テスト）とは

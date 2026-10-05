@@ -216,7 +216,7 @@ The starter is [`templates/minutes_template_example.txt`](templates/minutes_temp
 
 > [!TIP]
 > **If you just want to run it, you can stop here.**
-> The rest covers the pipeline's internal design (the split via `pipeline.run` / `Deps`), the AI-assisted collaborative development workflow, and a development-side experiment. Read only what interests you.
+> The rest covers the pipeline's internal design (the split via `pipeline.run` / `Deps`), the AI-assisted collaborative development workflow, and a development-side experiment.
 >
 > - How the processing flows: [How it works](#how-it-works)
 > - Why it is designed this way: [Design highlights](#design-highlights)
@@ -250,7 +250,7 @@ For the reasoning behind decisions and their trade-offs, see [`docs/DESIGN_en.md
 
 ```bash
 pip install -r requirements-dev.txt
-pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipped where ffmpeg / an LLM is unavailable)
+pytest        # Runs every test under tests/. Includes integration tests that run ffmpeg (skipped automatically where ffmpeg is unavailable; a fake stands in for the LLM, so none is needed)
 ```
 
 ### What CI (automated testing) is
