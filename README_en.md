@@ -286,7 +286,7 @@ On clean computers that GitHub provides, it automatically runs two kinds of jobs
 
 1. At the bottom of the PR page, each item shows a green ✓ (passed) or a red ✗ (failed).
 2. All green means the PR is closer to being ready to merge. It is a guide, not a guarantee.
-3. If something is red, open its "Details" to read the log and see which test failed.
+3. A red item has a "Details" link that opens its log, which shows which test failed.
 
 In this project the rule is to check that every CI item is green before merging ([`.claude/CLAUDE.md`](.claude/CLAUDE.md)).
 
@@ -295,7 +295,7 @@ In this project the rule is to check that every CI item is green before merging 
 - CI does not set up `ffmpeg` or a real local LLM. Where `ffmpeg` is missing, the tests that need it are skipped automatically, and a fake stands in for the LLM in the tests.
 - Green does not guarantee that **a real video turns into minutes.** That is checked by running it on your own machine.
 
-**Run the same checks on your own computer**
+**Commands for running the same checks on your own computer**
 
 ```bash
 pip install -r requirements-dev.txt
