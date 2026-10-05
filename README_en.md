@@ -253,6 +253,57 @@ pip install -r requirements-dev.txt
 pytest        # 17 files. Includes integration tests that run ffmpeg (auto-skipped where ffmpeg / an LLM is unavailable)
 ```
 
+### What CI (automated testing) is
+
+CI stands for Continuous Integration: **a setup that automatically runs a fixed set of checks every time the code changes.**
+It exists so that nobody has to remember to run the tests, and so that "it passed on my computer" does not slip through.
+
+This project runs CI with a GitHub feature (GitHub Actions). The setup is in [`.github/workflows/test.yml`](.github/workflows/test.yml).
+
+**When it runs**
+
+- When a PR to `main` is opened or updated (before the merge, on the state of that branch)
+- When something is merged into `main` (on the state after the merge)
+
+**What it does**
+
+On clean computers that GitHub provides, it automatically runs two kinds of jobs (units of work):
+
+| Name | What it does | Where |
+| --- | --- | --- |
+| `tests` | Runs all the tests with `pytest` | Linux, Windows and macOS (Python 3.11) |
+| `lint` | `ruff` (checks for mistakes and style) and `mypy` (checks for mismatched types) | Linux |
+
+`tests` runs once per OS, so four items appear on screen in total (three `tests` and one `lint`).
+
+**How pytest fits in**
+
+- `pytest` is the tool that runs the tests. Running `pytest` on your own computer and the `tests` job in CI do the same thing.
+- The difference is that CI runs in **a clean environment, not your own computer**. It can catch code that relies on a file or setting that only exists on your machine, and problems that only happen on Windows.
+- `ruff` and `mypy` are separate tools for a kind of mistake the tests do not find (typos, mismatched types).
+
+**How to read the result**
+
+1. At the bottom of the PR page, each item shows a green ✓ (passed) or a red ✗ (failed).
+2. All green means the PR is closer to being ready to merge. It is a guide, not a guarantee.
+3. A red item has a "Details" link that opens its log, which shows which test failed.
+
+In this project the rule is to check that every CI item is green before merging ([`.claude/CLAUDE.md`](.claude/CLAUDE.md)).
+
+**What CI does not check**
+
+- CI does not set up `ffmpeg` or a real local LLM. Where `ffmpeg` is missing, the tests that need it are skipped automatically, and a fake stands in for the LLM in the tests.
+- Green does not guarantee that **a real video turns into minutes.** That is checked by running it on your own machine.
+
+**Commands for running the same checks on your own computer**
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -ra            # same as tests
+python -m ruff check src tests  # lint (1)
+python -m mypy                  # lint (2)
+```
+
 ## Development process (AI-assisted collaboration)
 
 This project was implemented by **two role-separated Claude Code sessions** (independent `claude` processes) working together. It applies the idea of **harness engineering** — pairing LLM output with verification and guardrails rather than trusting it outright — to the development process itself.
